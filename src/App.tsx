@@ -22,7 +22,7 @@ const App = () => (
           <div className="relative z-10 min-h-screen">
             <Toaster />
             <Sonner />
-            <BrowserRouter>
+            <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/therapist" element={<TherapistDashboard />} />

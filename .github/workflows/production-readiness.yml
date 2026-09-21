@@ -1,0 +1,60 @@
+name: Production Readiness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Typecheck API
+        run: npm run typecheck:server
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Install browser for visual smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Visual smoke test
+        shell: bash
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 8081 > /tmp/playground-vite.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8081 > /dev/null; then
+              VISUAL_SMOKE_BASE_URL=http://127.0.0.1:8081 npm run visual:smoke
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat /tmp/playground-vite.log
+          exit 1
