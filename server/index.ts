@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth.ts";
 import childrenRoutes from "./routes/children.ts";
 import assignmentRoutes from "./routes/assignments.ts";
 import auditRoutes from "./routes/audit.ts";
+import gameRoutes from "./routes/games.ts";
 
 export function createApp() {
   const app = express();
@@ -24,6 +25,7 @@ export function createApp() {
   app.use("/api/children", childrenRoutes);
   app.use("/api/assignments", assignmentRoutes);
   app.use("/api/audit", auditRoutes);
+  app.use("/api/games", gameRoutes);
 
   const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     console.error(error);
