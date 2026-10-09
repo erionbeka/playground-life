@@ -1,7 +1,8 @@
-import { Difficulty, GameConfig } from "@/data/games";
+import { Difficulty, GameConfig, ReadinessStage, SupportLevel } from "@/data/games";
 
-export type SupportLevel = "high" | "moderate" | "light";
-export type ReadinessStage = "stabilize" | "build" | "generalize" | "stretch";
+export type { ReadinessStage, SupportLevel } from "@/data/games";
+
+export { getLearningPurpose, getLearningPurposeIcon } from "@/lib/learningPurpose";
 
 export interface AdaptiveGameConfig {
   difficulty: Difficulty;
@@ -30,4 +31,25 @@ export function difficultyToNumber(difficulty: Difficulty) {
 
 export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * How many prompted taps a playground step needs before it can be advanced.
+ * Calm mode, high support, or easy difficulty always reduce this to a single
+ * reachable tap so no child is ever locked out of continuing.
+ */
+export function playgroundTapsNeeded(difficulty: Difficulty, supportLevel: SupportLevel, calmMode: boolean): number {
+  if (calmMode) return 1;
+  if (supportLevel === "high") return 1;
+  if (difficulty === "easy") return 1;
+  if (difficulty === "hard") return 3;
+  return 2;
+}
+
+/**
+ * Whether a countdown timer should be shown. Timers are hidden in calm mode
+ * and at high support so the activity never feels pressured.
+ */
+export function shouldShowCountdown(calmMode: boolean, supportLevel: SupportLevel): boolean {
+  return !calmMode && supportLevel !== "high";
 }

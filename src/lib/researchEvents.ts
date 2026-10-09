@@ -59,7 +59,7 @@ export const researchEventSchema = z.object({
 
 export type ResearchEventInput = z.input<typeof researchEventSchema>;
 
-export function validateResearchEvent(event: ResearchEventInput): { ok: true } | { ok: false; issues: string[] } {
+export function validateResearchEvent(event: unknown): { ok: true } | { ok: false; issues: string[] } {
   const parsed = researchEventSchema.safeParse(event);
   if (parsed.success) return { ok: true };
   return { ok: false, issues: parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`) };

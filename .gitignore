@@ -21,6 +21,10 @@ playwright-report
 test-results
 .netlify
 
+# Generated docs/PDF artifacts
+output
+work
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

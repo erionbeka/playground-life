@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allGames, GameConfig } from "@/data/games";
 import ChoiceRequestEngine from "@/components/game/engines/ChoiceRequestEngine";
@@ -84,5 +84,20 @@ describe("choice request engine", () => {
     await advance(31000);
     expect(onComplete).not.toHaveBeenCalled();
     expect(screen.getAllByRole("button").length).toBeGreaterThan(0);
+  });
+
+  it("shows an expressive expansion ladder that grows as the child requests", async () => {
+    const game = requestGames[0];
+    renderRequestGame(game);
+
+    const ladder = screen.getByTestId("request-ladder");
+    expect(ladder.textContent).toMatch(/I want/);
+    const currentRung = () => within(ladder).getByRole("listitem", { current: "step" }).textContent;
+    expect(currentRung()).toBe("snack");
+
+    const buttons = screen.getAllByRole("button");
+    fireEvent.click(buttons[buttons.length - 1]);
+    await advance(2000);
+    expect(currentRung()).toBe("want snack");
   });
 });

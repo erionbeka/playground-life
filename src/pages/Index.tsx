@@ -1,5 +1,5 @@
-import RoleSelector from "@/components/RoleSelector";
+import HomePage from "./HomePage";
 
 export default function Index() {
-  return <RoleSelector />;
+  return <HomePage />;
 }

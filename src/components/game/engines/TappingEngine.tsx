@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { GameConfig } from "@/data/games";
-import { clamp, getAdaptiveGameConfig } from "@/lib/gameProgression";
+import { clamp, getAdaptiveGameConfig, shouldShowCountdown } from "@/lib/gameProgression";
+import { useSensory } from "@/lib/sensory";
 
 interface Props {
   game: GameConfig;
@@ -39,6 +40,16 @@ const themeVisuals: Record<string, { emoji: string; background: string; renderAs
   "target aim": { emoji: "target", background: "from-rose-100/80 via-orange-100/70 to-yellow-100/60" },
   default: { emoji: "star", background: "from-sky-100/80 via-white/70 to-fuchsia-100/60" },
 };
+
+export const FALL_THEMES = new Set([
+  "catch the ball",
+  "raindrops",
+  "snowflakes",
+  "leaves",
+  "stars",
+  "fireflies",
+  "balloons",
+]);
 
 const iconMap: Record<string, string> = {
   butterfly: "B",
@@ -98,12 +109,15 @@ export default function TappingEngine({ game, onInteraction, onComplete }: Props
   const visual = themeVisuals[theme] || themeVisuals.default;
   const speed = (game.config.speed as string) || "medium";
   const { difficulty, supportLevel, readinessStage } = getAdaptiveGameConfig(game);
+  const { calmMode } = useSensory();
+  const timed = shouldShowCountdown(calmMode, supportLevel);
   const [targets, setTargets] = useState<Target[]>([]);
   const [hits, setHits] = useState(0);
   const [missed, setMissed] = useState(0);
   const [wrongTaps, setWrongTaps] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(24);
+  const [timeLeft, setTimeLeft] = useState<number | null>(timed ? 24 : null);
   const idRef = useRef(0);
+  const completedRef = useRef(false);
   const missTimeoutsRef = useRef<number[]>([]);
   const spawnLoopRef = useRef<number | null>(null);
   const timeLeftRef = useRef(timeLeft);
@@ -135,9 +149,10 @@ export default function TappingEngine({ game, onInteraction, onComplete }: Props
   }, [hits]);
 
   useEffect(() => {
+    if (!timed) return;
     const timer = window.setInterval(() => {
       setTimeLeft((current) => {
-        if (current <= 1) {
+        if (current === null || current <= 1) {
           window.clearInterval(timer);
           return 0;
         }
@@ -146,26 +161,33 @@ export default function TappingEngine({ game, onInteraction, onComplete }: Props
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [timed]);
 
   useEffect(() => {
-    if (timeLeft !== 0) return;
+    completedRef.current = false;
+    setTimeLeft(timed ? 24 : null);
+  }, [timed]);
+
+  useEffect(() => {
+    if (timeLeft !== 0 || completedRef.current) return;
 
     missTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
     missTimeoutsRef.current = [];
+    completedRef.current = true;
     onComplete(clamp(Math.round((accuracy + progress) / 2), 35, 100));
   }, [accuracy, onComplete, progress, timeLeft]);
 
   useEffect(() => {
-    if (hits < goal || timeLeft <= 0) return;
+    if (hits < goal || completedRef.current) return;
 
     missTimeoutsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
     missTimeoutsRef.current = [];
+    completedRef.current = true;
     onComplete(clamp(Math.round((accuracy + progress) / 2), 60, 100));
-  }, [accuracy, goal, hits, onComplete, progress, timeLeft]);
+  }, [accuracy, goal, hits, onComplete, progress]);
 
   const spawnTarget = useCallback(() => {
-    if (timeLeftRef.current <= 0 || hitsRef.current >= goal) return;
+    if (timeLeftRef.current === 0 || hitsRef.current >= goal) return;
 
     const id = idRef.current++;
     const spawnDistractor = showDistractors && Math.random() > (difficulty === "hard" || supportLevel === "light" ? 0.45 : 0.72);
@@ -197,11 +219,11 @@ export default function TappingEngine({ game, onInteraction, onComplete }: Props
   }, [difficulty, goal, showDistractors, supportLevel, targetLifetime, visual.emoji]);
 
   useEffect(() => {
-    if (timeLeft <= 0 || hits >= goal) return;
+    if (timeLeft === 0 || hits >= goal) return;
 
     const runLoop = () => {
       spawnTarget();
-      if (timeLeftRef.current <= 0 || hitsRef.current >= goal) return;
+      if (timeLeftRef.current === 0 || hitsRef.current >= goal) return;
       spawnLoopRef.current = window.setTimeout(runLoop, spawnInterval);
     };
 
@@ -228,21 +250,19 @@ export default function TappingEngine({ game, onInteraction, onComplete }: Props
 
   const handleTap = (id: number) => {
     onInteraction();
-    setTargets((currentTargets) => {
-      const tapped = currentTargets.find((target) => target.id === id);
-      if (tapped?.kind === "target") {
-        setHits((currentScore) => currentScore + 1);
-      } else {
-        setWrongTaps((currentWrongTaps) => currentWrongTaps + 1);
-      }
-      return currentTargets.filter((target) => target.id !== id);
-    });
+    const tapped = targets.find((target) => target.id === id);
+    setTargets((currentTargets) => currentTargets.filter((target) => target.id !== id));
+    if (tapped?.kind === "target") {
+      setHits((currentScore) => currentScore + 1);
+    } else {
+      setWrongTaps((currentWrongTaps) => currentWrongTaps + 1);
+    }
   };
 
   return (
     <div className="mx-auto max-w-lg">
       <div className="mb-3 flex justify-between text-sm text-muted-foreground">
-        <span>Time {timeLeft}s</span>
+        <span>{calmMode ? "Take your time 🌈" : timed ? `⏱ ${timeLeft}s` : null}</span>
         <span>Targets {hits}/{goal}</span>
         <span>Accuracy {accuracy}%</span>
       </div>

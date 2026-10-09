@@ -156,7 +156,7 @@ export default function PatternNextEngine({ game, onInteraction, onComplete }: P
   const comboRef = useRef(0);
   const completedRef = useRef(false);
   const boardRef = useRef<HTMLDivElement | null>(null);
-  const { playHitSound, playMissSound } = useGameAudio();
+  const { playTapSound } = useGameAudio();
   const { bursts, fireBurst } = useBursts();
   const { controls, wobble } = useWobble();
   const rec = useMemo(() => createSessionRecorder(game.id), [game.id]);
@@ -202,7 +202,7 @@ export default function PatternNextEngine({ game, onInteraction, onComplete }: P
       adaptive.recordSuccess(wrongPicks.length > 0);
       comboRef.current += 1;
       setCombo(comboRef.current);
-      playHitSound(comboRef.current);
+      playTapSound();
       fireBurst(50, 45, option);
       speak(`Yes! ${round.answer} comes next.`);
       const nextRound = roundIndex + 1;
@@ -242,7 +242,7 @@ export default function PatternNextEngine({ game, onInteraction, onComplete }: P
       prompted: false,
     });
     wobble();
-    playMissSound();
+    playTapSound();
     speak(`Not yet. Say it with me: ${round.shown.join(", ")}`);
   };
 

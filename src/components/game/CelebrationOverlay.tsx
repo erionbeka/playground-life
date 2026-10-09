@@ -1,4 +1,7 @@
 import { motion } from "framer-motion";
+import { reduceMotionEffects, useReducedMotionMode } from "@/lib/motion";
+import { useSensory } from "@/lib/sensory";
+import type { RewardResult } from "@/lib/rewards";
 
 interface CelebrationTheme {
   icon: string;
@@ -12,20 +15,27 @@ interface Props {
   childAvatar: string;
   message: string;
   themes: CelebrationTheme[];
+  reward?: RewardResult | null;
+  extensionPrompt?: string;
   onContinue: () => void;
+  regionRef?: (el: HTMLElement | null) => void;
 }
 
-export default function CelebrationOverlay({ childName, childAvatar, message, themes, onContinue }: Props) {
-  const confetti = themes.slice(0, 6);
+export default function CelebrationOverlay({ childName, childAvatar, message, themes, extensionPrompt, onContinue, regionRef }: Props) {
+  const reducedMotion = useReducedMotionMode();
+  const { calmMode } = useSensory();
+  const suppressed = reduceMotionEffects(reducedMotion, calmMode);
+  const confetti = suppressed ? [] : themes.slice(0, 6);
 
   return (
     <motion.div
+      ref={regionRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 py-6 backdrop-blur-sm"
     >
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div data-testid="confetti-layer" className="pointer-events-none absolute inset-0 overflow-hidden">
         {confetti.map((theme, index) => (
           <motion.div
             key={`${theme.label}-${index}`}
@@ -73,6 +83,19 @@ export default function CelebrationOverlay({ childName, childAvatar, message, th
             Each finished activity helps the therapist and family see which skills are getting stronger and when it is time to move up to the next challenge.
           </p>
         </div>
+
+        {extensionPrompt ? (
+          <div
+            data-testid="celebration-real-world"
+            className="mt-4 rounded-2xl border-2 border-white/30 bg-white/10 p-4 text-left"
+          >
+            <p className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.18em] text-white/70">
+              <span aria-hidden="true">🌍</span>
+              Take it into the real world
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-6 text-white/90">{extensionPrompt}</p>
+          </div>
+        ) : null}
 
         <button
           onClick={onContinue}

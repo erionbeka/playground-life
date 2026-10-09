@@ -11,7 +11,7 @@ export async function getAvailableMigrations(): Promise<string[]> {
   const entries = await readdir(migrationsDir);
   return entries
     .filter((name) => name.endsWith(".sql"))
-    .toSorted();
+    .sort();
 }
 
 /** Pure function: returns pending migrations given applied and available lists. */
@@ -21,4 +21,5 @@ export function pendingMigrations(applied: string[], available: string[]): strin
 }
 
 // Re-export for backward compatibility
-export { readFile, readdir, path, fileURLToPath } from "node:fs/promises";
+export { readFile, readdir } from "node:fs/promises";
+export { path, fileURLToPath };

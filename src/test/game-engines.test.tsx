@@ -13,6 +13,12 @@ import RecognitionEngine from "@/components/game/engines/RecognitionEngine";
 import CountingEngine from "@/components/game/engines/CountingEngine";
 import MemoryEngine from "@/components/game/engines/MemoryEngine";
 import BuildingEngine, { getBuildTemplate } from "@/components/game/engines/BuildingEngine";
+import ChoiceRequestEngine from "@/components/game/engines/ChoiceRequestEngine";
+import RegulationEngine from "@/components/game/engines/RegulationEngine";
+import FlexibleThinkingEngine from "@/components/game/engines/FlexibleThinkingEngine";
+import MagicToysEngine from "@/components/game/engines/MagicToysEngine";
+import PatternNextEngine from "@/components/game/engines/PatternNextEngine";
+import OddOneOutEngine from "@/components/game/engines/OddOneOutEngine";
 
 interface GameEngineProps {
   game: GameConfig;
@@ -33,19 +39,12 @@ const engineComponents: Record<string, ComponentType<GameEngineProps>> = {
   recognition: RecognitionEngine,
   counting: CountingEngine,
   memory: MemoryEngine,
-};
-
-const matchingEmojiSets: Record<string, string[]> = {
-  animals: ["ðŸ¶", "ðŸ±", "ðŸ°", "ðŸ¸", "ðŸ¦Š", "ðŸ¼", "ðŸ¨", "ðŸ¦"],
-  food: ["ðŸŽ", "ðŸŒ", "ðŸ•", "ðŸ¦", "ðŸ§", "ðŸ©", "ðŸ¥•", "ðŸ‡"],
-  vehicles: ["ðŸš—", "ðŸšŒ", "ðŸš€", "âœˆï¸", "ðŸš‚", "ðŸï¸", "ðŸš²", "â›µ"],
-  emotions: ["ðŸ˜Š", "ðŸ˜¢", "ðŸ˜®", "ðŸ˜¡", "ðŸ¥°", "ðŸ˜´", "ðŸ¤©", "ðŸ˜‚"],
-  nature: ["ðŸŒ¸", "ðŸŒ»", "ðŸŒ²", "ðŸ‚", "ðŸŒˆ", "â­", "ðŸŒ™", "â˜€ï¸"],
-  colors: ["ðŸ”´", "ðŸ”µ", "ðŸŸ¢", "ðŸŸ¡", "ðŸŸ£", "ðŸŸ ", "â¬›", "â¬œ"],
-  letters: ["A", "B", "C", "D", "E", "F", "G", "H"],
-  music: ["ðŸŽ¸", "ðŸŽ¹", "ðŸŽ»", "ðŸ¥", "ðŸŽ¤", "ðŸŽ§", "ðŸŽµ", "ðŸŽ¼"],
-  clothes: ["ðŸ‘•", "ðŸ‘–", "ðŸ§¢", "ðŸ§¤", "ðŸ§¦", "ðŸ‘—", "ðŸ‘Ÿ", "ðŸ§¥"],
-  default: ["ðŸ”´", "ðŸ”µ", "ðŸŸ¢", "ðŸŸ¡", "ðŸŸ£", "ðŸŸ ", "â¬›", "â¬œ"],
+  "choice-request": ChoiceRequestEngine,
+  regulation: RegulationEngine,
+  flexible: FlexibleThinkingEngine,
+  "magic-toys": MagicToysEngine,
+  "pattern-next": PatternNextEngine,
+  "odd-one-out": OddOneOutEngine,
 };
 
 const recognitionTargets: Record<string, string[]> = {
@@ -81,13 +80,6 @@ function renderGame(game: GameConfig, onComplete = vi.fn()) {
   return { ...utils, onComplete };
 }
 
-function getMatchingDeck(game: GameConfig) {
-  const pairs = Number(game.config.pairs || 4);
-  const theme = String(game.config.theme || "default");
-  const emojis = matchingEmojiSets[theme] || matchingEmojiSets.default;
-  return shuffleItems([...emojis.slice(0, pairs), ...emojis.slice(0, pairs)]);
-}
-
 async function playGame(game: GameConfig, onComplete: ReturnType<typeof vi.fn>, container: HTMLElement) {
   switch (game.engine) {
     case "sandbox":
@@ -109,18 +101,43 @@ async function playGame(game: GameConfig, onComplete: ReturnType<typeof vi.fn>, 
       break;
     }
     case "matching": {
-      const deck = getMatchingDeck(game);
-      const pairs = new Map<string, number[]>();
-      deck.forEach((emoji, index) => {
-        pairs.set(emoji, [...(pairs.get(emoji) || []), index]);
-      });
-
-      for (const indexes of pairs.values()) {
-        const [first, second] = indexes;
+      if (String(game.config.matchStyle || game.config.variant) === "category") {
+        let safety = 0;
+        while (!onComplete.mock.calls.length && safety < 200) {
+          const card = screen.queryByRole("button", { name: /card$/i });
+          if (card) fireEvent.click(card);
+          const bins = screen.queryAllByRole("button", { name: /category$/i });
+          for (const bin of bins) {
+            if (onComplete.mock.calls.length) break;
+            fireEvent.click(bin);
+            await advance(20);
+          }
+          await advance(50);
+          safety += 1;
+        }
+        break;
+      }
+      let safety = 0;
+      while (!onComplete.mock.calls.length && safety < 200) {
+        const groups = new Map<string, HTMLButtonElement[]>();
         const buttons = Array.from(container.querySelectorAll("button")) as HTMLButtonElement[];
-        fireEvent.click(buttons[first]);
-        fireEvent.click(buttons[second]);
-        await advance(600);
+        for (const button of buttons) {
+          if (button.disabled) continue;
+          const label = button.getAttribute("aria-label") || button.textContent || "";
+          groups.set(label, [...(groups.get(label) || []), button]);
+        }
+        let progressed = false;
+        for (const group of groups.values()) {
+          if (onComplete.mock.calls.length) break;
+          if (group.length >= 2) {
+            fireEvent.click(group[0]);
+            fireEvent.click(group[1]);
+            progressed = true;
+            await advance(600);
+          }
+        }
+        if (!progressed) await advance(600);
+        safety += 1;
       }
       break;
     }
@@ -175,6 +192,50 @@ async function playGame(game: GameConfig, onComplete: ReturnType<typeof vi.fn>, 
     case "memory": {
       await advance(2000);
       fireEvent.click(screen.getAllByRole("button")[0]);
+      break;
+    }
+    case "choice-request": {
+      let safety = 0;
+      while (!onComplete.mock.calls.length && safety < 16) {
+        const buttons = screen.queryAllByRole("button");
+        if (buttons.length === 0) break;
+        fireEvent.click(buttons[buttons.length - 1]);
+        await advance(2000);
+        safety += 1;
+      }
+      break;
+    }
+    case "regulation":
+    case "flexible": {
+      let safety = 0;
+      while (!onComplete.mock.calls.length && safety < 24) {
+        const buttons = screen.queryAllByRole("button");
+        if (buttons.length === 0) break;
+        fireEvent.click(buttons[buttons.length - 1]);
+        await advance(400);
+        safety += 1;
+      }
+      break;
+    }
+    case "magic-toys":
+    case "pattern-next":
+    case "odd-one-out": {
+      let safety = 0;
+      while (!onComplete.mock.calls.length && safety < 60) {
+        const buttons = screen.queryAllByRole("button");
+        if (buttons.length === 0) {
+          await advance(200);
+          safety += 1;
+          continue;
+        }
+        for (const button of buttons) {
+          if (onComplete.mock.calls.length) break;
+          fireEvent.click(button);
+          await advance(150);
+        }
+        await advance(500);
+        safety += 1;
+      }
       break;
     }
     default:

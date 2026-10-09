@@ -141,7 +141,7 @@ export default function OddOneOutEngine({ game, onInteraction, onComplete }: Pro
   const comboRef = useRef(0);
   const completedRef = useRef(false);
   const boardRef = useRef<HTMLDivElement | null>(null);
-  const { playHitSound, playMissSound } = useGameAudio();
+  const { playTapSound } = useGameAudio();
   const { bursts, fireBurst } = useBursts();
   const { controls, wobble } = useWobble();
   const rec = useMemo(() => createSessionRecorder(game.id), [game.id]);
@@ -185,7 +185,7 @@ export default function OddOneOutEngine({ game, onInteraction, onComplete }: Pro
       comboRef.current += 1;
       setCombo(comboRef.current);
       setWrongPicks([]);
-      playHitSound(comboRef.current);
+      playTapSound();
       fireBurst(50, 45, option);
       speak(`Yes! ${row.reason}.`);
       const nextRound = roundIndex + 1;
@@ -224,7 +224,7 @@ export default function OddOneOutEngine({ game, onInteraction, onComplete }: Pro
       prompted: false,
     });
     wobble();
-    playMissSound();
+    playTapSound();
     setFeedback(`Good thinking. Look again — which one is different?`);
     speak("Look again. Which one is different?");
   };

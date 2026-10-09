@@ -9,6 +9,7 @@ import AdminDashboard from "@/components/admin/AdminDashboard";
 import TherapistDashboard from "@/components/therapist/TherapistDashboard";
 import ParentDashboard from "@/components/parent/ParentDashboard";
 import Index from "./pages/Index.tsx";
+import RoleSelector from "@/components/RoleSelector";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -25,6 +26,7 @@ const App = () => (
             <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <Routes>
                 <Route path="/" element={<Index />} />
+                <Route path="/enter" element={<RoleSelector />} />
                 <Route path="/therapist" element={<TherapistDashboard />} />
                 <Route path="/family" element={<ParentDashboard />} />
                 <Route path="/admin" element={<AdminDashboard />} />

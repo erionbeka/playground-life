@@ -6,10 +6,18 @@ export default function RoleSelector() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4 sm:p-6">
+      <button
+        onClick={() => navigate("/")}
+        className="absolute left-4 top-4 touch-target text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← Home
+      </button>
       <div className="relative z-10 w-full max-w-2xl text-center">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
           <h1 className="mb-2 font-display text-4xl font-extrabold text-foreground sm:text-5xl">Playground Life</h1>
-          <p className="mb-10 text-base text-muted-foreground sm:mb-12 sm:text-lg">Social Play for Autism - Homework & Classwork</p>
+          <p className="mb-10 text-base text-muted-foreground sm:mb-12 sm:text-lg">
+            AAC-enabled guided play for home and clinic
+          </p>
         </motion.div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">

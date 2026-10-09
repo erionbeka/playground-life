@@ -47,6 +47,22 @@ export interface ApiGameResultPayload {
   skillScores?: Record<string, unknown>;
 }
 
+export interface ApiCaregiverPayload {
+  childId: string;
+  name: string;
+  relationship: string;
+  phoneNumber: string;
+  temporaryPassword: string;
+}
+
+export interface ApiGoalPayload {
+  childId: string;
+  domain: string;
+  title: string;
+  targetLevel: number;
+  notes?: string;
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -100,6 +116,97 @@ export const productionApi = {
     });
   },
 
+  updateChild(id: string, payload: Partial<ApiChildPayload>) {
+    return request<{ id: string }>(`/api/children/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  recordChildMood(childId: string, mood: "great" | "okay" | "meh" | "worried" | "overwhelmed") {
+    return request<{ ok: true }>(`/api/children/${childId}/moods`, {
+      method: "POST",
+      body: JSON.stringify({ mood }),
+    });
+  },
+
+  recordChildEvent(childId: string, type: string, detail?: string) {
+    return request<{ ok: true }>(`/api/children/${childId}/events`, {
+      method: "POST",
+      body: JSON.stringify({ type, detail }),
+    });
+  },
+
+  getChildPreferences(childId: string) {
+    return request<{
+      preferences: { soundOn: boolean; voiceOn: boolean; calmMode: boolean };
+    }>(`/api/children/${childId}/preferences`);
+  },
+
+  setChildPreference(
+    childId: string,
+    preference: Partial<{ soundOn: boolean; voiceOn: boolean; calmMode: boolean }>
+  ) {
+    return request<{ ok: true }>(`/api/children/${childId}/preferences`, {
+      method: "PUT",
+      body: JSON.stringify(preference),
+    });
+  },
+
+  saveChildRewards(
+    childId: string,
+    rewards: { stars: number; stickers: string[]; plays: number }
+  ) {
+    return request<{ ok: true }>(`/api/children/${childId}/rewards`, {
+      method: "PUT",
+      body: JSON.stringify(rewards),
+    });
+  },
+
+  deleteChild(id: string) {
+    return request<void>(`/api/children/${id}`, { method: "DELETE" });
+  },
+
+  listFamilyLinks() {
+    return request<{ familyLinks: unknown[] }>("/api/families");
+  },
+
+  getFamilySession() {
+    return request<{ children: unknown[]; assignments: unknown[] }>("/api/family/session");
+  },
+
+  createCaregiver(payload: ApiCaregiverPayload) {
+    return request<{ id: string; userId: string }>("/api/families", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  resetCaregiverPassword(userId: string, payload: { temporaryPassword: string; credentialStatus?: "active" | "pending" }) {
+    return request<{ userId: string; credentialStatus: "active" | "pending" }>(`/api/families/${userId}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  listGoals() {
+    return request<{ goals: unknown[] }>("/api/goals");
+  },
+
+  createGoal(payload: ApiGoalPayload) {
+    return request<{ id: string }>("/api/goals", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  updateGoalStatus(id: string, status: "active" | "paused" | "achieved") {
+    return request<{ id: string; status: "active" | "paused" | "achieved" }>(`/api/goals/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  },
+
   listAssignments() {
     return request<{ assignments: unknown[] }>("/api/assignments");
   },
@@ -123,6 +230,10 @@ export const productionApi = {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  removeGameFromAssignment(assignmentId: string, gameId: string) {
+    return request<void>(`/api/assignments/${assignmentId}/games/${gameId}`, { method: "DELETE" });
   },
 
   listAuditLog() {

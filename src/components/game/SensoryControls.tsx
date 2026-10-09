@@ -1,7 +1,8 @@
-import { Volume2, VolumeX, Waves, Wind, MessageCircle, MessageSquareOff } from "lucide-react";
+import { Volume2, VolumeX, Waves, Wind, MessageCircle, MessageSquareOff, Settings2 } from "lucide-react";
 import { updateSensory, useSensory } from "@/lib/sensory";
 import { isVoiceEnabled, setVoiceEnabled, speak } from "@/lib/speech";
 import { useState } from "react";
+import InputModeSettings from "@/components/input/InputModeSettings";
 
 export function useVoiceToggle() {
   const [voiceOn, setVoiceOn] = useState(() => isVoiceEnabled());
@@ -52,13 +53,14 @@ export default function SensoryControls({
 }) {
   const { soundOn, calmMode } = useSensory();
   const { voiceOn, toggleVoice } = useVoiceToggle();
+  const [showAccess, setShowAccess] = useState(false);
 
   const report = (type: "calm" | "voice" | "sound", enabled: boolean) => {
     onRegulationEvent?.(type, enabled);
   };
 
   return (
-    <div className="flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-2 py-1 shadow-sm">
+    <div className="relative flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-2 py-1 shadow-sm">
       <Pill
         active={soundOn}
         label={soundOn ? "Turn sound effects off" : "Turn sound effects on"}
@@ -90,6 +92,16 @@ export default function SensoryControls({
         <Pill active={false} label="Take a calming breath break" onClick={onBreathingBreak}>
           <Wind className="h-4 w-4" aria-hidden="true" />
         </Pill>
+      ) : null}
+
+      <Pill active={showAccess} label="Input access settings" onClick={() => setShowAccess((current) => !current)}>
+        <Settings2 className="h-4 w-4" aria-hidden="true" />
+      </Pill>
+
+      {showAccess ? (
+        <div className="absolute right-0 top-full z-50 mt-2 w-80" data-input-ignore>
+          <InputModeSettings />
+        </div>
       ) : null}
     </div>
   );

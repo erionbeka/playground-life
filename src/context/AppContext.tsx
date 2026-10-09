@@ -119,9 +119,10 @@ export interface HomeworkAssignment {
   completedGames: string[];
   results: GameResult[];
   assignedFamilyMemberId?: string;
-  skillFocus: SkillDomain[];
+  skillFocus: string[];
   supportLevel?: "high" | "moderate" | "light";
   systemSuggestedDifficulty?: Difficulty;
+  tuning?: Record<string, Record<string, unknown>>;
   therapistApproval: "pending" | "approved" | "adjusted";
   approvedAt?: string;
   approvedBy?: string;
@@ -145,6 +146,14 @@ export interface GameResult {
   durationSeconds: number;
   score: number;
   interactions: number;
+  completedSuccessfully?: boolean;
+  trials?: number;
+  correctTrials?: number;
+  errors?: number;
+  accuracy?: number;
+  masteryThreshold?: number;
+  attemptsBySkill?: Record<string, number>;
+  observations?: string[];
   socialScore?: number;
   attentionSpan?: number;
   promptsNeeded?: number;
@@ -155,6 +164,11 @@ export interface GameResult {
   independenceLevel?: number;
   transitionEase?: number;
   skillScores?: Partial<Record<SkillDomain, number>>;
+  trace?: import("@/lib/gameAnalytics").SessionTrace;
+  insights?: import("@/lib/gameAnalytics").Insight[];
+  independenceRate?: number;
+  medianLatencyMs?: number;
+  sessionEvents?: import("@/lib/gameAnalytics").EventRecord[];
 }
 
 export interface AuditEntry {
@@ -168,29 +182,31 @@ export interface AuditEntry {
   createdAt: string;
 }
 
-interface AppState {
+type MaybePromise<T> = T | Promise<T>;
+
+export interface AppState {
   role: "none" | "admin" | "therapist" | "parent";
   setRole: (role: "none" | "admin" | "therapist" | "parent") => void;
   session: AuthSession | null;
   adminUsers: AdminUser[];
   therapistUsers: TherapistUser[];
-  signInAdmin: (email: string, password: string) => boolean;
-  signInTherapist: (email: string, password: string) => boolean;
-  signInFamily: (phoneNumber: string, password: string) => { childId: string; familyMemberId: string } | null;
-  signOut: () => void;
-  addStaffUser: (user: { role: "admin" | "therapist"; name: string; email: string; clinicName: string; password: string }) => void;
+  signInAdmin: (email: string, password: string) => MaybePromise<boolean>;
+  signInTherapist: (email: string, password: string) => MaybePromise<boolean>;
+  signInFamily: (phoneNumber: string, password: string) => MaybePromise<{ childId: string; familyMemberId: string } | null>;
+  signOut: () => MaybePromise<void>;
+  addStaffUser: (user: { role: "admin" | "therapist"; name: string; email: string; clinicName: string; password: string }) => MaybePromise<void>;
   children: Child[];
-  addChild: (child: Omit<Child, "id">) => void;
-  removeChild: (id: string) => void;
-  updateChild: (id: string, updates: Partial<Child>) => void;
-  issueFamilyInvite: (childId: string, familyMemberId: string) => string | null;
-  resetFamilyCredentials: (childId: string, familyMemberId: string, temporaryPassword: string, activate?: boolean) => boolean;
-  updateGoalStatus: (childId: string, goalId: string, status: TherapyGoal["status"]) => void;
+  addChild: (child: Omit<Child, "id">) => MaybePromise<void>;
+  removeChild: (id: string) => MaybePromise<void>;
+  updateChild: (id: string, updates: Partial<Child>) => MaybePromise<void>;
+  issueFamilyInvite: (childId: string, familyMemberId: string) => MaybePromise<string | null>;
+  resetFamilyCredentials: (childId: string, familyMemberId: string, temporaryPassword: string, activate?: boolean) => MaybePromise<boolean>;
+  updateGoalStatus: (childId: string, goalId: string, status: TherapyGoal["status"]) => MaybePromise<void>;
   assignments: HomeworkAssignment[];
-  createAssignment: (assignment: Omit<HomeworkAssignment, "id" | "createdAt" | "status" | "completedGames" | "results" | "therapistApproval" | "approvedAt" | "approvedBy">) => void;
-  approveAssignment: (assignmentId: string, approval: "approved" | "adjusted", difficulty?: Difficulty) => void;
-  completeGame: (assignmentId: string, result: Omit<GameResult, "assignmentId" | "skillScores">) => void;
-  removeGameFromAssignment: (assignmentId: string, gameId: string) => void;
+  createAssignment: (assignment: Omit<HomeworkAssignment, "id" | "createdAt" | "status" | "completedGames" | "results" | "therapistApproval" | "approvedAt" | "approvedBy">) => MaybePromise<void>;
+  approveAssignment: (assignmentId: string, approval: "approved" | "adjusted", difficulty?: Difficulty) => MaybePromise<void>;
+  completeGame: (assignmentId: string, result: Omit<GameResult, "assignmentId" | "skillScores">) => MaybePromise<void>;
+  removeGameFromAssignment: (assignmentId: string, gameId: string) => MaybePromise<void>;
   selectedChildId: string | null;
   setSelectedChildId: (id: string | null) => void;
   currentAssignment: HomeworkAssignment | null;
@@ -198,7 +214,7 @@ interface AppState {
   auditLog: AuditEntry[];
 }
 
-const AppContext = createContext<AppState | null>(null);
+export const AppContext = createContext<AppState | null>(null);
 
 function createInviteCode() {
   return `INV-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
@@ -224,7 +240,7 @@ const defaultTherapists: TherapistUser[] = [
   },
 ];
 
-const defaultChildren: Child[] = [
+export const defaultChildren: Child[] = [
   {
     id: "child-1",
     name: "Emma",
@@ -579,7 +595,7 @@ const defaultSnapshot: AppDataSnapshot = {
 function normalizeChild(child: Child): Child {
   const fallbackChild = defaultChildren.find((entry) => entry.id === child.id);
   const fallbackRatings = createClinicalRatings(fallbackChild?.personalizationProfile.clinicalRatings);
-  const rawProfile = child.personalizationProfile || {};
+  const rawProfile = (child.personalizationProfile || {}) as Partial<Child["personalizationProfile"]>;
   const normalizedRatings = createClinicalRatings({
     ...fallbackRatings,
     ...(rawProfile.clinicalRatings || {}),
@@ -650,8 +666,26 @@ function normalizeSnapshot(snapshot: AppDataSnapshot): AppDataSnapshot {
   };
 }
 
-export function AppProvider({ children: childrenNodes }: { children: React.ReactNode }) {
-  const [snapshot, setSnapshot] = useState<AppDataSnapshot>(() => normalizeSnapshot(loadAppData(defaultSnapshot)));
+export function AppProvider({
+  children: childrenNodes,
+  initialChildren,
+  initialAssignments,
+}: {
+  children: React.ReactNode;
+  initialChildren?: Child[];
+  initialAssignments?: HomeworkAssignment[];
+}) {
+  const [snapshot, setSnapshot] = useState<AppDataSnapshot>(() => {
+    if (!initialChildren && !initialAssignments) {
+      return normalizeSnapshot(loadAppData(defaultSnapshot));
+    }
+    const seeded: AppDataSnapshot = {
+      ...defaultSnapshot,
+      ...(initialChildren ? { children: initialChildren } : {}),
+      ...(initialAssignments ? { assignments: initialAssignments } : {}),
+    };
+    return normalizeSnapshot(seeded);
+  });
   const [role, setRole] = useState<"none" | "admin" | "therapist" | "parent">("none");
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [currentAssignment, setCurrentAssignment] = useState<HomeworkAssignment | null>(null);
@@ -825,7 +859,7 @@ export function AppProvider({ children: childrenNodes }: { children: React.React
             ? familyMember
             : {
                 ...familyMember,
-                credentialStatus: "pending",
+                credentialStatus: "pending" as const,
                 invitedAt: new Date().toISOString(),
                 inviteCode,
               }
@@ -850,7 +884,7 @@ export function AppProvider({ children: childrenNodes }: { children: React.React
           return {
             ...familyMember,
             passwordHash: hashSecret(temporaryPassword),
-            credentialStatus: activate ? "active" : "pending",
+            credentialStatus: (activate ? "active" : "pending") as FamilyMember["credentialStatus"],
             lastCredentialUpdateAt: new Date().toISOString(),
             inviteCode: activate ? undefined : familyMember.inviteCode,
           };
@@ -925,7 +959,7 @@ export function AppProvider({ children: childrenNodes }: { children: React.React
         const completedGames = Array.from(new Set([...assignment.completedGames, result.gameId]));
         const filteredResults = assignment.results.filter((entry) => entry.gameId !== result.gameId);
         const results = [...filteredResults, enrichedResult];
-        const status = completedGames.length >= assignment.gameIds.length ? "completed" : "in-progress";
+        const status: HomeworkAssignment["status"] = completedGames.length >= assignment.gameIds.length ? "completed" : "in-progress";
 
         return { ...assignment, completedGames, results, status };
       });
@@ -936,7 +970,7 @@ export function AppProvider({ children: childrenNodes }: { children: React.React
         const updatedGoals = child.therapyGoals.map((goal) => {
           const domainScore = nextSkillProfile[goal.domain];
           if (goal.status === "paused") return goal;
-          return { ...goal, status: domainScore >= goal.targetLevel ? "achieved" : "active" };
+          return { ...goal, status: (domainScore >= goal.targetLevel ? "achieved" : "active") as TherapyGoal["status"] };
         });
 
         return {
@@ -960,7 +994,7 @@ export function AppProvider({ children: childrenNodes }: { children: React.React
 
         const completedGames = assignment.completedGames.filter((id) => id !== gameId);
         const results = assignment.results.filter((entry) => entry.gameId !== gameId);
-        const status = completedGames.length === 0 ? "pending" : completedGames.length >= gameIds.length ? "completed" : "in-progress";
+        const status: HomeworkAssignment["status"] = completedGames.length === 0 ? "pending" : completedGames.length >= gameIds.length ? "completed" : "in-progress";
 
         return [{ ...assignment, gameIds, completedGames, results, status }];
       });

@@ -11,7 +11,13 @@ const PHASES: { key: Phase; label: string; seconds: number; scale: number; instr
   { key: "out", label: "Breathe out slowly", seconds: 6, scale: 0.8, instruction: "Release the air slowly" },
 ];
 
-export default function BreathingOverlay({ onExit }: { onExit: () => void }) {
+export default function BreathingOverlay({
+  onExit,
+  regionRef,
+}: {
+  onExit: () => void;
+  regionRef?: (el: HTMLElement | null) => void;
+}) {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [cycles, setCycles] = useState(0);
   const phaseRef = useRef(phaseIndex);
@@ -46,6 +52,7 @@ export default function BreathingOverlay({ onExit }: { onExit: () => void }) {
 
   return (
     <motion.div
+      ref={regionRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

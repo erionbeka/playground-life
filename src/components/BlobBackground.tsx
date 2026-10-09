@@ -7,6 +7,7 @@ import {
   useTransform,
 } from "framer-motion";
 import { useEffect, useState } from "react";
+import { useReducedMotionMode } from "@/lib/motion";
 
 const blobs = [
   { size: 320, color: "hsla(199, 78%, 58%, 0.44)", x: "12%", y: "18%", mouseX: 48, mouseY: 28, idleX: 18, idleY: 14, speed: 0.00022, phase: 0.2 },
@@ -59,8 +60,8 @@ function Blob({
   const idleOffsetY = useTransform(time, (value) => Math.cos(value * speed * 1.2 + phase) * idleY * scale);
   const pointerOffsetX = useTransform(pointerX, [-0.5, 0.5], [-mouseX * scale, mouseX * scale]);
   const pointerOffsetY = useTransform(pointerY, [-0.5, 0.5], [-mouseY * scale, mouseY * scale]);
-  const translateX = useTransform([idleOffsetX, pointerOffsetX], ([idle, pointer]) => idle + pointer);
-  const translateY = useTransform([idleOffsetY, pointerOffsetY], ([idle, pointer]) => idle + pointer);
+  const translateX = useTransform([idleOffsetX, pointerOffsetX], ([idle, pointer]: number[]) => idle + pointer);
+  const translateY = useTransform([idleOffsetY, pointerOffsetY], ([idle, pointer]: number[]) => idle + pointer);
   const rotate = useTransform(time, (value) => Math.sin(value * speed * 0.45 + phase) * 8);
   const radiusA = useTransform(time, (value) => 44 + Math.sin(value * speed * 0.6 + phase) * 10);
   const radiusB = useTransform(time, (value) => 56 + Math.cos(value * speed * 0.8 + phase) * 8);
@@ -122,6 +123,7 @@ function Sparkle({
 }
 
 export default function BlobBackground() {
+  const reducedMotion = useReducedMotionMode();
   const rawPointerX = useMotionValue(0);
   const rawPointerY = useMotionValue(0);
   const pointerX = useSpring(rawPointerX, { stiffness: 70, damping: 20, mass: 1.2 });
@@ -142,6 +144,33 @@ export default function BlobBackground() {
     window.addEventListener("resize", updateScale);
     return () => window.removeEventListener("resize", updateScale);
   }, []);
+
+  if (reducedMotion) {
+    return (
+      <div data-testid="blob-static" className="fixed inset-0 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.86),_transparent_52%),linear-gradient(180deg,_rgba(255,255,255,0.22),_rgba(255,255,255,0))]" />
+        <div className="pointer-events-none absolute inset-0">
+          {blobs.map((blob, index) => (
+            <div
+              key={index}
+              className="absolute"
+              style={{
+                left: blob.x,
+                top: blob.y,
+                width: blob.size * scale,
+                height: blob.size * scale,
+                background: blob.color,
+                borderRadius: "48% 52% 44% 56% / 54% 46% 58% 42%",
+                boxShadow: "inset 0 0 40px rgba(255,255,255,0.16), 0 0 50px rgba(255,255,255,0.08)",
+              }}
+            />
+          ))}
+        </div>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0,_transparent_58%,rgba(255,255,255,0.14)_100%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(rgba(255,255,255,0.9)_0.8px,transparent_0.8px)] [background-size:26px_26px]" />
+      </div>
+    );
+  }
 
   return (
     <div

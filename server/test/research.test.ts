@@ -5,29 +5,17 @@ import { researchRoutes } from "../routes/research.ts";
 import { query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 
-interface AuthUser {
-  id: string;
-  clinicId: string;
-  role: string;
-}
-
-declare module "express-serve-static-core" {
-  interface Request {
-    user?: AuthUser;
-  }
-}
-
 vi.mock("../db.ts", () => ({
   query: vi.fn(),
 }));
 
 vi.mock("../middleware.ts", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
-    req.user = { id: "admin-1", clinicId: "clinic-1", role: "admin" };
+    req.user = { id: "admin-1", clinicId: "clinic-1", role: "admin", name: "Admin" };
     next();
   },
   requireRole: (..._roles: string[]) => (req: Request, _res: Response, next: NextFunction) => {
-    req.user = req.user || { id: "admin-1", clinicId: "clinic-1", role: "admin" };
+    req.user = req.user || { id: "admin-1", clinicId: "clinic-1", role: "admin", name: "Admin" };
     next();
   },
 }));
@@ -62,7 +50,7 @@ describe("Research export endpoint (E3) - basic", () => {
   });
 
   it("returns empty export when no children with consent", async () => {
-    vi.mocked(query).mockResolvedValueOnce({ rows: [] });
+    vi.mocked(query).mockResolvedValueOnce({ rows: [] } as unknown as Awaited<ReturnType<typeof query>>);
     
     const res = await request(app)
       .post("/research/export")

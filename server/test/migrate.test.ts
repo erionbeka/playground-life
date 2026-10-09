@@ -4,7 +4,7 @@ import { pendingMigrations } from "../migration.ts";
 describe("migration runner (E1)", () => {
   it("orders migrations by version number", () => {
     const available = ["005_research.sql", "001_init.sql", "003_child_data.sql", "002_compliance.sql", "004_rewards.sql"];
-    const ordered = available.toSorted();
+    const ordered = [...available].sort();
     expect(ordered[0]).toBe("001_init.sql");
     expect(ordered[1]).toBe("002_compliance.sql");
     expect(ordered[2]).toBe("003_child_data.sql");

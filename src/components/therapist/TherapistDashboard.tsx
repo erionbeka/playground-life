@@ -30,7 +30,7 @@ export default function TherapistDashboard() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
-          <button onClick={() => { setRole("none"); navigate("/"); }} className="absolute left-4 top-4 text-sm text-muted-foreground hover:text-foreground touch-target">
+          <button onClick={() => { setRole("none"); navigate("/enter"); }} className="absolute left-4 top-4 text-sm text-muted-foreground hover:text-foreground touch-target">
             Back
           </button>
 
@@ -46,9 +46,9 @@ export default function TherapistDashboard() {
 
             <form
               className="space-y-4"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault();
-                const authenticated = signInTherapist(email, password);
+                const authenticated = await signInTherapist(email, password);
                 if (!authenticated) {
                   setError("We couldn't sign you in. Check the clinic email and password.");
                   return;
@@ -122,7 +122,7 @@ export default function TherapistDashboard() {
             <p className="text-xs text-muted-foreground">Signed in as {session.displayName}</p>
           </div>
         </div>
-        <button onClick={() => { signOut(); navigate("/"); }} className="text-sm text-muted-foreground hover:text-foreground transition-colors touch-target px-3">
+        <button onClick={() => { signOut(); navigate("/enter"); }} className="text-sm text-muted-foreground hover:text-foreground transition-colors touch-target px-3">
           Sign Out
         </button>
       </header>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useApp, HomeworkAssignment } from "@/context/AppContext";
 import { getGameById } from "@/data/games";
 import { AnimatePresence, motion } from "framer-motion";
@@ -13,24 +13,42 @@ import RecognitionEngine from "./engines/RecognitionEngine";
 import CountingEngine from "./engines/CountingEngine";
 import MemoryEngine from "./engines/MemoryEngine";
 import BuildingEngine from "./engines/BuildingEngine";
+import MagicToysEngine from "./engines/MagicToysEngine";
 import CelebrationOverlay from "./CelebrationOverlay";
+import BreathingOverlay from "./BreathingOverlay";
+import SensoryControls from "./SensoryControls";
+import RealWorldExtension from "./RealWorldExtension";
+import ResponseModes from "./ResponseModes";
 import { useGameAudio } from "./useGameAudio";
 import { getChildReadinessState } from "@/lib/personalization";
+import CoreWordBar from "@/components/aac/CoreWordBar";
+import { appendChildEvent } from "@/lib/sessionEvents";
+import { ResponseMode } from "@/lib/responseModes";
+import { AAC_POSITIONING } from "@/lib/positioning";
+import InputModeProvider from "@/components/input/InputModeProvider";
+import { useTargetRegion } from "@/components/input/context";
 
 interface Props {
   gameId: string;
   assignment: HomeworkAssignment;
   onComplete: () => void;
+  onExit?: () => void;
 }
 
-export default function GamePlayer({ gameId, assignment, onComplete }: Props) {
+export default function GamePlayer({ gameId, assignment, onComplete, onExit }: Props) {
   const { completeGame, children, assignments } = useApp();
   const game = getGameById(gameId);
   const [started, setStarted] = useState(false);
   const [startTime] = useState(Date.now());
   const [interactions, setInteractions] = useState(0);
   const [celebrationVisible, setCelebrationVisible] = useState(false);
+  const [quitVisible, setQuitVisible] = useState(false);
+  const [breathingVisible, setBreathingVisible] = useState(false);
+  const breathingOpenedAt = useRef<number | null>(null);
   const { warmUpAudio, playTapSound, playStartSound, playCelebrationSound } = useGameAudio();
+  const playRef = useTargetRegion("play", 20);
+  const aacRef = useTargetRegion("aac", 10);
+  const dialogRef = useTargetRegion("dialog", 30);
 
   const child = useMemo(
     () => children.find((candidate) => candidate.id === assignment.childId) || null,
@@ -98,18 +116,59 @@ export default function GamePlayer({ gameId, assignment, onComplete }: Props) {
     setInteractions((prev) => prev + 1);
   }, [playTapSound]);
 
+  const handleNonScreenResponse = useCallback(
+    (mode: ResponseMode) => {
+      handleInteraction();
+      appendChildEvent(assignment.childId, "response_mode", mode);
+    },
+    [assignment.childId, handleInteraction]
+  );
+
+  const handleAacLog = useCallback(
+    (type: string, detail?: string) => {
+      appendChildEvent(assignment.childId, type, detail);
+    },
+    [assignment.childId]
+  );
+
+  const leaveSession = useCallback(() => {
+    if (onExit) onExit();
+    else onComplete();
+  }, [onComplete, onExit]);
+
+  const requestExit = useCallback(() => {
+    if (started && interactions > 0 && !celebrationVisible) {
+      setQuitVisible(true);
+    } else {
+      leaveSession();
+    }
+  }, [interactions, leaveSession, started, celebrationVisible]);
+
+  const confirmQuit = useCallback(() => {
+    appendChildEvent(assignment.childId, "quit_mid_game", `after ${interactions} interactions`);
+    leaveSession();
+  }, [assignment.childId, interactions, leaveSession]);
+
+  const openBreathing = useCallback(() => {
+    breathingOpenedAt.current = Date.now();
+    setBreathingVisible(true);
+  }, []);
+
+  const closeBreathing = useCallback(() => {
+    if (breathingOpenedAt.current !== null) {
+      const elapsedMs = Date.now() - breathingOpenedAt.current;
+      const seconds = Math.max(1, Math.round(elapsedMs / 1000));
+      appendChildEvent(assignment.childId, "breathing_break", `${seconds}s`);
+      breathingOpenedAt.current = null;
+    }
+    setBreathingVisible(false);
+  }, [assignment.childId]);
+
   useEffect(() => {
     if (!celebrationVisible) return;
 
     playCelebrationSound();
-
-    const timeoutId = window.setTimeout(() => {
-      setCelebrationVisible(false);
-      onComplete();
-    }, 4500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [celebrationVisible, onComplete, playCelebrationSound]);
+  }, [celebrationVisible, playCelebrationSound]);
 
   const handleGameComplete = useCallback(
     (score: number, socialScore?: number) => {
@@ -136,6 +195,12 @@ export default function GamePlayer({ gameId, assignment, onComplete }: Props) {
   }
 
   if (!started) {
+    const supportLevelLabel = assignment.supportLevel || "moderate";
+    const successMarkers =
+      assignment.monthlyPlan && assignment.monthlyPlan.successMarkers.length > 0
+        ? assignment.monthlyPlan.successMarkers
+        : game.successCriteria || [];
+
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
         <motion.div
@@ -161,16 +226,7 @@ export default function GamePlayer({ gameId, assignment, onComplete }: Props) {
               <p className="text-sm font-semibold text-foreground">{game.learningGoal}</p>
             ) : null}
             {game.adultPrompt ? (
-              <p className="mt-2 text-xs text-muted-foreground">Adult prompt: {game.adultPrompt}</p>
-            ) : null}
-            {game.autismSupports && game.autismSupports.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {game.autismSupports.slice(0, 4).map((support) => (
-                  <span key={support} className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">
-                    {support}
-                  </span>
-                ))}
-              </div>
+              <RealWorldExtension prompt={game.adultPrompt} className="mt-3" />
             ) : null}
           </div>
           <div className="flex gap-3 justify-center mb-6">
@@ -178,7 +234,25 @@ export default function GamePlayer({ gameId, assignment, onComplete }: Props) {
               <span key={s} className="text-xs bg-primary/10 text-foreground px-3 py-1 rounded-full capitalize">{s}</span>
             ))}
           </div>
-          <div className="flex gap-3 justify-center">
+          <div className="mb-6 rounded-2xl border border-border bg-card p-4 text-left">
+            <p className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-primary">Your plan</p>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>What you will do — {game.description}</p>
+              <p>Approximate length — about {game.estimatedMinutes} minutes</p>
+              <p>Support level — {supportLevelLabel}. Extra help: {(game.autismSupports || []).join(", ")}</p>
+              <p>What success looks like — {successMarkers.join(", ")}</p>
+              <p>How to pause or stop — press Exit at any time.</p>
+              <p>{AAC_POSITIONING.responseModesLine}</p>
+              <p>Caregiver — a grown-up plays alongside your child.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3 justify-center">
+            <button
+              onClick={() => onExit?.()}
+              className="px-5 py-3 border border-border text-muted-foreground rounded-xl font-semibold touch-target"
+            >
+              Opt out
+            </button>
             <button onClick={onComplete} className="px-6 py-3 bg-muted text-muted-foreground rounded-xl font-semibold touch-target">
               Back
             </button>
@@ -209,27 +283,30 @@ export default function GamePlayer({ gameId, assignment, onComplete }: Props) {
   const engineProps = { game: runtimeGame, onInteraction: handleInteraction, onComplete: handleGameComplete };
 
   return (
-    <div className="min-h-screen">
+    <InputModeProvider childId={assignment.childId}>
+      <div className="min-h-screen">
       <div className="bg-card/85 backdrop-blur-md border-b border-border px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{game.emoji}</span>
-          <div>
-            <span className="font-display font-bold text-foreground text-sm">{game.name}</span>
-            {runtimeGame.learningGoal ? (
-              <p className="hidden text-[10px] text-muted-foreground sm:block">{runtimeGame.learningGoal}</p>
-            ) : null}
-          </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <span role="img" aria-label={game.name} title={game.name} className="text-xl">{game.emoji}</span>
+          {runtimeGame.learningGoal ? (
+            <p className="hidden text-[10px] text-muted-foreground sm:block">{runtimeGame.learningGoal}</p>
+          ) : null}
         </div>
-        <button onClick={onComplete} className="text-xs text-muted-foreground hover:text-foreground touch-target px-3">
-          Exit
-        </button>
+        <div className="flex items-center gap-2">
+          <SensoryControls onBreathingBreak={openBreathing} />
+          <button onClick={requestExit} className="text-xs text-muted-foreground hover:text-foreground touch-target px-3">
+            Exit
+          </button>
+        </div>
       </div>
 
-      <div className="relative p-4">
+      <div className="relative p-4" ref={playRef}>
         {game.engine === "matching" ? (
           <MatchingEngine {...engineProps} />
         ) : game.engine === "tapping" ? (
           <TappingEngine {...engineProps} />
+        ) : game.engine === "magic-toys" ? (
+          <MagicToysEngine {...engineProps} />
         ) : game.engine === "social" ? (
           <SocialEngine {...engineProps} />
         ) : game.engine === "sandbox" || game.engine === "slide" || game.engine === "bench" ? (
@@ -257,14 +334,49 @@ export default function GamePlayer({ gameId, assignment, onComplete }: Props) {
               childAvatar={child.avatar}
               message={celebrationConfig.message}
               themes={celebrationConfig.themes}
+              extensionPrompt={game.adultPrompt}
+              regionRef={dialogRef}
               onContinue={() => {
+                appendChildEvent(assignment.childId, "celebration_closed");
                 setCelebrationVisible(false);
                 onComplete();
               }}
             />
           ) : null}
         </AnimatePresence>
+
+        <ResponseModes onResponse={handleNonScreenResponse} className="mt-4" />
       </div>
-    </div>
+
+      {quitVisible ? (
+        <div ref={dialogRef} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center shadow-2xl">
+            <h2 className="font-display text-xl font-bold text-foreground">Leave this game?</h2>
+            <p className="mt-2 text-sm text-muted-foreground">This round will not be saved, and that is okay.</p>
+            <div className="mt-5 flex flex-col gap-3">
+              <button
+                onClick={() => setQuitVisible(false)}
+                className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-primary-foreground touch-target"
+              >
+                Keep playing
+              </button>
+              <button
+                onClick={confirmQuit}
+                className="rounded-xl border border-border px-5 py-3 text-sm font-semibold text-muted-foreground touch-target"
+              >
+                Leave now
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {breathingVisible ? <BreathingOverlay onExit={closeBreathing} regionRef={dialogRef} /> : null}
+
+      <div className="fixed inset-x-0 bottom-0 z-40" ref={aacRef}>
+        <CoreWordBar onLog={handleAacLog} />
+      </div>
+      </div>
+    </InputModeProvider>
   );
 }

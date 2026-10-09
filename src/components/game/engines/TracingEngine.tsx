@@ -149,8 +149,8 @@ export default function TracingEngine({ game, onInteraction, onComplete }: Props
     visitedRef.current = [];
     setVisited([]);
     setTrail([]);
-    setTimeLeft(calmMode ? null : 25);
-  }, [calmMode, theme]);
+    setTimeLeft(shouldShowCountdown(calmMode, supportLevel) ? 25 : null);
+  }, [calmMode, supportLevel, theme]);
 
   useEffect(() => {
     if (!timed) return;

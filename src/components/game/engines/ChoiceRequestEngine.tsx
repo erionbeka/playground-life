@@ -9,6 +9,7 @@ import LearningLabel from "../LearningLabel";
 import RoundProgress from "../RoundProgress";
 import { buildCompletionMetrics, GameCompletionMetrics, masteryForSupport, withTrace } from "../gameCompletion";
 import { createSessionRecorder } from "@/lib/gameAnalytics";
+import { buildRequestLadder, coreWordForTheme, ladderRungFor } from "@/lib/requestLadder";
 
 interface Props {
   game: GameConfig;
@@ -271,6 +272,8 @@ export default function ChoiceRequestEngine({ game, onInteraction, onComplete }:
   const { bursts, fireBurst } = useBursts();
 
   const scenario = activeScenarios[current];
+  const ladder = useMemo(() => buildRequestLadder(coreWordForTheme(theme)), [theme]);
+  const rung = ladderRungFor(explored);
 
   useEffect(() => {
     if (!scenario) return;
@@ -289,10 +292,11 @@ export default function ChoiceRequestEngine({ game, onInteraction, onComplete }:
     playHitSound(1);
     fireBurst(50, 40, option.emoji);
     const thank = KIND_THANKS[Math.min(nextExplored - 1, KIND_THANKS.length - 1)];
-    setFeedback(`${thank} You asked for “${option.label}”.`);
+    const model = ladder[ladderRungFor(nextExplored)];
+    setFeedback(`${thank} You asked for “${option.label}”. Try saying: “${model}”.`);
     setPlayed((prev) => [...prev, option.label]);
     setExplored(nextExplored);
-    speak(`${thank} ${option.label}.`);
+    speak(`${thank} ${model}.`);
 
     window.setTimeout(() => {
       setFeedback(null);
@@ -338,6 +342,22 @@ export default function ChoiceRequestEngine({ game, onInteraction, onComplete }:
         <p className="mt-2 text-center text-xs text-muted-foreground">
           Any way you ask is okay — no wrong answers, no rush.
         </p>
+        <div className="mt-3 border-t border-border pt-3">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">Grow your words</p>
+          <ol data-testid="request-ladder" className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            {ladder.map((step, index) => (
+              <li
+                key={step}
+                aria-current={index === rung ? "step" : undefined}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  index <= rung ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {step}
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
 
       {feedback ? (

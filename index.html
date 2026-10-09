@@ -2,30 +2,40 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Playground Life</title>
     <meta name="description" content="Playground Life helps therapists and families assign, play, and review social learning games." />
     <meta name="author" content="Playground Life" />
+    <meta name="theme-color" content="#3ba0ce" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-180.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Playground" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Playground Life" />
     <meta property="og:description" content="Homework and classwork games for social learning and family play." />
-    <meta property="og:image" content="/playground/favicon.svg" />
+    <meta property="og:image" content="/favicon.svg" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Playground Life" />
     <meta name="twitter:description" content="Homework and classwork games for social learning and family play." />
-    <meta name="twitter:image" content="/playground/favicon.svg" />
-    <link rel="icon" type="image/svg+xml" href="/playground/favicon.svg" />
-    <link rel="alternate icon" href="/playground/favicon.ico" />
-    <script type="module" crossorigin src="/playground/assets/index-BK5satUJ.js"></script>
-    <link rel="modulepreload" crossorigin href="/playground/assets/react-BJmY2kLN.js">
-    <link rel="modulepreload" crossorigin href="/playground/assets/ui-D_532wO4.js">
-    <link rel="modulepreload" crossorigin href="/playground/assets/charts-dFaJNqKs.js">
-    <link rel="modulepreload" crossorigin href="/playground/assets/pdf-5JOakDKF.js">
-    <link rel="stylesheet" crossorigin href="/playground/assets/index-ouJSetkD.css">
+    <meta name="twitter:image" content="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+          navigator.serviceWorker.register("/sw.js").catch(function () {});
+        });
+      }
+    </script>
   </body>
 </html>

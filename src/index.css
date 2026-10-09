@@ -79,3 +79,16 @@
     @apply min-h-[48px] min-w-[48px];
   }
 }
+
+@layer base {
+  button,
+  [role="button"],
+  a,
+  label,
+  select,
+  input,
+  summary {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}

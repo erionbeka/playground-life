@@ -12,6 +12,7 @@ export type GameCategory =
   | "emotions"
   | "language"
   | "motor"
+  | "motor-skills"
   | "daily-living";
 
 export type GameEngine =
@@ -26,9 +27,27 @@ export type GameEngine =
   | "building"
   | "recognition"
   | "counting"
-  | "memory";
+  | "memory"
+  | "magic-toys"
+  | "odd-one-out"
+  | "pattern-next"
+  | "face-builder"
+  | "whats-missing"
+  | "situation-feelings"
+  | "sound-memory"
+  | "listen"
+  | "choice-request"
+  | "regulation"
+  | "flexible"
+  | "tracing";
 
 export type Difficulty = "easy" | "medium" | "hard";
+
+export type SupportLevel = "high" | "moderate" | "light";
+
+export type ReadinessStage = "stabilize" | "build" | "generalize" | "stretch";
+
+export const DEFAULT_CONTENT_VERSION = "v1.0.0";
 
 export interface GameConfig {
   id: string;
@@ -43,6 +62,7 @@ export interface GameConfig {
   supportsShared: boolean;
   supportsMultiplayer: boolean;
   ageRange?: { min: number; max: number };
+  contentVersion?: string;
   learningGoal?: string;
   adultPrompt?: string;
   autismSupports?: string[];
@@ -64,12 +84,11 @@ const categoryMeta: Record<GameCategory, { label: string; emoji: string; color: 
   emotions: { label: "Emotions", emoji: "😊", color: "coral" },
   language: { label: "Language", emoji: "💬", color: "sky" },
   motor: { label: "Motor Skills", emoji: "✋", color: "mint" },
+  "motor-skills": { label: "Motor Skills", emoji: "✋", color: "mint" },
   "daily-living": { label: "Daily Living", emoji: "🏠", color: "lavender" },
 };
 
-export { categoryMeta };
-
-function ageRangeFor(game: GameConfig) {
+export { categoryMeta };function ageRangeFor(game: GameConfig) {
   if (game.difficulty === "easy") return { min: 0, max: 4 };
   if (game.difficulty === "medium") return { min: 3, max: 6 };
   return { min: 5, max: 8 };
@@ -154,6 +173,12 @@ const categoryLearningTargets: Record<GameCategory, { goal: string; prompt: stri
     supports: ["large tap targets", "short rounds", "calm pacing", "movement imitation"],
     success: ["Completes the motor action", "Improves control across the round", "Stays regulated while moving"],
   },
+  "motor-skills": {
+    goal: "Practice fine-motor precision, hand-eye coordination, motor planning, and controlled movement.",
+    prompt: "Demonstrate the motion slowly and let the child try without rushing.",
+    supports: ["large tap targets", "short rounds", "calm pacing", "movement imitation"],
+    success: ["Completes the motor action", "Improves control across the round", "Stays regulated while moving"],
+  },
   "daily-living": {
     goal: "Practice independence routines, transition readiness, self-care sequencing, and functional communication.",
     prompt: "Use the same words as the real routine and connect the game steps to daily life.",
@@ -168,6 +193,7 @@ function enhanceGameForAutisticLearners(game: GameConfig): GameConfig {
   return {
     ...game,
     ageRange,
+    contentVersion: game.contentVersion || DEFAULT_CONTENT_VERSION,
     learningGoal: target.goal,
     adultPrompt: target.prompt,
     autismSupports: target.supports,
@@ -562,7 +588,7 @@ function makeGames(): GameConfig[] {
     });
   });
 
-  const motorThemes = ["Trace Lines", "Connect Dots", "Drag & Drop", "Pinch & Zoom", "Swipe Patterns", "Follow the Path", "Catch the Ball", "Pop & Hold", "Slow Drag", "Circle Draw", "Zig-Zag Trace", "Target Aim"];
+  const motorThemes = ["Trace Lines", "Connect Dots", "Tap & Pop", "Tap & Aim", "Swipe Patterns", "Follow the Path", "Catch the Ball", "Pop & Hold", "Slow Drag", "Circle Draw", "Zig-Zag Trace", "Target Aim"];
   motorThemes.forEach((theme, index) => {
     games.push({
       id: gid(),
@@ -602,12 +628,112 @@ function makeGames(): GameConfig[] {
     { id: gid(), name: "Waiting For Turn", emoji: "⏳", category: "social", engine: "social", description: "Practice staying calm and waiting for your turn in common social moments", skills: ["turn-taking", "patience", "self-regulation"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { theme: "waiting for turn", source: "Otsimo-inspired" } },
     { id: gid(), name: "Sharing Toys", emoji: "🧸", category: "social", engine: "social", description: "Practice friendly sharing choices while playing together", skills: ["sharing", "cooperation", "communication"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { theme: "sharing toys", source: "Otsimo-inspired" } },
     { id: gid(), name: "Count Along", emoji: "🔢", category: "counting", engine: "counting", description: "Count along with bright stars as they appear on screen", skills: ["counting", "attention", "numeracy"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "stars", max: 8, source: "Otsimo-inspired" } },
-    { id: gid(), name: "Match Colors", emoji: "🎨", category: "matching", engine: "matching", description: "Find matching pairs of bright colors", skills: ["memory", "visual discrimination"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { theme: "colors", pairs: 4, source: "Otsimo-inspired" } },
+    { id: gid(), name: "Bright Color Match", emoji: "🎨", category: "matching", engine: "matching", description: "Find matching pairs of bright colors", skills: ["memory", "visual discrimination"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { theme: "colors", pairs: 4, source: "Otsimo-inspired" } },
     { id: gid(), name: "Learn Animals", emoji: "🐾", category: "colors-shapes", engine: "recognition", description: "Tap the animal pictures and learn to recognize them", skills: ["recognition", "vocabulary", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "learn animals", source: "Otsimo-inspired" } },
     { id: gid(), name: "Learn Emotions", emoji: "😊", category: "emotions", engine: "recognition", description: "Identify emotional expressions on faces", skills: ["emotional-awareness", "recognition"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: false, config: { theme: "learn emotions", source: "Otsimo-inspired" } },
     { id: gid(), name: "Vehicle Puzzle", emoji: "🚗", category: "building", engine: "building", description: "Place the vehicle pieces in order to complete the puzzle", skills: ["planning", "sequencing", "visual-motor"], difficulty: "easy", estimatedMinutes: 5, supportsShared: true, supportsMultiplayer: true, config: { scene: "vehicle puzzle", source: "Otsimo-inspired" } },
     { id: gid(), name: "Animal Memory Cards", emoji: "🧠", category: "memory", engine: "memory", description: "Remember the animal cards and choose the right one", skills: ["memory", "focus", "recognition"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "animals", items: 4, source: "Otsimo-inspired" } }
   );
+
+  games.push(
+    { id: gid(), name: "Forest Magic", emoji: "🌳", category: "playground", engine: "magic-toys", description: "Tap the forest treasures as they are named", skills: ["attention", "vocabulary", "cause-effect"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { theme: "forest" } },
+    { id: gid(), name: "Dinosaur Magic", emoji: "🦖", category: "playground", engine: "magic-toys", description: "Tap the dinosaur treasures as they are named", skills: ["attention", "vocabulary", "cause-effect"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { theme: "dinosaurs" } },
+    { id: gid(), name: "Magic Bubbles", emoji: "🫧", category: "tapping", engine: "tapping", description: "Pop the bubbles as they float by", skills: ["motor", "attention", "reaction"], difficulty: "easy", estimatedMinutes: 3, supportsShared: false, supportsMultiplayer: false, config: { theme: "bubbles", speed: "slow" } },
+    { id: gid(), name: "Next: Color Trios", emoji: "🔴", category: "sequences", engine: "pattern-next", description: "Continue the repeating three-color pattern", skills: ["patterns", "sequencing"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "colorsTrio" } },
+    { id: gid(), name: "Next: Animal Trios", emoji: "🐶", category: "sequences", engine: "pattern-next", description: "Continue the repeating three-animal pattern", skills: ["patterns", "sequencing"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "animalsTrio" } },
+    { id: gid(), name: "Odd One Out: Expert Animals", emoji: "🦜", category: "language", engine: "odd-one-out", description: "Find the one that does not belong in each animal group", skills: ["reasoning", "language"], difficulty: "hard", estimatedMinutes: 5, supportsShared: false, supportsMultiplayer: false, config: { theme: "expertAnimals" } },
+    { id: gid(), name: "Odd One Out: Expert Foods", emoji: "🍽️", category: "language", engine: "odd-one-out", description: "Find the one that does not belong in each food group", skills: ["reasoning", "language"], difficulty: "hard", estimatedMinutes: 5, supportsShared: false, supportsMultiplayer: false, config: { theme: "expertFood" } },
+    { id: gid(), name: "Category Match: Farm & City", emoji: "🚜", category: "matching", engine: "matching", description: "Place each picture in the right category", skills: ["categorization", "vocabulary"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { matchStyle: "category", categories: ["Farm", "City"], categoryItems: { Farm: ["Cow", "Pig", "Tractor"], City: ["Bus", "Train"] } } },
+    { id: gid(), name: "Category Match: Animals & Food", emoji: "🐾", category: "matching", engine: "matching", description: "Place each picture in the right category", skills: ["categorization", "vocabulary"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { matchStyle: "category", categories: ["Animals", "Food"], categoryItems: { Animals: ["Cat", "Dog", "Bird"], Food: ["Apple", "Bread", "Milk"] } } },
+    { id: gid(), name: "Sort Wet vs Dry", emoji: "💧", category: "sorting", engine: "sorting", description: "Sort items into wet and dry groups", skills: ["categorization", "cognitive"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { categories: ["Wet", "Dry"] } },
+    { id: gid(), name: "Sort Toys vs Tools", emoji: "🧸", category: "sorting", engine: "sorting", description: "Sort toys and tools into their groups", skills: ["categorization", "cognitive"], difficulty: "easy", estimatedMinutes: 4, supportsShared: true, supportsMultiplayer: true, config: { categories: ["Toys", "Tools"] } },
+    { id: gid(), name: "Sort Sky Land Water", emoji: "🌈", category: "sorting", engine: "sorting", description: "Sort things into sky, land, and water", skills: ["categorization", "cognitive"], difficulty: "medium", estimatedMinutes: 5, supportsShared: true, supportsMultiplayer: true, config: { categories: ["Sky", "Land", "Water"] } },
+    { id: gid(), name: "Sort Fruits Veggies Sweets", emoji: "🍎", category: "sorting", engine: "sorting", description: "Sort foods into fruits, vegetables, and sweets", skills: ["categorization", "cognitive"], difficulty: "medium", estimatedMinutes: 5, supportsShared: true, supportsMultiplayer: true, config: { categories: ["Fruits", "Vegetables", "Sweets"] } },
+    { id: gid(), name: "Froebel Shadow Forms", emoji: "🌓", category: "matching", engine: "matching", description: "Match each shape to its shadow", skills: ["visual-discrimination", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "shapes", variant: "shadow", pairs: 4 } },
+    { id: gid(), name: "Count Penguins", emoji: "🐧", category: "counting", engine: "counting", description: "Count the penguins on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "penguins", max: 6 } },
+    { id: gid(), name: "Count Monkeys", emoji: "🐒", category: "counting", engine: "counting", description: "Count the monkeys on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "monkeys", max: 8 } },
+    { id: gid(), name: "Count Donuts", emoji: "🍩", category: "counting", engine: "counting", description: "Count the donuts on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "donuts", max: 6 } },
+    { id: gid(), name: "Count Cupcakes", emoji: "🧁", category: "counting", engine: "counting", description: "Count the cupcakes on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "cupcakes", max: 8 } },
+    { id: gid(), name: "Count Presents", emoji: "🎁", category: "counting", engine: "counting", description: "Count the presents on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "presents", max: 8 } },
+    { id: gid(), name: "Count Candles", emoji: "🕯️", category: "counting", engine: "counting", description: "Count the candles on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "candles", max: 8 } },
+    { id: gid(), name: "Count Bees", emoji: "🐝", category: "counting", engine: "counting", description: "Count the bees on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "bees", max: 8 } },
+    { id: gid(), name: "Count Starfish", emoji: "🌟", category: "counting", engine: "counting", description: "Count the starfish on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "starfish", max: 8 } },
+    { id: gid(), name: "Count Jellyfish", emoji: "🪼", category: "counting", engine: "counting", description: "Count the jellyfish on screen", skills: ["numeracy", "attention"], difficulty: "easy", estimatedMinutes: 4, supportsShared: false, supportsMultiplayer: false, config: { theme: "jellyfish", max: 8 } },
+  );
+
+  const choiceRequestPacks: Array<[string, string]> = [
+    ["Choose A Snack", "snack"],
+    ["Ask For Help", "help"],
+    ["Ask For More", "more"],
+    ["All Done", "all done"],
+    ["I Need A Break", "break"],
+    ["Pick Your Favorite", "favorite"],
+  ];
+  choiceRequestPacks.forEach(([name, theme]) => {
+    games.push({
+      id: gid(),
+      name,
+      emoji: "🗣️",
+      category: "language",
+      engine: "choice-request",
+      description: `Practice requesting ${theme} with words, pictures, or AAC`,
+      skills: ["communication", "self-advocacy"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: { theme },
+    });
+  });
+
+  const regulationPacks: Array<[string, string]> = [
+    ["First Snack Then Play", "first-then"],
+    ["Getting Ready First", "getting-ready"],
+    ["Body Check-In", "body-check"],
+    ["Choose A Calm Strategy", "calm-strategy"],
+    ["Asking For A Break", "break"],
+    ["Settling Down", "default"],
+  ];
+  regulationPacks.forEach(([name, theme]) => {
+    games.push({
+      id: gid(),
+      name,
+      emoji: "🌿",
+      category: "emotions",
+      engine: "regulation",
+      description: `Practice ${theme} regulation steps`,
+      skills: ["self-regulation", "emotional-awareness"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: { theme },
+    });
+  });
+
+  const flexiblePacks: Array<[string, string]> = [
+    ["Plan B Practice", "plan-b"],
+    ["Change of Plans", "change"],
+    ["A New Way To Do It", "new-way"],
+    ["When Things Change", "when-change"],
+    ["Try A Different Way", "different-way"],
+  ];
+  flexiblePacks.forEach(([name, theme]) => {
+    games.push({
+      id: gid(),
+      name,
+      emoji: "🔀",
+      category: "social",
+      engine: "flexible",
+      description: `Practice flexible thinking for ${theme}`,
+      skills: ["flexibility", "problem-solving"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: { theme },
+    });
+  });
 
   return games;
 }

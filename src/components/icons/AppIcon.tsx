@@ -63,9 +63,8 @@ const categoryVisuals: Record<GameCategory, { icon: typeof Shapes; tone: IconTon
   emotions: { icon: Smile, tone: "rose" },
   language: { icon: MessageCircle, tone: "sky" },
   motor: { icon: Hand, tone: "mint" },
+  "motor-skills": { icon: MousePointerClick, tone: "sky" },
   "daily-living": { icon: Home, tone: "violet" },
-  sensory: { icon: Sparkles, tone: "violet" },
-  reasoning: { icon: Shapes, tone: "sky" },
 };
 
 const shapeTokenMarks: Record<string, string> = {

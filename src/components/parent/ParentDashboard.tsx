@@ -76,7 +76,7 @@ export default function ParentDashboard() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
-          <button onClick={() => { setRole("none"); navigate("/"); }} className="absolute left-4 top-4 text-sm text-muted-foreground hover:text-foreground touch-target">
+          <button onClick={() => { setRole("none"); navigate("/enter"); }} className="absolute left-4 top-4 text-sm text-muted-foreground hover:text-foreground touch-target">
             Back
           </button>
 
@@ -92,11 +92,11 @@ export default function ParentDashboard() {
 
             <form
               className="space-y-4"
-              onSubmit={(event) => {
+              onSubmit={async (event) => {
                 event.preventDefault();
 
                 const normalizedPhoneNumber = phoneNumber.replace(/\D/g, "");
-                const match = signInFamily(normalizedPhoneNumber, password);
+                const match = await signInFamily(normalizedPhoneNumber, password);
 
                 if (!match) {
                   setSignInError("We couldn't sign you in. Check the phone number and password and try again.");
@@ -207,7 +207,7 @@ export default function ParentDashboard() {
           onClick={() => {
             signOut();
             resetFamilySession();
-            navigate("/");
+            navigate("/enter");
           }}
           className="touch-target px-3 text-sm text-muted-foreground hover:text-foreground"
         >

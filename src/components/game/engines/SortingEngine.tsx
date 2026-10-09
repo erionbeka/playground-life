@@ -9,7 +9,7 @@ interface Props {
   onComplete: (score: number) => void;
 }
 
-const itemMap: Record<string, string[]> = {
+export const SORT_ITEM_MAP: Record<string, string[]> = {
   farm: ["🐄", "🐑", "🐓", "🚜"],
   city: ["🏙️", "🚕", "🚦", "🏢"],
   hot: ["☀️", "🔥", "♨️", "🌶️"],
@@ -40,6 +40,13 @@ const itemMap: Record<string, string[]> = {
   domestic: ["🐶", "🐱", "🐔", "🐹"],
   fruits: ["🍎", "🍌", "🍓", "🍇"],
   vegetables: ["🥕", "🥦", "🌽", "🍅"],
+  wet: ["💧", "🌊", "☔", "🫧"],
+  dry: ["☀️", "🏜️", "🍂", "🧦"],
+  toys: ["🧸", "🪁", "🎲", "🪀"],
+  toyset: ["🧸", "🪁", "🎲", "🪀"],
+  tools: ["🔨", "🪛", "🪚", "🧰"],
+  sky: ["☁️", "🌈", "⭐", "🌤️"],
+  sweets: ["🍬", "🍭", "🍫", "🍪"],
 };
 
 function normalizeCategory(value: string) {
@@ -49,7 +56,7 @@ function normalizeCategory(value: string) {
 function createItems(normalizedCategories: string[], perCategory: number) {
   return shuffleItems(
     normalizedCategories.flatMap((category, categoryIndex) =>
-      (itemMap[category] || ["⭐", "🎈", "🧩", "🎨"]).slice(0, perCategory).map((emoji) => ({ emoji, categoryIndex }))
+      (SORT_ITEM_MAP[category] || ["⭐", "🎈", "🧩", "🎨"]).slice(0, perCategory).map((emoji) => ({ emoji, categoryIndex }))
     )
   );
 }
@@ -59,6 +66,7 @@ export default function SortingEngine({ game, onInteraction, onComplete }: Props
   const { supportLevel, readinessStage, personalized } = getAdaptiveGameConfig(game);
   const normalized = useMemo(() => categories.map(normalizeCategory), [categories]);
   const categoriesKey = normalized.join("|");
+  const showToolHints = normalized.includes("toys") && normalized.includes("tools");
   const itemsPerCategory = personalized && supportLevel === "high" ? 2 : 4;
   const [items, setItems] = useState(() => createItems(normalized, itemsPerCategory));
   const [index, setIndex] = useState(0);
@@ -102,6 +110,12 @@ export default function SortingEngine({ game, onInteraction, onComplete }: Props
             </button>
           ))}
         </div>
+        {showToolHints ? (
+          <div className="mt-4 space-y-1">
+            <p className="text-sm font-semibold text-foreground">play things for fun</p>
+            <p className="text-sm font-semibold text-foreground">work tools for building</p>
+          </div>
+        ) : null}
       </div>
     </div>
   );

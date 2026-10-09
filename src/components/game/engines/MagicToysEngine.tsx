@@ -54,7 +54,7 @@ export default function MagicToysEngine({ game, onInteraction, onComplete }: Pro
   const wrongTapsRef = useRef(0);
   const activatedRef = useRef<number[]>([]);
   const rec = useMemo(() => createSessionRecorder(game.id), [game.id]);
-  const { playHitSound, playMissSound, playTone } = useGameAudio();
+  const { playTapSound, playStartSound } = useGameAudio();
   const { bursts, fireBurst } = useBursts();
   const { controls, wobble } = useWobble();
   const freeExplore = supportLevel === "high" || Boolean(calmMode);
@@ -121,8 +121,6 @@ export default function MagicToysEngine({ game, onInteraction, onComplete }: Pro
 
       if (prompted === null || index === prompted) {
         fireBurst(point.x, point.y, toys[index]);
-        playHitSound(activated.length);
-        playTone({ frequency: 392 + index * 98, duration: 0.18, volume: 0.05, type: "triangle" });
         setTaps((value) => value + 1);
         tapsRef.current += 1;
         if (!activatedRef.current.includes(index)) {
@@ -130,6 +128,7 @@ export default function MagicToysEngine({ game, onInteraction, onComplete }: Pro
           setActivated(activatedRef.current);
           rec.trial({ stimulus: `toy-${index + 1}:find`, correct: true });
           speak("Found them!");
+          playStartSound();
           if (activatedRef.current.length >= toys.length) {
             finish(tapsRef.current);
           }
@@ -140,12 +139,12 @@ export default function MagicToysEngine({ game, onInteraction, onComplete }: Pro
       // Wrong toy for the current prompt: gentle miss.
       wrongTapsRef.current += 1;
       wobble();
-      playMissSound();
+      playTapSound();
       rec.trial({ stimulus: `toy-${index + 1}:wrong`, correct: false });
       const promptedToys = toys[prompted];
       speak(promptedToys ? `Almost. Find the ${promptedToys}.` : "Keep looking.");
     },
-    [activated.length, fireBurst, finish, freeExplore, onInteraction, playHitSound, playMissSound, playTone, promptIndex, rec, toys, wobble]
+    [activated.length, fireBurst, finish, freeExplore, onInteraction, playStartSound, playTapSound, promptIndex, rec, toys, wobble]
   );
 
   return (

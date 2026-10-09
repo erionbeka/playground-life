@@ -90,8 +90,7 @@ export function buildSessionPlan(
 
   if (dysregulated) {
     warmupFilter = (game) =>
-      game.category === "sensory" ||
-      (CALMING_CATEGORIES.includes(game.category) && game.difficulty === "easy");
+      CALMING_CATEGORIES.includes(game.category) && game.difficulty === "easy";
     warmupReasons.push("Started gently because of the last check-in feeling");
   } else {
     warmupFilter = (game) => game.difficulty === "easy" && CALMING_CATEGORIES.includes(game.category) === false && playsFor(playCounts, game.id) <= 1;

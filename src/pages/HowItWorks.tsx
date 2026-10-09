@@ -54,6 +54,15 @@ const sections = [
     ],
   },
   {
+    icon: "💬",
+    title: "Communication is built in (AAC-enabled)",
+    body: [
+      "Every activity carries a persistent communication bar, so a child can request, choose, comment, or answer with core words even when speech is still emerging.",
+      "Every activity also accepts more than one way to answer — a spoken word, a point, a symbol, a switch, dwell, or a tap — so the platform adapts to how the child communicates.",
+      "PLAYGROUND is AAC-enabled and AAC-supported: it is not a replacement for a full AAC system, a speech-language assessment, or therapy, and communication support is individualised with a clinician.",
+    ],
+  },
+  {
     icon: "🧩",
     title: "Where the games come from",
     body: [

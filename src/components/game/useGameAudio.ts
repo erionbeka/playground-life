@@ -73,6 +73,21 @@ export function useGameAudio() {
     });
   }, [playTone]);
 
+  const playHitSound = useCallback(
+    (combo = 1) => {
+      playTone({ frequency: 480 + Math.min(combo, 6) * 60, duration: 0.09, volume: 0.05, type: "triangle" });
+    },
+    [playTone]
+  );
+
+  const playMissSound = useCallback(() => {
+    playTone({ frequency: 200, duration: 0.14, volume: 0.04, type: "sine" });
+  }, [playTone]);
+
+  const playPopSound = useCallback(() => {
+    playTone({ frequency: 700, duration: 0.06, volume: 0.05, type: "square" });
+  }, [playTone]);
+
   useEffect(() => {
     return () => {
       if (audioContextRef.current && audioContextRef.current.state !== "closed") {
@@ -83,8 +98,12 @@ export function useGameAudio() {
 
   return {
     warmUpAudio: ensureContext,
+    playTone,
     playTapSound,
     playStartSound,
     playCelebrationSound,
+    playHitSound,
+    playMissSound,
+    playPopSound,
   };
 }

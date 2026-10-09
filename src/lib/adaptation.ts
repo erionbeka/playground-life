@@ -44,7 +44,7 @@ export function adaptationFromTuning(
     therapistApproval: string;
     approvedBy?: string;
     approvedAt?: string;
-    monthlyPlan?: { supportLevel?: string; progressionDecision?: string };
+    monthlyPlan?: { supportLevel?: string; progressionDecision?: string; weekNumber?: number };
   }
 ): AdaptationDecision[] {
   const decisions: AdaptationDecision[] = [];
