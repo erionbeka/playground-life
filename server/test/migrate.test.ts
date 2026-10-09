@@ -3,25 +3,26 @@ import { pendingMigrations } from "../migration.ts";
 
 describe("migration runner (E1)", () => {
   it("orders migrations by version number", () => {
-    const available = ["005_research.sql", "001_init.sql", "003_child_data.sql", "002_compliance.sql", "004_rewards.sql"];
+    const available = ["005_research.sql", "001_init.sql", "003_child_data.sql", "002_compliance.sql", "004_rewards.sql", "006_game_drafts.sql"];
     const ordered = [...available].sort();
     expect(ordered[0]).toBe("001_init.sql");
     expect(ordered[1]).toBe("002_compliance.sql");
     expect(ordered[2]).toBe("003_child_data.sql");
     expect(ordered[3]).toBe("004_rewards.sql");
     expect(ordered[4]).toBe("005_research.sql");
+    expect(ordered[5]).toBe("006_game_drafts.sql");
   });
 
   it("pendingMigrations returns only unapplied migrations", () => {
     const applied = ["001_init.sql", "002_compliance.sql"];
-    const available = ["001_init.sql", "002_compliance.sql", "003_child_data.sql", "004_rewards.sql", "005_research.sql"];
+    const available = ["001_init.sql", "002_compliance.sql", "003_child_data.sql", "004_rewards.sql", "005_research.sql", "006_game_drafts.sql"];
     const pending = pendingMigrations(applied, available);
-    expect(pending).toEqual(["003_child_data.sql", "004_rewards.sql", "005_research.sql"]);
+    expect(pending).toEqual(["003_child_data.sql", "004_rewards.sql", "005_research.sql", "006_game_drafts.sql"]);
   });
 
   it("pendingMigrations returns empty when all applied", () => {
-    const applied = ["001_init.sql", "002_compliance.sql", "003_child_data.sql", "004_rewards.sql", "005_research.sql"];
-    const available = ["001_init.sql", "002_compliance.sql", "003_child_data.sql", "004_rewards.sql", "005_research.sql"];
+    const applied = ["001_init.sql", "002_compliance.sql", "003_child_data.sql", "004_rewards.sql", "005_research.sql", "006_game_drafts.sql"];
+    const available = ["001_init.sql", "002_compliance.sql", "003_child_data.sql", "004_rewards.sql", "005_research.sql", "006_game_drafts.sql"];
     const pending = pendingMigrations(applied, available);
     expect(pending).toEqual([]);
   });
@@ -35,8 +36,8 @@ describe("migration runner (E1)", () => {
 
   it("pendingMigrations returns all when none applied", () => {
     const applied: string[] = [];
-    const available = ["001_init.sql", "002_compliance.sql"];
+    const available = ["001_init.sql", "002_compliance.sql", "006_game_drafts.sql"];
     const pending = pendingMigrations(applied, available);
-    expect(pending).toEqual(["001_init.sql", "002_compliance.sql"]);
+    expect(pending).toEqual(["001_init.sql", "002_compliance.sql", "006_game_drafts.sql"]);
   });
 });
