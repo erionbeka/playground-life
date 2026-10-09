@@ -78,6 +78,10 @@ describe("runOriginAudit", () => {
     const { tokenHits } = runOriginAudit("R1 cards", "Pair the C14 tiles.");
     expect(tokenHits.length).toBeGreaterThan(0);
   });
+  it("flags code tokens in the description even with a clean title", () => {
+    const { tokenHits } = runOriginAudit("Dino Pairs", "Pair the C14 tiles.");
+    expect(tokenHits.length).toBeGreaterThan(0);
+  });
   it("returns no hits for original copy", () => {
     const { tokenHits, banned } = runOriginAudit("Dino Pairs", "Find the matching dinosaur cards.");
     expect(tokenHits).toEqual([]);

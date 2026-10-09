@@ -110,7 +110,7 @@ export function runOriginAudit(title: string, description: string): { tokenHits:
   const titleHits = scanGuardedText(title);
   const descriptionHits = scanGuardedText(description);
   return {
-    tokenHits: titleHits.filter((m) => m.pattern === "code-token"),
+    tokenHits: titleHits.concat(descriptionHits).filter((m) => m.pattern === "code-token"),
     banned: titleHits.concat(descriptionHits).filter((m) => m.pattern !== "code-token"),
   };
 }
