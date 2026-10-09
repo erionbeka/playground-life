@@ -1,5 +1,3 @@
--- Migration 006: Therapist game drafts
-
 CREATE TABLE IF NOT EXISTS game_drafts (
   id uuid PRIMARY KEY,
   clinic_id uuid NOT NULL REFERENCES clinics(id) ON DELETE CASCADE,
