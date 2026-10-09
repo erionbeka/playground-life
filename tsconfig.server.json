@@ -1,4 +1,4 @@
-﻿{
+{
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "module": "NodeNext",
@@ -8,7 +8,10 @@
     "types": ["node"],
     "strict": true,
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@/*": ["./src/*.ts"]
+    }
   },
-  "include": ["server/**/*.ts"]
+  "include": ["server/**/*.ts", "src/lib/contentGuard.ts", "src/lib/gameAuthoring.ts"]
 }
