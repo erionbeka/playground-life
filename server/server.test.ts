@@ -380,4 +380,33 @@ describe("production API", () => {
     expect(response.body.auditLog).toHaveLength(1);
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("WHERE clinic_id = $1"), ["clinic-1"]);
   });
+
+  it("removes a game from an assignment", async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ game_ids: ["game-002"] }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .delete("/api/assignments/00000000-0000-0000-0000-000000000002/games/game-001")
+      .set("Authorization", "Bearer therapist-token")
+      .expect(200);
+
+    expect(response.body).toEqual({ id: "00000000-0000-0000-0000-000000000002", gameIds: ["game-002"] });
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("array_remove"), expect.arrayContaining(["game-001"]));
+    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "assignment_game_removed", "assignment", "00000000-0000-0000-0000-000000000002", { gameId: "game-001" });
+  });
+
+  it("returns 404 when removing a game not on the assignment", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    await request(app)
+      .delete("/api/assignments/00000000-0000-0000-0000-000000000002/games/game-999")
+      .set("Authorization", "Bearer therapist-token")
+      .expect(404);
+
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
 });

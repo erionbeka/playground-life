@@ -67,6 +67,20 @@ function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
   const gameIds = Array.isArray(row.game_ids) ? row.game_ids.map(String) : Array.isArray(row.gameIds) ? row.gameIds.map(String) : [];
   const skillFocus = Array.isArray(row.skill_focus) ? row.skill_focus.map(String) : Array.isArray(row.skillFocus) ? row.skillFocus.map(String) : [];
 
+  const rawResults = Array.isArray(row.results)
+    ? (row.results as Array<Record<string, unknown>>)
+    : [];
+  const results: GameResult[] = rawResults.map((entry) => ({
+    gameId: String(entry.gameId),
+    assignmentId: String(row.id),
+    completedAt: String(entry.completedAt),
+    durationSeconds: Number(entry.durationSeconds ?? 0),
+    score: Number(entry.score ?? 0),
+    interactions: Number(entry.interactions ?? 0),
+    skillScores: (entry.skillScores || {}) as GameResult["skillScores"],
+  }));
+  const completedGames = Array.from(new Set(results.map((result) => result.gameId)));
+
   return {
     id: String(row.id),
     childId: String(row.child_id || row.childId),
@@ -78,8 +92,8 @@ function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
     dueDate: String(row.due_date || row.dueDate || ""),
     createdAt: String(row.created_at || row.createdAt || ""),
     status: (row.status as HomeworkAssignment["status"]) || "pending",
-    completedGames: [],
-    results: [],
+    completedGames,
+    results,
     assignedFamilyMemberId: row.assigned_family_user_id ? String(row.assigned_family_user_id) : undefined,
     skillFocus: skillFocus as SkillDomain[],
     supportLevel: row.support_level as HomeworkAssignment["supportLevel"],

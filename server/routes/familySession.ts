@@ -18,7 +18,17 @@ router.get("/session", requireAuth, requireRole("parent"), async (req, res) => {
   );
 
   const assignments = await query(
-    `SELECT assignments.*
+    `SELECT assignments.*, COALESCE((
+        SELECT json_agg(json_build_object(
+          'gameId', gr.game_id,
+          'completedAt', gr.completed_at,
+          'durationSeconds', gr.duration_seconds,
+          'score', gr.score,
+          'interactions', gr.interactions,
+          'skillScores', gr.skill_scores
+        ) ORDER BY gr.completed_at)
+        FROM game_results gr WHERE gr.assignment_id = assignments.id
+      ), '[]'::json) AS results
      FROM assignments
      JOIN family_child_links links
        ON links.child_id = assignments.child_id

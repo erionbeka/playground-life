@@ -6,6 +6,18 @@ import { requireAuth, requireRole } from "../middleware.ts";
 
 const router = Router();
 
+const RESULTS_SUBQUERY = `COALESCE((
+    SELECT json_agg(json_build_object(
+      'gameId', gr.game_id,
+      'completedAt', gr.completed_at,
+      'durationSeconds', gr.duration_seconds,
+      'score', gr.score,
+      'interactions', gr.interactions,
+      'skillScores', gr.skill_scores
+    ) ORDER BY gr.completed_at)
+    FROM game_results gr WHERE gr.assignment_id = assignments.id
+  ), '[]'::json)`;
+
 const assignmentSchema = z.object({
   childId: z.string().uuid(),
   assignedFamilyUserId: z.string().uuid().optional(),
@@ -38,7 +50,7 @@ const resultSchema = z.object({
 router.get("/", requireAuth, async (req, res) => {
   if (req.user?.role === "parent") {
     const result = await query(
-      `SELECT assignments.*
+      `SELECT assignments.*, ${RESULTS_SUBQUERY} AS results
        FROM assignments
        INNER JOIN family_child_links ON family_child_links.child_id = assignments.child_id
        WHERE assignments.clinic_id = $1
@@ -51,7 +63,7 @@ router.get("/", requireAuth, async (req, res) => {
   }
 
   const result = await query(
-    `SELECT * FROM assignments WHERE clinic_id = $1 ORDER BY created_at DESC`,
+    `SELECT *, ${RESULTS_SUBQUERY} AS results FROM assignments WHERE clinic_id = $1 ORDER BY created_at DESC`,
     [req.user?.clinicId]
   );
   return res.json({ assignments: result.rows });
@@ -174,6 +186,34 @@ router.post("/:id/results", requireAuth, async (req, res) => {
 
   await writeAudit(req, "game_result_recorded", "result", assignmentId, { gameId: parsed.data.gameId, score: parsed.data.score });
   return res.status(201).json({ assignmentId, gameId: parsed.data.gameId });
+});
+
+router.delete("/:id/games/:gameId", requireAuth, requireRole("admin", "therapist"), async (req, res) => {
+  const assignmentId = String(req.params.id);
+  const gameId = String(req.params.gameId);
+
+  const updated = await query<{ game_ids: string[] }>(
+    `UPDATE assignments
+     SET game_ids = array_remove(game_ids, $1), updated_at = now()
+     WHERE id = $2 AND clinic_id = $3 AND $1 = ANY(game_ids)
+     RETURNING game_ids`,
+    [gameId, assignmentId, req.user?.clinicId]
+  );
+  if (!updated.rows[0]) return res.status(404).json({ error: "Assignment or game not found" });
+
+  await query(`DELETE FROM game_results WHERE assignment_id = $1 AND game_id = $2`, [assignmentId, gameId]);
+  await query(
+    `UPDATE assignments SET status = CASE
+       WHEN cardinality(game_ids) = 0 THEN 'pending'::assignment_status
+       WHEN (SELECT count(*) FROM game_results WHERE assignment_id = $1) >= cardinality(game_ids) THEN 'completed'::assignment_status
+       ELSE 'in-progress'::assignment_status END,
+       updated_at = now()
+     WHERE id = $1`,
+    [assignmentId]
+  );
+
+  await writeAudit(req, "assignment_game_removed", "assignment", assignmentId, { gameId });
+  return res.json({ id: assignmentId, gameIds: updated.rows[0].game_ids });
 });
 
 export default router;
