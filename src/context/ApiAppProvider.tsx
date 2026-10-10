@@ -289,11 +289,6 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     recordChildEvent: async (childId, type, detail) => {
       await productionApi.recordChildEvent(childId, type, detail).catch(() => undefined);
     },
-    assignChildToTherapist: async (childId, therapistId) => {
-      await productionApi.updateChild(childId, { assignedTherapistId: therapistId ?? undefined } as Parameters<typeof productionApi.updateChild>[1]);
-      await refreshClinicData();
-      await refreshAudit();
-    },
     issueFamilyInvite: async () => null,
     resetFamilyCredentials: async (_childId, familyMemberId, temporaryPassword, activate = true) => {
       await productionApi.resetCaregiverPassword(familyMemberId, { temporaryPassword, credentialStatus: activate ? "active" : "pending" });

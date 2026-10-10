@@ -154,6 +154,55 @@ describe("production API", () => {
     expect(writeAuditMock).not.toHaveBeenCalled();
   });
 
+  it("lets admins and therapists update a child record", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .patch("/api/children/00000000-0000-0000-0000-000000000001")
+      .set("Authorization", "Bearer therapist-token")
+      .send({ firstName: "Ava", notes: "Updated notes" })
+      .expect(200);
+
+    expect(response.body).toEqual({ id: "00000000-0000-0000-0000-000000000001" });
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("UPDATE children"), expect.any(Array));
+    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "child_updated", "child", "00000000-0000-0000-0000-000000000001", expect.any(Object));
+  });
+
+  it("blocks parents from updating child records", async () => {
+    const app = await loadApp();
+    await request(app)
+      .patch("/api/children/00000000-0000-0000-0000-000000000001")
+      .set("Authorization", "Bearer parent-token")
+      .send({ notes: "nope" })
+      .expect(403);
+
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("lets admins delete a child record", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .delete("/api/children/00000000-0000-0000-0000-000000000001")
+      .set("Authorization", "Bearer admin-token")
+      .expect(200);
+
+    expect(response.body).toEqual({ ok: true });
+    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "child_deleted", "child", "00000000-0000-0000-0000-000000000001", expect.any(Object));
+  });
+
+  it("blocks therapists from deleting child records", async () => {
+    const app = await loadApp();
+    await request(app)
+      .delete("/api/children/00000000-0000-0000-0000-000000000001")
+      .set("Authorization", "Bearer therapist-token")
+      .expect(403);
+
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
   it("lets admins create family sign-in credentials", async () => {
     queryMock
       .mockResolvedValueOnce({ rows: [{ id: "user-parent-1" }] })
