@@ -6,6 +6,7 @@ import RecognitionEngine from "@/components/game/engines/RecognitionEngine";
 import MemoryEngine from "@/components/game/engines/MemoryEngine";
 import ChoiceRequestEngine from "@/components/game/engines/ChoiceRequestEngine";
 import OddOneOutEngine from "@/components/game/engines/OddOneOutEngine";
+import GamePreview from "@/components/game/GamePreview";
 import type { GameConfig } from "@/data/games";
 
 function makeGame(merge: Partial<GameConfig>): GameConfig {
@@ -160,5 +161,16 @@ describe("OddOneOutEngine setItems override", () => {
     );
     for (const b of Array.from(screen.getAllByRole("button"))) fireEvent.click(b);
     await waitFor(() => expect(handlers.onComplete).toHaveBeenCalled());
+  });
+});
+
+describe("GamePreview", () => {
+  it("GamePreview mounts an authored matching game", () => {
+    render(
+      <GamePreview
+        game={makeGame({ engine: "matching", config: { pairList: ["🦕", "🐲", "🦖", "🐉"] } })}
+      />
+    );
+    expect(screen.getAllByLabelText(/🦕 card|🐲 card|🦖 card|🐉 card/).length).toBeGreaterThanOrEqual(4);
   });
 });
