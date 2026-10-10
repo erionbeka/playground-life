@@ -138,4 +138,17 @@ describe("GameAuthoring", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^edit$/i }));
     expect(screen.getByText("Game name")).toBeTruthy();
   });
+
+  it("previews a decided draft via View without entering edit mode", async () => {
+    vi.mocked(productionApi.listGameDrafts).mockResolvedValue({
+      drafts: [{ ...draftRow, status: "approved" }],
+    } as never);
+    render(<GameAuthoring />);
+    fireEvent.click(await screen.findByRole("button", { name: /^view$/i }));
+
+    expect(await screen.findByText("Draft preview")).toBeTruthy();
+    expect(screen.getAllByLabelText(/🦕 card|🐲 card/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.queryByText("Game name")).toBeNull();
+    expect(productionApi.updateGameDraft).not.toHaveBeenCalled();
+  });
 });

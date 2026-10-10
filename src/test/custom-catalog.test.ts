@@ -64,4 +64,13 @@ describe("custom catalog", () => {
     expect(trace.provenance.engine).toBe("matching");
     expect(trace.provenance.contentVersion).toBe("custom-v1");
   });
+
+  it("marks authored games as therapist-sourced while builtins are not", () => {
+    const custom = authoredGameToGameConfig(makePublished());
+    expect(custom.source).toBe("therapist");
+    registerCustomGames([custom]);
+    expect(getCatalogGameById("d00998e2-c9f0-4b3a-9f7c-1a2b3c4d5e6f")?.source).toBe("therapist");
+    const builtin = getCatalog().find((g) => g.id === allGames[0].id);
+    expect(builtin?.source).not.toBe("therapist");
+  });
 });
