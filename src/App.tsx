@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/context/AppContext";
+import { ApiAppProvider } from "@/context/ApiAppProvider";
 import BlobBackground from "@/components/BlobBackground";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import TherapistDashboard from "@/components/therapist/TherapistDashboard";
@@ -14,9 +15,11 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
+const DataProvider = import.meta.env.VITE_DATA_MODE === "api" ? ApiAppProvider : AppProvider;
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AppProvider>
+    <DataProvider>
       <TooltipProvider>
         <div className="relative min-h-screen overflow-hidden bg-background">
           <BlobBackground />
@@ -36,7 +39,7 @@ const App = () => (
           </div>
         </div>
       </TooltipProvider>
-    </AppProvider>
+    </DataProvider>
   </QueryClientProvider>
 );
 

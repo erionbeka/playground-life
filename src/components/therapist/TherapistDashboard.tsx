@@ -7,8 +7,9 @@ import ChildList from "./ChildList";
 import AssignHomework from "./AssignHomework";
 import HomeworkReview from "./HomeworkReview";
 import ClinicSession from "./ClinicSession";
+import GameAuthoring from "./GameAuthoring";
 
-type Tab = "overview" | "children" | "assign" | "clinic" | "review";
+type Tab = "overview" | "children" | "assign" | "clinic" | "review" | "author";
 
 const tabs: { key: Tab; label: string; emoji: string }[] = [
   { key: "overview", label: "Overview", emoji: "Caseload" },
@@ -16,6 +17,7 @@ const tabs: { key: Tab; label: string; emoji: string }[] = [
   { key: "assign", label: "Homework", emoji: "Assignments" },
   { key: "clinic", label: "Classwork", emoji: "Clinic" },
   { key: "review", label: "Outcomes", emoji: "Reports" },
+  { key: "author", label: "Games", emoji: "🎨" },
 ];
 
 export default function TherapistDashboard() {
@@ -153,6 +155,7 @@ export default function TherapistDashboard() {
         {tab === "assign" && <AssignHomework />}
         {tab === "clinic" && <ClinicSession />}
         {tab === "review" && <HomeworkReview />}
+        {tab === "author" && <GameAuthoring />}
       </motion.div>
     </div>
   );
