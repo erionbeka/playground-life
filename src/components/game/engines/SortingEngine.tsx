@@ -53,30 +53,41 @@ function normalizeCategory(value: string) {
   return value.toLowerCase().replace(/\s+/g, "-");
 }
 
-function createItems(normalizedCategories: string[], perCategory: number) {
+function createItems(normalizedCategories: string[], perCategory: number, authoredMap: Record<string, string[]>) {
   return shuffleItems(
-    normalizedCategories.flatMap((category, categoryIndex) =>
-      (SORT_ITEM_MAP[category] || ["⭐", "🎈", "🧩", "🎨"]).slice(0, perCategory).map((emoji) => ({ emoji, categoryIndex }))
-    )
+    normalizedCategories.flatMap((category, categoryIndex) => {
+      const authored = authoredMap[category] || [];
+      const source = authored.length > 0 ? authored : SORT_ITEM_MAP[category] || ["⭐", "🎈", "🧩", "🎨"];
+      return source.slice(0, perCategory).map((emoji) => ({ emoji, categoryIndex }));
+    })
   );
 }
 
 export default function SortingEngine({ game, onInteraction, onComplete }: Props) {
-  const categories = useMemo(() => (game.config.categories as string[] | undefined) || ["Group A", "Group B"], [game.config.categories]);
+  const authoredMap = useMemo(
+    () => (game.config.itemsByCategory as Record<string, string[]> | undefined) ?? {},
+    [game.config.itemsByCategory]
+  );
+  const authoredCategories = useMemo(() => Object.keys(authoredMap), [authoredMap]);
+  const categories = useMemo(
+    () =>
+      authoredCategories.length > 0 ? authoredCategories : (game.config.categories as string[] | undefined) || ["Group A", "Group B"],
+    [authoredCategories, game.config.categories]
+  );
   const { supportLevel, readinessStage, personalized } = getAdaptiveGameConfig(game);
   const normalized = useMemo(() => categories.map(normalizeCategory), [categories]);
   const categoriesKey = normalized.join("|");
   const showToolHints = normalized.includes("toys") && normalized.includes("tools");
   const itemsPerCategory = personalized && supportLevel === "high" ? 2 : 4;
-  const [items, setItems] = useState(() => createItems(normalized, itemsPerCategory));
+  const [items, setItems] = useState(() => createItems(normalized, itemsPerCategory, authoredMap));
   const [index, setIndex] = useState(0);
   const [correct, setCorrect] = useState(0);
 
   useEffect(() => {
-    setItems(createItems(normalized, itemsPerCategory));
+    setItems(createItems(normalized, itemsPerCategory, authoredMap));
     setIndex(0);
     setCorrect(0);
-  }, [categoriesKey, itemsPerCategory, normalized]);
+  }, [categoriesKey, itemsPerCategory, normalized, authoredMap]);
 
   const current = items[index];
 

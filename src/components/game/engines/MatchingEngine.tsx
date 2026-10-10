@@ -75,6 +75,9 @@ function PairBoard({ game, onInteraction, onComplete, variant }: Props & { varia
   const pairs = typeof game.config.pairs === "number" ? (game.config.pairs as number) : 4;
   const theme = String(game.config.theme || "default");
   const emojis = emojiSets[theme] || emojiSets.default;
+  const pairList = game.config.pairList;
+  const authorPairList = Array.isArray(pairList) ? (pairList as string[]) : [];
+  const totalPairs = authorPairList.length > 0 ? authorPairList.length : pairs;
   const seed = typeof game.config.shuffleSeed === "number" ? (game.config.shuffleSeed as number) : undefined;
   const cardsVisible = typeof game.config.cardsVisible === "number" ? (game.config.cardsVisible as number) : undefined;
 
@@ -86,8 +89,9 @@ function PairBoard({ game, onInteraction, onComplete, variant }: Props & { varia
   const completedRef = useRef(false);
 
   useEffect(() => {
-    const picked = emojis.slice(0, pairs);
-    const deck = buildPairDeck(picked, seed);
+    const authorList = Array.isArray(pairList) ? (pairList as string[]) : [];
+    const labels = authorList.length > 0 ? authorList : emojis.slice(0, pairs);
+    const deck = buildPairDeck(labels, seed);
     const visible = variant === "shadow" || cardsVisible === undefined ? deck : deck.slice(0, cardsVisible);
 
     setCards(visible);
@@ -96,7 +100,7 @@ function PairBoard({ game, onInteraction, onComplete, variant }: Props & { varia
     setMatchedCount(0);
     setResolving(false);
     completedRef.current = false;
-  }, [emojis, pairs, seed, cardsVisible, variant]);
+  }, [pairList, emojis, pairs, seed, cardsVisible, variant]);
 
   const handleTap = (index: number) => {
     if (resolving || selected.length >= 2) return;
@@ -128,9 +132,9 @@ function PairBoard({ game, onInteraction, onComplete, variant }: Props & { varia
         );
         setMatchedCount((currentMatchedCount) => {
           const updatedMatchedCount = currentMatchedCount + 1;
-          if (updatedMatchedCount >= pairs && !completedRef.current) {
+          if (updatedMatchedCount >= totalPairs && !completedRef.current) {
             completedRef.current = true;
-            const score = Math.max(20, 100 - Math.max(0, moves + 1 - pairs) * 5);
+            const score = Math.max(20, 100 - Math.max(0, moves + 1 - totalPairs) * 5);
             onComplete(Math.min(100, score));
           }
           return updatedMatchedCount;
@@ -157,11 +161,11 @@ function PairBoard({ game, onInteraction, onComplete, variant }: Props & { varia
       <div className="mb-4 text-center">
         {variant === "flip" ? (
           <p className="text-sm text-muted-foreground">
-            Matched {matchedCount} of {pairs} pairs
+            Matched {matchedCount} of {totalPairs} pairs
           </p>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Matched: {matchedCount}/{pairs} · Moves: {moves}
+            Matched: {matchedCount}/{totalPairs} · Moves: {moves}
           </p>
         )}
       </div>
