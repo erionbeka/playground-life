@@ -71,6 +71,19 @@ describe("GameApprovals", () => {
     expect(productionApi.decideGameDraft).toHaveBeenCalledWith(submittedRow.id, "reject");
   });
 
+  it("requests changes through the confirmation gate", async () => {
+    vi.mocked(productionApi.listGameDrafts)
+      .mockResolvedValueOnce({ drafts: [submittedRow] } as never)
+      .mockResolvedValueOnce({ drafts: [] } as never);
+    vi.mocked(productionApi.decideGameDraft).mockResolvedValue({ id: submittedRow.id, status: "changes_requested" } as never);
+    render(<GameApprovals />);
+    await waitFor(() => expect(screen.getByText(/Dino Pairs/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /request changes/i }));
+    await waitFor(() => expect(screen.queryByText(/Dino Pairs/)).toBeNull());
+    expect(window.confirm).toHaveBeenCalled();
+    expect(productionApi.decideGameDraft).toHaveBeenCalledWith(submittedRow.id, "changes_requested");
+  });
+
   it("does not decide when the confirmation dialog is declined", async () => {
     vi.mocked(productionApi.listGameDrafts).mockResolvedValue({ drafts: [submittedRow] } as never);
     vi.spyOn(window, "confirm").mockReturnValue(false);

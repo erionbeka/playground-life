@@ -30,7 +30,7 @@ export default function GameApprovals() {
   const queue = drafts.filter((d) => d.status === "submitted");
   const decided = drafts.filter((d) => d.status === "approved" || d.status === "rejected");
 
-  const decide = async (id: string, decision: "approve" | "reject") => {
+  const decide = async (id: string, decision: "approve" | "reject" | "changes_requested") => {
     if (!window.confirm(`Mark this submission as ${decision}d?`)) return;
     try {
       await productionApi.decideGameDraft(id, decision);
@@ -68,6 +68,9 @@ export default function GameApprovals() {
                   <p className="text-xs text-muted-foreground capitalize">{draft.engine} · by {draft.authorId.slice(0, 8)} · origin {draft.originConfirmed ? "confirmed" : "unconfirmed"}</p>
                 </div>
                 <div className="flex gap-2">
+                  <button onClick={() => void decide(draft.id, "changes_requested")} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-foreground touch-target">
+                    Request changes
+                  </button>
                   <button onClick={() => void decide(draft.id, "reject")} className="rounded-xl border border-border px-4 py-2 text-sm font-semibold text-muted-foreground touch-target">
                     Reject
                   </button>

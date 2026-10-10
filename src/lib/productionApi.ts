@@ -256,7 +256,7 @@ export const productionApi = {
     return request<{ id: string; status: string }>(`/api/games/drafts/${id}/submit`, { method: "POST" });
   },
 
-  decideGameDraft(id: string, decision: "approve" | "reject", note?: string) {
+  decideGameDraft(id: string, decision: "approve" | "reject" | "changes_requested", note?: string) {
     return request<{ id: string; status: string }>(`/api/games/drafts/${id}/decide`, {
       method: "POST",
       body: JSON.stringify({ decision, note }),
