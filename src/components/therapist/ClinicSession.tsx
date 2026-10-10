@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "@/context/AppContext";
-import { allGames, categoryMeta, GameCategory, Difficulty } from "@/data/games";
+import { categoryMeta, GameCategory, Difficulty } from "@/data/games";
+import { useCatalog } from "@/lib/customCatalog";
 import { motion, AnimatePresence } from "framer-motion";
 import { getGameSkillDomains } from "@/lib/skills";
 
@@ -8,6 +9,7 @@ const categories = Object.entries(categoryMeta) as [GameCategory, typeof categor
 
 export default function ClinicSession() {
   const { children, createAssignment } = useApp();
+  const catalog = useCatalog();
   const [selectedChildren, setSelectedChildren] = useState<string[]>([]);
   const [selectedGames, setSelectedGames] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
@@ -16,8 +18,8 @@ export default function ClinicSession() {
   const [filterCategory, setFilterCategory] = useState<GameCategory | "all">("all");
   const [success, setSuccess] = useState(false);
 
-  const multiplayerGames = allGames.filter((g) => g.supportsMultiplayer);
-  const availableGames = mode === "multiplayer" ? multiplayerGames : allGames;
+  const multiplayerGames = catalog.filter((g) => g.supportsMultiplayer);
+  const availableGames = mode === "multiplayer" ? multiplayerGames : catalog;
   const filteredGames = filterCategory === "all" ? availableGames : availableGames.filter((g) => g.category === filterCategory);
 
   useEffect(() => {
@@ -119,7 +121,7 @@ export default function ClinicSession() {
             </p>
             <div className="flex flex-wrap gap-1">
               {selectedGames.map((id) => {
-                const g = availableGames.find((game) => game.id === id) || allGames.find((game) => game.id === id);
+                const g = availableGames.find((game) => game.id === id) || catalog.find((game) => game.id === id);
                 return g ? (
                   <span key={id} className="text-xs bg-primary/10 text-foreground px-2 py-1 rounded-full">
                     {g.emoji} {g.name}

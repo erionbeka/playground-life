@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SkillDomain, useApp } from "@/context/AppContext";
-import { allGames, categoryMeta, GameCategory, Difficulty } from "@/data/games";
+import { categoryMeta, GameCategory, Difficulty } from "@/data/games";
+import { useCatalog } from "@/lib/customCatalog";
 import { motion, AnimatePresence } from "framer-motion";
 import { buildMonthlyPlan, getPersonalizationSummary } from "@/lib/personalization";
 import { getGameSkillDomains } from "@/lib/skills";
@@ -18,6 +19,7 @@ const relationshipLabels: Record<string, string> = {
 
 export default function AssignHomework() {
   const { children, assignments, createAssignment, approveAssignment } = useApp();
+  const catalog = useCatalog();
   const [childId, setChildId] = useState(children[0]?.id || "");
   const [selectedGames, setSelectedGames] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
@@ -42,8 +44,8 @@ export default function AssignHomework() {
     [selectedChild]
   );
   const availableGames = useMemo(
-    () => allGames.filter((game) => (mode === "shared" ? game.supportsShared : true)),
-    [mode]
+    () => catalog.filter((game) => (mode === "shared" ? game.supportsShared : true)),
+    [catalog, mode]
   );
   const personalization = useMemo(
     () => (selectedChild ? getPersonalizationSummary(selectedChild, assignments, availableGames) : null),
@@ -421,7 +423,7 @@ export default function AssignHomework() {
             <p className="mb-1 text-sm font-semibold text-foreground">Selected: {selectedGames.length} games</p>
             <div className="flex flex-wrap gap-1">
               {selectedGames.map((gameId) => {
-                const game = availableGames.find((entry) => entry.id === gameId) || allGames.find((entry) => entry.id === gameId);
+                const game = availableGames.find((entry) => entry.id === gameId) || catalog.find((entry) => entry.id === gameId);
                 return game ? (
                   <span key={gameId} className="rounded-full bg-primary/10 px-2 py-1 text-xs text-foreground">
                     {game.emoji} {game.name}
