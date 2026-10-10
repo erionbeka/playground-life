@@ -15,6 +15,7 @@ vi.mock("@/lib/productionApi", () => ({
     listChildren: vi.fn(),
     listAssignments: vi.fn(),
     listAuditLog: vi.fn(),
+    listFamilyLinks: vi.fn(),
     listCustomGames: vi.fn(),
     logout: vi.fn(),
   },
@@ -67,6 +68,7 @@ describe("ApiAppProvider sign-in catalog hydration", () => {
     vi.mocked(productionApi.listChildren).mockResolvedValue({ children: [] } as never);
     vi.mocked(productionApi.listAssignments).mockResolvedValue({ assignments: [] } as never);
     vi.mocked(productionApi.listAuditLog).mockResolvedValue({ auditLog: [] } as never);
+    vi.mocked(productionApi.listFamilyLinks).mockResolvedValue({ familyLinks: [] } as never);
     vi.mocked(productionApi.listCustomGames).mockResolvedValue({ games: [makePublished()] } as never);
   });
 

@@ -41,7 +41,7 @@ router.get("/", requireAuth, async (req, res) => {
   return res.json({ children: result.rows });
 });
 
-router.post("/", requireAuth, requireRole("admin", "therapist"), async (req, res) => {
+router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = childSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid child payload" });
 

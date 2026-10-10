@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { Child, ClinicalRatings, FamilyMember, useApp } from "@/context/AppContext";
+import { Child, ClinicalRatings, useApp } from "@/context/AppContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { getPersonalizationSummary } from "@/lib/personalization";
-import { hashSecret } from "@/lib/auth";
 import { emptySkillProfile } from "@/lib/skills";
 import { buildGoalFromTemplate, goalTemplates } from "@/lib/goalTemplates";
 
@@ -26,7 +25,7 @@ const ratingLabels: Array<{ key: keyof ClinicalRatings; label: string }> = [
 ];
 
 export default function ChildList() {
-  const { children, addChild, removeChild, updateChild, assignments } = useApp();
+  const { children, removeChild, updateChild, assignments } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -51,16 +50,9 @@ export default function ChildList() {
   const [promptDependence, setPromptDependence] = useState("3");
   const [reinforcementResponse, setReinforcementResponse] = useState("3");
 
-  const [addingFamilyTo, setAddingFamilyTo] = useState<string | null>(null);
-  const [fmName, setFmName] = useState("");
-  const [fmRelationship, setFmRelationship] = useState<FamilyMember["relationship"]>("parent");
-  const [fmAvatar, setFmAvatar] = useState("👩");
-  const [fmPhoneNumber, setFmPhoneNumber] = useState("");
-  const [fmPassword, setFmPassword] = useState("");
   const [goalTemplateByChild, setGoalTemplateByChild] = useState<Record<string, string>>({});
 
   const avatars = ["👧", "👦", "👶", "🧒"];
-  const fmAvatars = ["👩", "👨", "👧", "👦", "👵", "👴"];
 
   const relationshipLabels: Record<string, string> = {
     parent: "Parent",
@@ -94,15 +86,6 @@ export default function ChildList() {
     setReinforcementResponse("3");
     setShowForm(false);
     setEditingChildId(null);
-  };
-
-  const resetFamilyForm = () => {
-    setFmName("");
-    setFmRelationship("parent");
-    setFmAvatar("👩");
-    setFmPhoneNumber("");
-    setFmPassword("");
-    setAddingFamilyTo(null);
   };
 
   const saveChild = () => {
@@ -183,11 +166,9 @@ export default function ChildList() {
           },
     };
 
-    if (editingChildId) {
-      updateChild(editingChildId, payload);
-    } else {
-      addChild(payload);
-    }
+    if (!editingChildId) return;
+
+    updateChild(editingChildId, payload);
 
     resetChildForm();
   };
@@ -218,35 +199,6 @@ export default function ChildList() {
     setReinforcementResponse(String(child.personalizationProfile.clinicalRatings.reinforcementResponse));
   };
 
-  const handleAddFamily = (childId: string) => {
-    if (!fmName.trim() || !fmPhoneNumber.trim() || !fmPassword.trim()) return;
-    const child = children.find((entry) => entry.id === childId);
-    if (!child) return;
-
-    const newFamilyMember: FamilyMember = {
-      id: `fm-${Date.now()}`,
-      name: fmName.trim(),
-      relationship: fmRelationship,
-      avatar: fmAvatar,
-      phoneNumber: fmPhoneNumber.trim(),
-      passwordHash: hashSecret(fmPassword),
-      credentialStatus: "active",
-      invitedAt: new Date().toISOString(),
-    };
-
-    updateChild(childId, { familyMembers: [...child.familyMembers, newFamilyMember] });
-    resetFamilyForm();
-  };
-
-  const removeFamilyMember = (childId: string, familyMemberId: string) => {
-    const child = children.find((entry) => entry.id === childId);
-    if (!child) return;
-
-    updateChild(childId, {
-      familyMembers: child.familyMembers.filter((familyMember) => familyMember.id !== familyMemberId),
-    });
-  };
-
   const applyGoalTemplate = (childId: string) => {
     const child = children.find((entry) => entry.id === childId);
     const templateId = goalTemplateByChild[childId];
@@ -263,11 +215,8 @@ export default function ChildList() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6">
         <h2 className="font-display text-lg font-bold text-foreground">My Children ({children.length})</h2>
-        <button onClick={() => (showForm ? resetChildForm() : setShowForm(true))} className="touch-target rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
-          {showForm ? "Cancel" : "+ Add Child"}
-        </button>
       </div>
 
       <AnimatePresence>
@@ -493,17 +442,12 @@ export default function ChildList() {
 
               <div className="border-t border-border pt-3">
                 <p className="mb-2 text-xs font-semibold text-foreground">Family Members</p>
-                <div className="mb-2 space-y-1">
+                <div className="space-y-1">
                   {child.familyMembers.map((familyMember) => (
                     <div key={familyMember.id} className="rounded-lg bg-muted px-2 py-1 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span>
-                          {familyMember.avatar} {familyMember.name} <span className="text-muted-foreground">({relationshipLabels[familyMember.relationship]})</span>
-                        </span>
-                        <button onClick={() => removeFamilyMember(child.id, familyMember.id)} className="text-[10px] text-destructive hover:underline">
-                          Remove
-                        </button>
-                      </div>
+                      <span>
+                        {familyMember.avatar} {familyMember.name} <span className="text-muted-foreground">({relationshipLabels[familyMember.relationship]})</span>
+                      </span>
                       <p className="mt-1 text-[10px] text-muted-foreground">
                         Sign in: {familyMember.phoneNumber} · credentials {familyMember.credentialStatus}
                       </p>
@@ -511,36 +455,6 @@ export default function ChildList() {
                   ))}
                   {child.familyMembers.length === 0 ? <p className="text-xs text-muted-foreground">No family members added</p> : null}
                 </div>
-
-                {addingFamilyTo === child.id ? (
-                  <div className="space-y-2 rounded-lg bg-muted p-2">
-                    <input value={fmName} onChange={(event) => setFmName(event.target.value)} className="w-full rounded border border-border bg-card px-2 py-1 text-xs text-foreground" placeholder="Name" />
-                    <input value={fmPhoneNumber} onChange={(event) => setFmPhoneNumber(event.target.value)} className="w-full rounded border border-border bg-card px-2 py-1 text-xs text-foreground" placeholder="Phone number" />
-                    <input value={fmPassword} onChange={(event) => setFmPassword(event.target.value)} className="w-full rounded border border-border bg-card px-2 py-1 text-xs text-foreground" placeholder="Password" />
-                    <select value={fmRelationship} onChange={(event) => setFmRelationship(event.target.value as FamilyMember["relationship"])} className="w-full rounded border border-border bg-card px-2 py-1 text-xs text-foreground">
-                      <option value="parent">Parent</option>
-                      <option value="sibling">Sibling</option>
-                      <option value="grandparent">Grandparent</option>
-                      <option value="aunt-uncle">Aunt/Uncle</option>
-                      <option value="other">Other</option>
-                    </select>
-                    <div className="flex gap-1">
-                      {fmAvatars.map((entry) => (
-                        <button key={entry} onClick={() => setFmAvatar(entry)} className={`rounded p-0.5 text-lg ${fmAvatar === entry ? "ring-2 ring-primary" : ""}`}>
-                          {entry}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => handleAddFamily(child.id)} className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">Add</button>
-                      <button onClick={resetFamilyForm} className="text-xs text-muted-foreground">Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button onClick={() => setAddingFamilyTo(child.id)} className="text-xs font-semibold text-primary hover:underline">
-                    + Add Family Member
-                  </button>
-                )}
               </div>
 
               <button onClick={() => removeChild(child.id)} className="mt-3 text-xs text-destructive hover:underline">

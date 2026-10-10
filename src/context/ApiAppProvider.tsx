@@ -1,5 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AppContext, AppState, AuditEntry, Child, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal } from "@/context/AppContext";
+import { AppContext, AppState, AuditEntry, Child, FamilyMember, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal } from "@/context/AppContext";
 import { AuthSession } from "@/lib/auth";
 import { AdminUser, TherapistUser } from "@/lib/backend";
 import { productionApi } from "@/lib/productionApi";
@@ -87,6 +87,20 @@ function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
   };
 }
 
+function mapFamilyMember(row: Record<string, unknown>): FamilyMember {
+  return {
+    id: String(row.user_id || row.userId || row.id),
+    name: String(row.name || "Family member"),
+    relationship: (row.relationship as FamilyMember["relationship"]) || "other",
+    avatar: "🧑",
+    phoneNumber: String(row.phone_number || row.phoneNumber || ""),
+    passwordHash: "",
+    credentialStatus: (row.credential_status as FamilyMember["credentialStatus"]) || "active",
+    invitedAt: String(row.invited_at || row.invitedAt || ""),
+    lastSignedInAt: row.last_signed_in_at ? String(row.last_signed_in_at) : undefined,
+  };
+}
+
 function mapAudit(row: Record<string, unknown>): AuditEntry {
   return {
     id: String(row.id),
@@ -110,11 +124,23 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
   const [currentAssignment, setCurrentAssignment] = useState<HomeworkAssignment | null>(null);
 
   const refreshClinicData = useCallback(async () => {
-    const [childResponse, assignmentResponse] = await Promise.all([
+    const [childResponse, assignmentResponse, familyResponse] = await Promise.all([
       productionApi.listChildren(),
       productionApi.listAssignments(),
+      productionApi.listFamilyLinks().catch(() => ({ familyLinks: [] as unknown[] })),
     ]);
-    setChildren(childResponse.children.map((entry) => mapChild(entry as Record<string, unknown>)));
+    const familyLinks = familyResponse.familyLinks as Array<Record<string, unknown>>;
+    setChildren(
+      childResponse.children.map((entry) => {
+        const child = mapChild(entry as Record<string, unknown>);
+        return {
+          ...child,
+          familyMembers: familyLinks
+            .filter((link) => String(link.child_id || link.childId) === child.id)
+            .map((link) => mapFamilyMember(link)),
+        };
+      })
+    );
     setAssignments(assignmentResponse.assignments.map((entry) => mapAssignment(entry as Record<string, unknown>)));
   }, []);
 
@@ -223,6 +249,17 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         personalizationProfile: child.personalizationProfile,
         skillProfile: child.skillProfile,
         progressionSettings: child.progressionSettings,
+      });
+      await refreshClinicData();
+      await refreshAudit();
+    },
+    addFamilyMember: async (childId, member) => {
+      await productionApi.createCaregiver({
+        childId,
+        name: member.name,
+        relationship: member.relationship,
+        phoneNumber: member.phoneNumber,
+        temporaryPassword: member.password,
       });
       await refreshClinicData();
       await refreshAudit();

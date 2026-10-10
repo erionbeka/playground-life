@@ -6,9 +6,17 @@ import helmet from "helmet";
 import { config } from "./config.ts";
 import authRoutes from "./routes/auth.ts";
 import childrenRoutes from "./routes/children.ts";
+import familiesRoutes from "./routes/families.ts";
 import assignmentRoutes from "./routes/assignments.ts";
 import auditRoutes from "./routes/audit.ts";
 import gameRoutes from "./routes/games.ts";
+import goalsRoutes from "./routes/goals.ts";
+import familySessionRoutes from "./routes/familySession.ts";
+import { securityRoutes } from "./routes/security.ts";
+import { adminComplianceRoutes } from "./routes/admin-compliance.ts";
+import researchRoutes from "./routes/research.ts";
+import { childDataRoutes } from "./routes/childData.ts";
+import { rewardRoutes } from "./routes/rewards.ts";
 
 export function createApp() {
   const app = express();
@@ -23,9 +31,17 @@ export function createApp() {
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.use("/api/auth", authRoutes);
   app.use("/api/children", childrenRoutes);
+  app.use("/api/families", familiesRoutes);
   app.use("/api/assignments", assignmentRoutes);
   app.use("/api/audit", auditRoutes);
   app.use("/api/games", gameRoutes);
+  app.use("/api/goals", goalsRoutes);
+  app.use("/api/family", familySessionRoutes);
+  app.use("/api/security", securityRoutes);
+  app.use("/api/admin/compliance", adminComplianceRoutes);
+  app.use("/api/research", researchRoutes);
+  app.use("/api", childDataRoutes);
+  app.use("/api", rewardRoutes);
 
   const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     console.error(error);

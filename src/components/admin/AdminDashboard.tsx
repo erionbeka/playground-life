@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { useApp } from "@/context/AppContext";
+import { FamilyMember, useApp } from "@/context/AppContext";
+import { emptySkillProfile } from "@/lib/skills";
 import GameApprovals from "./GameApprovals";
 
 type Tab = "overview" | "staff" | "families" | "content" | "readiness";
@@ -15,7 +16,7 @@ const tabs: { key: Tab; label: string; emoji?: string }[] = [
 ];
 
 export default function AdminDashboard() {
-  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog } = useApp();
+  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, addChild, addFamilyMember, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
   const [email, setEmail] = useState(adminUsers[0]?.email || "admin@playgroundlife.app");
@@ -26,6 +27,88 @@ export default function AdminDashboard() {
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
   const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
+  const [showAddChild, setShowAddChild] = useState(false);
+  const [childName, setChildName] = useState("");
+  const [childAvatar, setChildAvatar] = useState("🧒");
+  const [childAge, setChildAge] = useState("6");
+  const [childDiagnosis, setChildDiagnosis] = useState("");
+  const [childNotes, setChildNotes] = useState("");
+  const [addingFamilyTo, setAddingFamilyTo] = useState<string | null>(null);
+  const [fmName, setFmName] = useState("");
+  const [fmRelationship, setFmRelationship] = useState<FamilyMember["relationship"]>("parent");
+  const [fmAvatar, setFmAvatar] = useState("👩");
+  const [fmPhoneNumber, setFmPhoneNumber] = useState("");
+  const [fmPassword, setFmPassword] = useState("");
+  const childAvatars = ["👧", "👦", "👶", "🧒"];
+  const fmAvatars = ["👩", "👨", "👧", "👦", "👵", "👴"];
+
+  const resetAddChildForm = () => {
+    setChildName("");
+    setChildAvatar("🧒");
+    setChildAge("6");
+    setChildDiagnosis("");
+    setChildNotes("");
+    setShowAddChild(false);
+  };
+
+  const saveChild = () => {
+    if (!childName.trim()) return;
+    const parsedAge = Number.parseInt(childAge, 10);
+    addChild({
+      name: childName.trim(),
+      age: Number.isNaN(parsedAge) ? 0 : parsedAge,
+      avatar: childAvatar,
+      notes: childNotes,
+      diagnosis: childDiagnosis || undefined,
+      familyMembers: [],
+      personalizationProfile: {
+        preferredStyle: "mixed",
+        communicationLevel: "phrases",
+        reinforcementType: "social-praise",
+        promptLevel: "verbal",
+        transitionDifficulty: "moderate",
+        interests: [],
+        strengths: [],
+        supportNeeds: [],
+        sensoryPreferences: [],
+        triggerPatterns: [],
+        regulationSupports: [],
+        clinicalRatings: {
+          communicationSupport: 3,
+          regulationSupport: 3,
+          transitionSupport: 3,
+          promptDependence: 3,
+          reinforcementResponse: 3,
+        },
+        clinicalRatingHistory: [],
+      },
+      therapyGoals: [],
+      skillProfile: emptySkillProfile(),
+      progressionSettings: { autoAdvance: true, approvalRequired: true, recommendedDifficulty: "easy", maxDifficulty: "hard" },
+    });
+    resetAddChildForm();
+  };
+
+  const resetFamilyForm = () => {
+    setFmName("");
+    setFmRelationship("parent");
+    setFmAvatar("👩");
+    setFmPhoneNumber("");
+    setFmPassword("");
+    setAddingFamilyTo(null);
+  };
+
+  const handleAddFamily = (childId: string) => {
+    if (!fmName.trim() || !fmPhoneNumber.trim() || fmPassword.trim().length < 12) return;
+    addFamilyMember(childId, {
+      name: fmName.trim(),
+      relationship: fmRelationship,
+      avatar: fmAvatar,
+      phoneNumber: fmPhoneNumber.trim(),
+      password: fmPassword,
+    });
+    resetFamilyForm();
+  };
 
   const familyRows = useMemo(
     () =>
@@ -252,45 +335,128 @@ export default function AdminDashboard() {
         ) : null}
 
         {tab === "families" ? (
-          <div className="space-y-4">
-            <h2 className="font-display text-lg font-bold text-foreground">Family Onboarding & Credential Controls</h2>
-            {familyRows.map(({ child, familyMember }) => (
-              <div key={familyMember.id} className="rounded-2xl border border-border bg-muted p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="font-display text-lg font-bold text-foreground">Children & Family Onboarding</h2>
+              <button
+                onClick={() => (showAddChild ? resetAddChildForm() : setShowAddChild(true))}
+                className="touch-target rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                {showAddChild ? "Cancel" : "+ Add Child"}
+              </button>
+            </div>
+
+            {showAddChild ? (
+              <div className="rounded-2xl border border-border bg-muted p-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <input value={childName} onChange={(event) => setChildName(event.target.value)} placeholder="Child's name" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground" />
+                  <input type="number" value={childAge} onChange={(event) => setChildAge(event.target.value)} min="2" max="18" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground" />
+                  <select value={childDiagnosis} onChange={(event) => setChildDiagnosis(event.target.value)} className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
+                    <option value="">Select diagnosis...</option>
+                    <option value="ASD Level 1">ASD Level 1</option>
+                    <option value="ASD Level 2">ASD Level 2</option>
+                    <option value="ASD Level 3">ASD Level 3</option>
+                    <option value="ADHD">ADHD</option>
+                    <option value="ASD + ADHD">ASD + ADHD</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <input value={childNotes} onChange={(event) => setChildNotes(event.target.value)} placeholder="Summary" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground" />
                   <div>
-                    <p className="font-semibold text-foreground">{familyMember.avatar} {familyMember.name} · {child.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {familyMember.phoneNumber} · {familyMember.credentialStatus} · invited {new Date(familyMember.invitedAt).toLocaleDateString()}
-                    </p>
-                    {familyMember.inviteCode ? <p className="mt-1 text-xs font-semibold text-amber-700">Invite code: {familyMember.inviteCode}</p> : null}
-                    {familyMember.lastSignedInAt ? <p className="mt-1 text-xs text-muted-foreground">Last sign-in: {new Date(familyMember.lastSignedInAt).toLocaleString()}</p> : null}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => issueFamilyInvite(child.id, familyMember.id)}
-                      className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white"
-                    >
-                      Issue Invite
-                    </button>
-                    <button
-                      onClick={() => {
-                        const tempPassword = `Play-${Math.random().toString(36).slice(2, 8)}`;
-                        resetFamilyCredentials(child.id, familyMember.id, tempPassword, true);
-                        setGeneratedPasswords((current) => ({ ...current, [familyMember.id]: tempPassword }));
-                      }}
-                      className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
-                    >
-                      Reset Password
-                    </button>
+                    <label className="mb-1 block text-sm font-semibold text-foreground">Avatar</label>
+                    <div className="flex flex-wrap gap-2">
+                      {childAvatars.map((entry) => (
+                        <button key={entry} onClick={() => setChildAvatar(entry)} className={`rounded-lg p-1 text-2xl transition-colors ${childAvatar === entry ? "bg-primary/20 ring-2 ring-primary" : ""}`}>
+                          {entry}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                {generatedPasswords[familyMember.id] ? (
-                  <p className="mt-3 rounded-lg bg-card px-3 py-2 text-xs text-foreground">
-                    Temporary password: <span className="font-semibold">{generatedPasswords[familyMember.id]}</span>
-                  </p>
-                ) : null}
+                <button onClick={saveChild} className="mt-4 touch-target rounded-lg bg-secondary px-6 py-2 text-sm font-semibold text-secondary-foreground">
+                  Save Child
+                </button>
               </div>
-            ))}
+            ) : null}
+
+            <div className="space-y-4">
+              {children.map((child) => (
+                <div key={child.id} className="rounded-2xl border border-border bg-card p-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl">{child.avatar}</span>
+                    <div>
+                      <p className="font-semibold text-foreground">{child.name}</p>
+                      <p className="text-xs text-muted-foreground">Age {child.age}{child.diagnosis ? ` · ${child.diagnosis}` : ""}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {child.familyMembers.map((familyMember) => (
+                      <div key={familyMember.id} className="rounded-xl border border-border bg-muted p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{familyMember.avatar} {familyMember.name} <span className="text-muted-foreground">({familyMember.relationship})</span></p>
+                            <p className="text-[11px] text-muted-foreground">Sign in: {familyMember.phoneNumber} · credentials {familyMember.credentialStatus}</p>
+                            {generatedPasswords[familyMember.id] ? (
+                              <p className="mt-1 text-[11px] text-foreground">Temporary password: <span className="font-mono font-semibold">{generatedPasswords[familyMember.id]}</span></p>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => issueFamilyInvite(child.id, familyMember.id)}
+                              className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white"
+                            >
+                              Issue Invite
+                            </button>
+                            <button
+                              onClick={() => {
+                                const tempPassword = `Play-${Math.random().toString(36).slice(2, 8)}`;
+                                resetFamilyCredentials(child.id, familyMember.id, tempPassword, true);
+                                setGeneratedPasswords((current) => ({ ...current, [familyMember.id]: tempPassword }));
+                              }}
+                              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
+                            >
+                              Reset Password
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {child.familyMembers.length === 0 ? <p className="text-xs text-muted-foreground">No family members yet.</p> : null}
+                  </div>
+
+                  {addingFamilyTo === child.id ? (
+                    <div className="mt-3 space-y-2 rounded-xl bg-muted p-3">
+                      <input value={fmName} onChange={(event) => setFmName(event.target.value)} placeholder="Name" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground" />
+                      <input value={fmPhoneNumber} onChange={(event) => setFmPhoneNumber(event.target.value)} placeholder="Phone number" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground" />
+                      <input value={fmPassword} onChange={(event) => setFmPassword(event.target.value)} placeholder="Temporary password (min 12 characters)" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground" />
+                      <select value={fmRelationship} onChange={(event) => setFmRelationship(event.target.value as FamilyMember["relationship"])} className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground">
+                        <option value="parent">Parent</option>
+                        <option value="sibling">Sibling</option>
+                        <option value="grandparent">Grandparent</option>
+                        <option value="aunt-uncle">Aunt/Uncle</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <div className="flex gap-1">
+                        {fmAvatars.map((entry) => (
+                          <button key={entry} onClick={() => setFmAvatar(entry)} className={`rounded p-0.5 text-lg ${fmAvatar === entry ? "ring-2 ring-primary" : ""}`}>
+                            {entry}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleAddFamily(child.id)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground">Create Credentials</button>
+                        <button onClick={resetFamilyForm} className="text-xs text-muted-foreground">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setAddingFamilyTo(child.id)} className="mt-3 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted">
+                      + Add Family Member
+                    </button>
+                  )}
+                </div>
+              ))}
+              {children.length === 0 ? <p className="text-sm text-muted-foreground">No children yet. Add a child to get started.</p> : null}
+            </div>
           </div>
         ) : null}
 

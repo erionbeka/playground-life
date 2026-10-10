@@ -197,6 +197,7 @@ export interface AppState {
   addStaffUser: (user: { role: "admin" | "therapist"; name: string; email: string; clinicName: string; password: string }) => MaybePromise<void>;
   children: Child[];
   addChild: (child: Omit<Child, "id">) => MaybePromise<void>;
+  addFamilyMember: (childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => MaybePromise<void>;
   removeChild: (id: string) => MaybePromise<void>;
   updateChild: (id: string, updates: Partial<Child>) => MaybePromise<void>;
   issueFamilyInvite: (childId: string, familyMemberId: string) => MaybePromise<string | null>;
@@ -848,6 +849,24 @@ export function AppProvider({
     });
   }, [appendAudit, persist, session]);
 
+  const addFamilyMember = useCallback((childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => {
+    persist((current) => {
+      const familyMember: FamilyMember = {
+        id: `fm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        name: member.name.trim(),
+        relationship: member.relationship,
+        avatar: member.avatar || "🧑",
+        phoneNumber: member.phoneNumber.trim(),
+        passwordHash: hashSecret(member.password),
+        credentialStatus: "active",
+        invitedAt: new Date().toISOString(),
+        lastCredentialUpdateAt: new Date().toISOString(),
+      };
+      const updatedChildren = current.children.map((child) => child.id !== childId ? child : ({ ...child, familyMembers: [...child.familyMembers, familyMember] }));
+      return appendAudit({ ...current, children: updatedChildren }, createAuditEntry("family_member_added", session, "credential", familyMember.id, `Added family member for child ${childId}`));
+    });
+  }, [appendAudit, persist, session]);
+
   const issueFamilyInvite = useCallback((childId: string, familyMemberId: string) => {
     const inviteCode = createInviteCode();
 
@@ -1016,6 +1035,7 @@ export function AppProvider({
     addStaffUser,
     children: snapshot.children,
     addChild,
+    addFamilyMember,
     removeChild,
     updateChild,
     issueFamilyInvite,
@@ -1031,7 +1051,7 @@ export function AppProvider({
     currentAssignment,
     setCurrentAssignment,
     auditLog: snapshot.auditLog,
-  }), [addChild, addStaffUser, approveAssignment, completeGame, createAssignment, currentAssignment, issueFamilyInvite, removeChild, removeGameFromAssignment, resetFamilyCredentials, role, selectedChildId, session, signInAdmin, signInFamily, signInTherapist, signOut, snapshot, updateChild, updateGoalStatus]);
+  }), [addChild, addFamilyMember, addStaffUser, approveAssignment, completeGame, createAssignment, currentAssignment, issueFamilyInvite, removeChild, removeGameFromAssignment, resetFamilyCredentials, role, selectedChildId, session, signInAdmin, signInFamily, signInTherapist, signOut, snapshot, updateChild, updateGoalStatus]);
 
   return <AppContext.Provider value={value}>{childrenNodes}</AppContext.Provider>;
 }

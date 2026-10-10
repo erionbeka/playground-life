@@ -91,6 +91,24 @@ describe("production API", () => {
     await request(app).get("/api/auth/me").expect(401);
   });
 
+  it("mounts every API route group", async () => {
+    const app = await loadApp();
+    const getPaths = [
+      "/api/goals",
+      "/api/family/session",
+      "/api/admin/compliance/backup/status",
+      "/api/children/child-1/rewards",
+    ];
+    const postPaths = ["/api/research/export", "/api/children/child-1/moods", "/api/security/reset-request"];
+
+    for (const path of getPaths) {
+      expect((await request(app).get(path)).status).not.toBe(404);
+    }
+    for (const path of postPaths) {
+      expect((await request(app).post(path)).status).not.toBe(404);
+    }
+  });
+
   it("rejects invalid credentials", async () => {
     queryMock.mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active" }] });
 
@@ -124,6 +142,63 @@ describe("production API", () => {
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO children"), expect.arrayContaining(["clinic-1", "Ava", "Ava"]));
     expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "child_created", "child", "child-1", { displayName: "Ava" });
   });
+
+  it("blocks therapists from creating child records", async () => {
+    const app = await loadApp();
+    await request(app)
+      .post("/api/children")
+      .set("Authorization", "Bearer therapist-token")
+      .send({ firstName: "Ava", displayName: "Ava" })
+      .expect(403);
+
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("lets admins create family sign-in credentials", async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ id: "user-parent-1" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "link-1" }] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/families")
+      .set("Authorization", "Bearer admin-token")
+      .send({
+        childId: "00000000-0000-0000-0000-000000000001",
+        name: "Nina",
+        relationship: "Mother",
+        phoneNumber: "555-0401",
+        temporaryPassword: "CorrectHorseBatteryStaple1",
+      })
+      .expect(201);
+
+    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1" });
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "caregiver_created",
+      "credential",
+      "link-1",
+      expect.objectContaining({ relationship: "Mother" })
+    );
+  });
+
+  it("blocks therapists from creating family credentials", async () => {
+    const app = await loadApp();
+    await request(app)
+      .post("/api/families")
+      .set("Authorization", "Bearer therapist-token")
+      .send({
+        childId: "00000000-0000-0000-0000-000000000001",
+        name: "Nina",
+        relationship: "Mother",
+        phoneNumber: "555-0401",
+        temporaryPassword: "CorrectHorseBatteryStaple1",
+      })
+      .expect(403);
+
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
 
   it("limits parent child lists to linked children", async () => {
     queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1", display_name: "Ava" }] });

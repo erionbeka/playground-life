@@ -42,7 +42,7 @@ router.get("/", requireAuth, requireRole("admin", "therapist"), async (req, res)
   return res.json({ familyLinks: result.rows });
 });
 
-router.post("/", requireAuth, requireRole("admin", "therapist"), async (req, res) => {
+router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = caregiverSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid caregiver payload" });
 

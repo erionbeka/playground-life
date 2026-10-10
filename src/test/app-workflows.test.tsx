@@ -359,7 +359,7 @@ describe("app workflows", () => {
     expect(assignments.some((assignment: HomeworkAssignment) => assignment.childId === "child-2")).toBe(false);
   });
 
-  it("lets therapists create secure family sign-in credentials", () => {
+  it("does not let therapists add children or family members", () => {
     render(
       <MemoryRouter>
         <AppProvider>
@@ -368,14 +368,37 @@ describe("app workflows", () => {
       </MemoryRouter>
     );
 
+    expect(screen.queryByText("+ Add Child")).not.toBeInTheDocument();
+    expect(screen.queryByText("+ Add Family Member")).not.toBeInTheDocument();
+  });
+
+  it("lets the clinic admin add a child and create family sign-in credentials", async () => {
+    render(
+      <MemoryRouter>
+        <AppProvider>
+          <AdminDashboard />
+        </AppProvider>
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByText("Sign In"));
+    await screen.findByText(/Clinic Admin Dashboard/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /^Families$/i }));
+
+    fireEvent.click(screen.getByText("+ Add Child"));
+    fireEvent.change(screen.getByPlaceholderText("Child's name"), { target: { value: "Zoe" } });
+    fireEvent.click(screen.getByText("Save Child"));
+    expect(screen.getByText("Zoe")).toBeInTheDocument();
+
     fireEvent.click(screen.getAllByText("+ Add Family Member")[0]);
     fireEvent.change(screen.getByPlaceholderText("Name"), { target: { value: "Nina" } });
     fireEvent.change(screen.getByPlaceholderText("Phone number"), { target: { value: "555-0401" } });
-    fireEvent.change(screen.getByPlaceholderText("Password"), { target: { value: "nina-pass" } });
-    fireEvent.click(screen.getByText("Add"));
+    fireEvent.change(screen.getByPlaceholderText(/Temporary password/i), { target: { value: "nina-pass-12345" } });
+    fireEvent.click(screen.getByText("Create Credentials"));
 
     expect(screen.getByText(/555-0401/i).textContent).toMatch(/credentials active/i);
-    expect(screen.queryByText(/nina-pass/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/nina-pass-12345/i)).not.toBeInTheDocument();
   });
 
   it("lets therapists apply a reusable goal template to a child", () => {
