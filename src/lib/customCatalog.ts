@@ -6,7 +6,7 @@ export const CUSTOM_GAMES_CACHE_KEY = "pp-custom-games-v1";
 export const CUSTOM_GAMES_CACHE_VERSION = "v1";
 
 let customGames: GameConfig[] = [];
-let catalogSnapshot: GameConfig[] = allGames;
+let catalogSnapshot: GameConfig[] = allGames.map((g) => ({ ...g }));
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -14,7 +14,8 @@ function emit() {
 }
 
 function rebuildSnapshot() {
-  catalogSnapshot = allGames.concat(customGames);
+  const builtins = allGames.map((g) => (g.source ? g : { ...g, source: "builtin" as const }));
+  catalogSnapshot = builtins.concat(customGames);
 }
 
 function subscribe(listener: () => void): () => void {

@@ -82,12 +82,25 @@ async function validateWithExistingTitles(
 gameRoutes.get("/drafts", async (req: Request, res: Response) => {
   const isAdmin = req.user?.role === "admin";
   const result = isAdmin
-    ? await query("SELECT * FROM game_drafts WHERE clinic_id = $1 ORDER BY updated_at DESC", [req.user?.clinicId])
+    ? await query(
+        "SELECT * FROM game_drafts WHERE clinic_id = $1 ORDER BY COALESCE(submitted_at, updated_at) DESC",
+        [req.user?.clinicId]
+      )
     : await query(
         "SELECT * FROM game_drafts WHERE clinic_id = $1 AND author_id = $2 ORDER BY updated_at DESC",
         [req.user?.clinicId, req.user?.id]
       );
   return res.json({ drafts: result.rows.map(mapRow) });
+});
+
+gameRoutes.get("/drafts/:id", async (req: Request, res: Response) => {
+  const result = await query("SELECT * FROM game_drafts WHERE id = $1 AND clinic_id = $2", [req.params.id, req.user?.clinicId]);
+  const row = result.rows[0];
+  if (!row) return res.status(404).json({ error: "Draft not found" });
+  if (req.user?.id !== String(row.author_id) && req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Only the author or an admin may view this draft" });
+  }
+  return res.json({ draft: mapRow(row) });
 });
 
 gameRoutes.post("/drafts", requireRole("therapist"), async (req: Request, res: Response) => {
@@ -176,13 +189,14 @@ gameRoutes.post("/drafts/:id/decide", requireRole("admin"), async (req: Request,
   }
   const { decision, note } = req.body as { decision: "approve" | "reject" | "changes_requested"; note?: string };
   if (decision !== "approve" && decision !== "reject" && decision !== "changes_requested") {
-    return res.status(400).json({ error: "decision must be approve or reject" });
+    return res.status(400).json({ error: "decision must be one of: approve, reject, changes_requested" });
   }
   const result = await query("SELECT * FROM game_drafts WHERE id = $1 AND clinic_id = $2", [req.params.id, req.user?.clinicId]);
   const row = result.rows[0];
   if (!row) return res.status(404).json({ error: "Draft not found" });
-  if (String(row.status) !== "submitted") return res.status(409).json({ error: "Only submitted drafts can be decided" });
   const nextStatus = decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "changes_requested";
+  if (String(row.status) === nextStatus) return res.json({ id: req.params.id, status: nextStatus });
+  if (String(row.status) !== "submitted") return res.status(409).json({ error: "Only submitted drafts can be decided" });
   await query(
     `UPDATE game_drafts SET status = $1, decided_by = $2, decided_at = now(), decision_note = $3, updated_at = now() WHERE id = $4`,
     [nextStatus, req.user?.id, note || null, req.params.id]

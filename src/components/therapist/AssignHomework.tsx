@@ -528,7 +528,10 @@ export default function AssignHomework() {
                   >
                     <div className="mb-1 flex items-start justify-between gap-2">
                       <span className="text-2xl">{game.emoji}</span>
-                      {isRecommended ? <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Recommended</span> : null}
+                      <div className="flex flex-col items-end gap-0.5">
+                        {isRecommended ? <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">Recommended</span> : null}
+                        {game.source === "therapist" ? <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Therapist</span> : null}
+                      </div>
                     </div>
                     <p className="text-xs font-bold leading-tight text-foreground">{game.name}</p>
                     <p className="mt-0.5 text-[10px] text-muted-foreground">{game.estimatedMinutes} min - {game.difficulty}</p>

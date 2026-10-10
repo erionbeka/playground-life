@@ -8,6 +8,7 @@ import {
   EXTERNAL_FRAMEWORKS,
   PLAYGROUND_WORLD_BY_ENGINE,
 } from "@/lib/crosswalk";
+import { ORIGIN_CODE_TOKEN, BANNED_WORDING, ABLLS_MARK } from "@/lib/contentGuard";
 
 const DESCRIPTIVE_FIELDS = ["playgroundWorld", "construct", "skillTarget", "prerequisiteSkill", "observableBehaviour", "progressionCriterion", "parentPrompt", "clinicianMetric"] as const;
 
@@ -33,8 +34,8 @@ describe("grant-safe crosswalk matrix", () => {
   });
 
   it("references only framework-level constructs, never item codes or instrument wording", () => {
-    const codeToken = /\b[A-Z]{1,4}\d{1,3}\b/;
-    const banned = /\b(?:item code|task code|scoring criteria|score of|protocol|task \d+|item \d+)\b/i;
+    const codeToken = ORIGIN_CODE_TOKEN;
+    const banned = BANNED_WORDING;
 
     for (const row of rows) {
       expect(EXTERNAL_FRAMEWORKS).toContain(row.externalConstruct.framework);
@@ -50,8 +51,8 @@ describe("grant-safe crosswalk matrix", () => {
 
   it("keeps the whole generated matrix free of instrument item codes", () => {
     const blob = JSON.stringify(CROSSWALK);
-    expect(/\b[A-Z]{1,4}\d{1,3}\b/.test(blob)).toBe(false);
-    expect(/\bABLLS-R\s+[A-Z]\d{1,3}\b/.test(blob)).toBe(false);
+    expect(ORIGIN_CODE_TOKEN.test(blob)).toBe(false);
+    expect(ABLLS_MARK.test(blob)).toBe(false);
   });
 
   it("defines a PLAYGROUND world for every engine, including requesting", () => {

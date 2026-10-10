@@ -3,11 +3,20 @@ import { productionApi } from "@/lib/productionApi";
 import { authoredGameToGameConfig, PublishedGame } from "@/lib/gameAuthoring";
 import GamePreview from "@/components/game/GamePreview";
 
+interface OriginalitySnapshot {
+  tokenHits?: string[];
+  banned?: string[];
+  runAt?: string;
+}
+
 interface DraftRow extends Omit<PublishedGame, "status"> {
   status: "draft" | "submitted" | "approved" | "rejected" | "changes_requested";
   originConfirmed: boolean;
   updatedAt: string;
   authorId: string;
+  submittedAt?: string;
+  decisionNote?: string;
+  originalitySnapshot?: OriginalitySnapshot;
 }
 
 type Decision = "approve" | "reject" | "changes_requested";
@@ -27,6 +36,7 @@ export default function GameApprovals() {
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   const load = async () => {
     if (!apiMode) return;
@@ -45,13 +55,19 @@ export default function GameApprovals() {
   useEffect(() => { void load(); }, [apiMode]);
 
   const queue = drafts.filter((d) => d.status === "submitted");
+  const changes = drafts.filter((d) => d.status === "changes_requested");
   const decided = drafts.filter((d) => d.status === "approved" || d.status === "rejected");
 
   const decide = async (id: string, decision: Decision) => {
     if (!window.confirm(DECISION_CONFIRM_TEXT[decision])) return;
     setError("");
+    const note = (notes[id] || "").trim();
     try {
-      await productionApi.decideGameDraft(id, decision);
+      if (note) {
+        await productionApi.decideGameDraft(id, decision, note);
+      } else {
+        await productionApi.decideGameDraft(id, decision);
+      }
       await load();
     } catch {
       setError(DECIDE_ERROR_TEXT);
@@ -113,6 +129,30 @@ export default function GameApprovals() {
                 </div>
               </div>
               <p className="mb-3 text-sm text-muted-foreground">{draft.description}</p>
+
+              {draft.decisionNote ? (
+                <p className="mb-3 text-xs text-muted-foreground">Previous note: {draft.decisionNote}</p>
+              ) : null}
+
+              {draft.originalitySnapshot && (draft.originalitySnapshot.runAt || draft.originalitySnapshot.tokenHits?.length || draft.originalitySnapshot.banned?.length) ? (
+                <div className="mb-3 rounded-xl border border-border bg-background/40 p-3 text-xs text-muted-foreground">
+                  <p className="font-semibold text-foreground">Originality check</p>
+                  <p>Token hits: {draft.originalitySnapshot.tokenHits?.length ? draft.originalitySnapshot.tokenHits.join(", ") : "none"}</p>
+                  <p>Banned terms: {draft.originalitySnapshot.banned?.length ? draft.originalitySnapshot.banned.join(", ") : "none"}</p>
+                  {draft.originalitySnapshot.runAt ? <p>Run at: {draft.originalitySnapshot.runAt}</p> : null}
+                </div>
+              ) : null}
+
+              <label className="mb-3 block text-xs font-semibold text-muted-foreground">
+                Admin note (optional)
+                <textarea
+                  value={notes[draft.id] || ""}
+                  onChange={(event) => setNotes((prev) => ({ ...prev, [draft.id]: event.target.value }))}
+                  rows={2}
+                  className="mt-1 w-full rounded-xl border border-border bg-background/60 p-2 text-sm text-foreground"
+                />
+              </label>
+
               <div className="rounded-xl border border-border bg-background/40 p-3">
                 <GamePreview game={game} />
               </div>
@@ -120,6 +160,18 @@ export default function GameApprovals() {
           );
         })}
       </div>
+
+      {changes.length > 0 ? (
+        <div className="rounded-2xl border border-border bg-card p-4">
+          <h3 className="mb-2 font-display text-sm font-bold text-foreground">Changes requested</h3>
+          {changes.map((draft) => (
+            <p key={draft.id} className="text-sm text-muted-foreground">
+              {draft.emoji} {draft.title}
+              {draft.decisionNote ? <span> · {draft.decisionNote}</span> : null}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
       {decided.length > 0 ? (
         <div className="rounded-2xl border border-border bg-card p-4">

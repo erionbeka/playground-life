@@ -37,7 +37,7 @@ interface Props {
 
 export default function GamePlayer({ gameId, assignment, onComplete, onExit }: Props) {
   const { completeGame, children, assignments } = useApp();
-  const catalog = useCatalog();
+  useCatalog();
   const game = getCatalogGameById(gameId);
   const [started, setStarted] = useState(false);
   const [startTime] = useState(Date.now());

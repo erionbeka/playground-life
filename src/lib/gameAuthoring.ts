@@ -144,5 +144,6 @@ export function authoredGameToGameConfig(entry: PublishedGame): GameConfig {
     autismSupports: ["clear finish point", "reduced visual field"],
     successCriteria: entry.successCriteria,
     config: entry.config,
+    source: "therapist",
   };
 }

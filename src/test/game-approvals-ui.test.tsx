@@ -124,12 +124,47 @@ describe("GameApprovals", () => {
     expect(screen.queryByText(/No games waiting for review/i)).toBeNull();
   });
 
-  it("keeps drafts awaiting changes out of the review queue", async () => {
+  it("keeps drafts awaiting changes out of the review queue but surfaces them", async () => {
     vi.mocked(productionApi.listGameDrafts).mockResolvedValue({
       drafts: [{ ...submittedRow, id: "changes-1", status: "changes_requested" }],
     } as never);
     render(<GameApprovals />);
     await waitFor(() => expect(screen.getByText(/No games waiting for review/i)).toBeTruthy());
-    expect(screen.queryByText(/Dino Pairs/)).toBeNull();
+    expect(screen.getByText(/Changes requested/i)).toBeTruthy();
+    expect(screen.getByText(/Dino Pairs/)).toBeTruthy();
+  });
+
+  it("surfaces changes-requested drafts with the reviewer note", async () => {
+    vi.mocked(productionApi.listGameDrafts).mockResolvedValue({
+      drafts: [{ ...submittedRow, id: "changes-1", status: "changes_requested", decisionNote: "add more pairs" }],
+    } as never);
+    render(<GameApprovals />);
+    await waitFor(() => expect(screen.getByText(/Changes requested/i)).toBeTruthy());
+    expect(screen.getByText(/add more pairs/)).toBeTruthy();
+  });
+
+  it("renders the originality snapshot for a submitted draft", async () => {
+    vi.mocked(productionApi.listGameDrafts).mockResolvedValue({
+      drafts: [{
+        ...submittedRow,
+        originalitySnapshot: { tokenHits: ["acme"], banned: ["copyright"], runAt: "2026-10-09T00:00:00Z" },
+      }],
+    } as never);
+    render(<GameApprovals />);
+    await waitFor(() => expect(screen.getByText(/Originality check/i)).toBeTruthy());
+    expect(screen.getByText(/acme/)).toBeTruthy();
+    expect(screen.getByText(/copyright/)).toBeTruthy();
+  });
+
+  it("sends the admin note with the decision", async () => {
+    vi.mocked(productionApi.listGameDrafts)
+      .mockResolvedValueOnce({ drafts: [submittedRow] } as never)
+      .mockResolvedValueOnce({ drafts: [] } as never);
+    vi.mocked(productionApi.decideGameDraft).mockResolvedValue({ id: submittedRow.id, status: "changes_requested" } as never);
+    render(<GameApprovals />);
+    await waitFor(() => expect(screen.getByText(/Dino Pairs/)).toBeTruthy());
+    fireEvent.change(screen.getByLabelText(/admin note/i), { target: { value: "please tweak the pairs" } });
+    fireEvent.click(screen.getByRole("button", { name: /request changes/i }));
+    await waitFor(() => expect(productionApi.decideGameDraft).toHaveBeenCalledWith(submittedRow.id, "changes_requested", "please tweak the pairs"));
   });
 });

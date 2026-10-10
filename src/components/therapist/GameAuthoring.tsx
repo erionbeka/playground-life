@@ -258,6 +258,7 @@ export default function GameAuthoring() {
   const apiMode = typeof import.meta.env.VITE_DATA_MODE === "string" && import.meta.env.VITE_DATA_MODE === "api";
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [editing, setEditing] = useState<AuthoredGame | null>(null);
+  const [viewingDraft, setViewingDraft] = useState<DraftRow | null>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [originConfirmed, setOriginConfirmed] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -419,6 +420,20 @@ export default function GameAuthoring() {
 
       {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
 
+      {viewingDraft ? (
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-display text-sm font-bold text-foreground">Draft preview</h3>
+            <button onClick={() => setViewingDraft(null)} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold touch-target">
+              Close
+            </button>
+          </div>
+          <div className="rounded-xl border border-border bg-background/40 p-3">
+            <GamePreview game={authoredGameToGameConfig({ ...viewingDraft, id: viewingDraft.id, status: "approved" as const, createdAt: viewingDraft.updatedAt })} />
+          </div>
+        </div>
+      ) : null}
+
       {editing ? (
         <div className="rounded-2xl border border-border bg-card p-5">
           <div className="mb-4 flex gap-2 text-xs font-bold text-muted-foreground">
@@ -570,7 +585,12 @@ export default function GameAuthoring() {
                   </button>
                 </>
               ) : (
-                <span className="text-xs text-muted-foreground">{draft.status}</span>
+                <>
+                  <button onClick={() => setViewingDraft(draft)} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold touch-target">
+                    View
+                  </button>
+                  <span className="text-xs text-muted-foreground">{draft.status}</span>
+                </>
               )}
             </div>
           </div>

@@ -203,4 +203,86 @@ describe("game draft lifecycle", () => {
     const [sql] = vi.mocked(query).mock.calls[0];
     expect(String(sql)).not.toMatch(/author_id/);
   });
+
+  it("orders the admin queue by submission time", async () => {
+    currentRole = "admin";
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow }] } as unknown as Awaited<ReturnType<typeof query>>);
+    await request(app).get("/api/games/drafts");
+    const [sql] = vi.mocked(query).mock.calls[0];
+    expect(String(sql)).toMatch(/COALESCE\s*\(\s*submitted_at\s*,\s*updated_at\s*\)\s*DESC/i);
+  });
+
+  it("returns a single draft to its owner", async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow }] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).get(`/api/games/drafts/${draftRow.id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.draft.id).toBe(draftRow.id);
+  });
+
+  it("lets an admin read another author's draft", async () => {
+    currentRole = "admin";
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow, author_id: "user-2" }] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).get(`/api/games/drafts/${draftRow.id}`);
+    expect(res.status).toBe(200);
+  });
+
+  it("forbids a non-owner, non-admin from reading a draft", async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow, author_id: "user-2" }] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).get(`/api/games/drafts/${draftRow.id}`);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when reading a missing draft", async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rows: [] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).get(`/api/games/drafts/${draftRow.id}`);
+    expect(res.status).toBe(404);
+  });
+
+  it("reports all valid decisions when an unknown decision is sent", async () => {
+    currentRole = "admin";
+    const res = await request(app).post(`/api/games/drafts/${draftRow.id}/decide`).send({ decision: "maybe" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/approve, reject, changes_requested/);
+  });
+
+  it("treats approving an already-approved draft as an idempotent no-op", async () => {
+    currentRole = "admin";
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow, status: "approved" }] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).post(`/api/games/drafts/${draftRow.id}/decide`).send({ decision: "approve" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ id: draftRow.id, status: "approved" });
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it("still rejects invalid transitions with 409", async () => {
+    currentRole = "admin";
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow, status: "draft" }] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).post(`/api/games/drafts/${draftRow.id}/decide`).send({ decision: "approve" });
+    expect(res.status).toBe(409);
+    expect(updateCalls()).toHaveLength(0);
+  });
+
+  it("admin rejecting sets the rejected status and persists the note", async () => {
+    currentRole = "admin";
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow, status: "submitted" }] } as unknown as Awaited<ReturnType<typeof query>>);
+    vi.mocked(query).mockResolvedValueOnce({ rows: [] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).post(`/api/games/drafts/${draftRow.id}/decide`).send({ decision: "reject", note: "not an original idea" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("rejected");
+    const updateCall = updateCalls()[0];
+    expect(updateCall[1][0]).toBe("rejected");
+    expect(updateCall[1][2]).toBe("not an original idea");
+  });
+
+  it("admin requesting changes sets the changes_requested status and persists the note", async () => {
+    currentRole = "admin";
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow, status: "submitted" }] } as unknown as Awaited<ReturnType<typeof query>>);
+    vi.mocked(query).mockResolvedValueOnce({ rows: [] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).post(`/api/games/drafts/${draftRow.id}/decide`).send({ decision: "changes_requested", note: "add more pairs" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("changes_requested");
+    const updateCall = updateCalls()[0];
+    expect(updateCall[1][0]).toBe("changes_requested");
+    expect(updateCall[1][2]).toBe("add more pairs");
+  });
 });

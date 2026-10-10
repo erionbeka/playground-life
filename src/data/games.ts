@@ -68,6 +68,7 @@ export interface GameConfig {
   autismSupports?: string[];
   successCriteria?: string[];
   config: Record<string, unknown>;
+  source?: "builtin" | "therapist";
 }
 
 const categoryMeta: Record<GameCategory, { label: string; emoji: string; color: string }> = {
