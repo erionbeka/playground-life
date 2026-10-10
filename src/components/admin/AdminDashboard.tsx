@@ -2,13 +2,15 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
+import GameApprovals from "./GameApprovals";
 
-type Tab = "overview" | "staff" | "families" | "readiness";
+type Tab = "overview" | "staff" | "families" | "content" | "readiness";
 
-const tabs: { key: Tab; label: string }[] = [
+const tabs: { key: Tab; label: string; emoji?: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "staff", label: "Staff" },
   { key: "families", label: "Families" },
+  { key: "content", label: "Content", emoji: "🎨" },
   { key: "readiness", label: "Readiness" },
 ];
 
@@ -290,6 +292,10 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
+        ) : null}
+
+        {tab === "content" ? (
+          <GameApprovals />
         ) : null}
 
         {tab === "readiness" ? (
