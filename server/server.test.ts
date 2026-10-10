@@ -60,6 +60,22 @@ describe("production API", () => {
     expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "therapist_sign_in", "auth", "user-1", { method: "password" });
   });
 
+  it("does not match empty-phone users when signing in with an email identifier", async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active" }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    await request(app)
+      .post("/api/auth/login")
+      .send({ identifier: "therapist@example.com", password: "CorrectHorseBatteryStaple1" })
+      .expect(200);
+
+    const [sql, params] = queryMock.mock.calls[0];
+    expect(sql).toContain("$2 <> ''");
+    expect(params).toEqual(["therapist@example.com", ""]);
+  });
+
   it("sends baseline API security headers", async () => {
     const app = await loadApp();
     const response = await request(app).get("/health").expect(200);

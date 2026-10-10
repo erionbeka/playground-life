@@ -49,7 +49,7 @@ router.post("/login", async (req, res) => {
     `SELECT id, clinic_id, role, name, password_hash, credential_status
      FROM users
      WHERE lower(email) = lower($1)
-        OR regexp_replace(coalesce(phone_number, ''), '\\D', '', 'g') = $2
+        OR ($2 <> '' AND regexp_replace(coalesce(phone_number, ''), '\\D', '', 'g') = $2)
      LIMIT 1`,
     [identifier, normalizedPhone]
   );
