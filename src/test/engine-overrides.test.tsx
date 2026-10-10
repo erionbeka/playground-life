@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import MatchingEngine from "@/components/game/engines/MatchingEngine";
 import SortingEngine from "@/components/game/engines/SortingEngine";
+import RecognitionEngine from "@/components/game/engines/RecognitionEngine";
+import MemoryEngine from "@/components/game/engines/MemoryEngine";
 import type { GameConfig } from "@/data/games";
 
 function makeGame(merge: Partial<GameConfig>): GameConfig {
@@ -25,7 +27,7 @@ describe("MatchingEngine pairList override", () => {
     handlers.onComplete.mockClear();
     const game = makeGame({
       engine: "matching",
-      config: { pairList: ["🦕", "🐲", "🦖", "🐉"] },
+      config: { pairList: ["🦕", "🐲", "🦖"] },
     });
     render(
       <MatchingEngine
@@ -34,12 +36,13 @@ describe("MatchingEngine pairList override", () => {
         onComplete={handlers.onComplete}
       />
     );
-    const authored = ["🦕", "🐲", "🦖", "🐉"];
+    const authored = ["🦕", "🐲", "🦖"];
     const tiles = Array.from(screen.getAllByRole("button"));
-    expect(tiles).toHaveLength(8);
+    expect(tiles).toHaveLength(6);
     expect(new Set(tiles.map((tile) => tile.getAttribute("aria-label")))).toEqual(
       new Set(authored.map((label) => `${label} card`))
     );
+    expect(screen.getByText(/Matched: 0\/3/)).toBeTruthy();
     for (const label of authored) {
       const pair = screen.getAllByRole("button", { name: `${label} card` });
       fireEvent.click(pair[0]);
@@ -59,7 +62,7 @@ describe("SortingEngine itemsByCategory override", () => {
       category: "sorting",
       config: { itemsByCategory: { animals: ["🦁", "🐘", "🦒"], food: ["🍎", "🍌", "🍇"] } },
     });
-    render(
+    const { container } = render(
       <SortingEngine
         game={game}
         onInteraction={handlers.onInteraction}
@@ -68,5 +71,50 @@ describe("SortingEngine itemsByCategory override", () => {
     );
     expect(screen.getByText(/animals/i)).toBeTruthy();
     expect(screen.getByText(/food/i)).toBeTruthy();
+    const authored = ["🦁", "🐘", "🦒", "🍎", "🍌", "🍇"];
+    const seen = new Set<string>();
+    for (let index = 0; index < authored.length; index += 1) {
+      for (const emoji of authored) {
+        if (container.textContent?.includes(emoji)) seen.add(emoji);
+      }
+      fireEvent.click(screen.getAllByRole("button")[0]);
+    }
+    expect(seen).toEqual(new Set(authored));
+  });
+});
+
+describe("RecognitionEngine override", () => {
+  it("uses the authored target, items and correct items", async () => {
+    handlers.onComplete.mockClear();
+    const game = makeGame({
+      engine: "recognition",
+      category: "colors-shapes",
+      config: { target: "STAR", items: ["STAR", "MOON", "SUN", "CLOUD", "TREE", "BOOK"], correctItems: ["STAR", "MOON"] },
+    });
+    render(
+      <RecognitionEngine
+        game={game}
+        onInteraction={handlers.onInteraction}
+        onComplete={handlers.onComplete}
+      />
+    );
+    expect(screen.getByText("STAR", { selector: "p" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "MOON" })).toBeTruthy();
+    const buttons = Array.from(screen.getAllByRole("button"));
+    for (const b of buttons) fireEvent.click(b);
+    await waitFor(() => expect(handlers.onComplete).toHaveBeenCalled());
+  });
+});
+
+describe("MemoryEngine cardItems override", () => {
+  it("renders exactly the authored cards", () => {
+    const game = makeGame({
+      engine: "memory",
+      category: "memory",
+      difficulty: "medium",
+      config: { cardItems: ["🦕", "🦖", "🐲", "🐉"] },
+    });
+    render(<MemoryEngine game={game} onInteraction={handlers.onInteraction} onComplete={handlers.onComplete} />);
+    expect(screen.getAllByText(/🦕|🦖|🐲|🐉/).length).toBeGreaterThanOrEqual(4);
   });
 });

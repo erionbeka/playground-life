@@ -26,7 +26,10 @@ const memoryThemes: Record<string, string[]> = {
 export default function MemoryEngine({ game, onInteraction, onComplete }: Props) {
   const { difficulty, supportLevel, readinessStage } = getAdaptiveGameConfig(game);
   const theme = String(game.config.theme || "default");
-  const items = useMemo(() => memoryThemes[theme] || memoryThemes.default, [theme]);
+  const items = useMemo(
+    () => (Array.isArray(game.config.cardItems) ? (game.config.cardItems as string[]) : memoryThemes[theme] || memoryThemes.default),
+    [game.config.cardItems, theme]
+  );
   const itemCount = difficulty === "easy" || supportLevel === "high" ? 3 : difficulty === "medium" ? 4 : 5;
   const visibleItems = useMemo(() => items.slice(0, itemCount), [itemCount, items]);
   const answerIndex = difficulty === "hard" && supportLevel === "light" ? visibleItems.length - 1 : Math.min(2, visibleItems.length - 1);

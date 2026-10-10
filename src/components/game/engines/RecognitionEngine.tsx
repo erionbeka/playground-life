@@ -31,18 +31,23 @@ const themeTargets: Record<string, { target: string; items: string[]; correctIte
 
 export default function RecognitionEngine({ game, onInteraction, onComplete }: Props) {
   const theme = String(game.config.theme || "default");
-  const data = themeTargets[theme] || themeTargets.default;
+  const pack = themeTargets[theme] || themeTargets.default;
+  const effective = {
+    target: typeof game.config.target === "string" && game.config.target ? game.config.target : pack.target,
+    items: Array.isArray(game.config.items) ? (game.config.items as string[]) : pack.items,
+    correctItems: Array.isArray(game.config.correctItems) ? (game.config.correctItems as string[]) : pack.correctItems,
+  };
   const { personalized, supportLevel } = getAdaptiveGameConfig(game);
   const correctItems = useMemo(() => {
-    if (personalized && supportLevel === "high") return data.correctItems.slice(0, Math.min(2, data.correctItems.length));
-    return data.correctItems;
-  }, [data.correctItems, personalized, supportLevel]);
+    if (personalized && supportLevel === "high") return effective.correctItems.slice(0, Math.min(2, effective.correctItems.length));
+    return effective.correctItems;
+  }, [effective.correctItems, personalized, supportLevel]);
   const correctSet = useMemo(() => new Set(correctItems), [correctItems]);
   const pool = useMemo(() => {
-    const wrongItems = data.items.filter((item) => !data.correctItems.includes(item));
+    const wrongItems = effective.items.filter((item) => !effective.correctItems.includes(item));
     const wrongLimit = personalized && supportLevel === "high" ? 2 : wrongItems.length;
     return shuffleItems([...correctItems, ...wrongItems.slice(0, wrongLimit)]);
-  }, [correctItems, data.correctItems, data.items, personalized, supportLevel]);
+  }, [correctItems, effective.correctItems, effective.items, personalized, supportLevel]);
   const totalCorrect = correctItems.length;
   const [selected, setSelected] = useState<number[]>([]);
   const [correct, setCorrect] = useState(0);
@@ -69,7 +74,7 @@ export default function RecognitionEngine({ game, onInteraction, onComplete }: P
 
   return (
     <div className="mx-auto max-w-lg text-center">
-      <p className="mb-4 text-sm text-muted-foreground">{data.target}</p>
+      <p className="mb-4 text-sm text-muted-foreground">{effective.target}</p>
       <p className="mb-4 text-xs text-muted-foreground">Find {totalCorrect} correct item{totalCorrect === 1 ? "" : "s"}.</p>
       <div className="grid grid-cols-3 gap-3">
         {pool.map((item, index) => (
