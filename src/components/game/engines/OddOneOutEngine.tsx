@@ -124,7 +124,17 @@ sea: [
 export default function OddOneOutEngine({ game, onInteraction, onComplete }: Props) {
   const theme = String(game.config.theme || "animals");
   const { difficulty, supportLevel } = getAdaptiveGameConfig(game);
-  const rows = ODD_SETS[theme] || ODD_SETS.animals;
+  const rows = useMemo<OddRow[]>(() => {
+    const authoredItems = Array.isArray(game.config.setItems) ? (game.config.setItems as string[]) : [];
+    const authoredOdd = typeof game.config.oddIndex === "number" ? game.config.oddIndex : -1;
+    return authoredItems.length > 0 && authoredOdd >= 0 && authoredOdd < authoredItems.length
+      ? [{
+          group: authoredItems.filter((_, i) => i !== authoredOdd),
+          odd: authoredItems[authoredOdd],
+          reason: typeof game.config.oddReason === "string" ? game.config.oddReason : "it does not belong with the others",
+        }]
+      : ODD_SETS[theme] || ODD_SETS.animals;
+  }, [game.config.setItems, game.config.oddIndex, game.config.oddReason, theme]);
   const roundCount = difficulty === "easy" || supportLevel === "high" ? Math.min(3, rows.length) : Math.min(4, rows.length);
   const adaptive = useAdaptiveSupport({ baseDelay: 6000 });
 

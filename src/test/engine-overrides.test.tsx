@@ -4,6 +4,8 @@ import MatchingEngine from "@/components/game/engines/MatchingEngine";
 import SortingEngine from "@/components/game/engines/SortingEngine";
 import RecognitionEngine from "@/components/game/engines/RecognitionEngine";
 import MemoryEngine from "@/components/game/engines/MemoryEngine";
+import ChoiceRequestEngine from "@/components/game/engines/ChoiceRequestEngine";
+import OddOneOutEngine from "@/components/game/engines/OddOneOutEngine";
 import type { GameConfig } from "@/data/games";
 
 function makeGame(merge: Partial<GameConfig>): GameConfig {
@@ -116,5 +118,47 @@ describe("MemoryEngine cardItems override", () => {
     });
     render(<MemoryEngine game={game} onInteraction={handlers.onInteraction} onComplete={handlers.onComplete} />);
     expect(screen.getAllByText(/🦕|🦖|🐲|🐉/).length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("ChoiceRequestEngine scenarios override", () => {
+  it("renders the authored situations and requests", () => {
+    const game = makeGame({
+      engine: "choice-request",
+      category: "language",
+      config: {
+        scenarios: [
+          { situation: "Snack time", request: "Want some?",
+            emoji: "🍎", options: [{ label: "Yes", emoji: "👍" }, { label: "No", emoji: "👎" }] },
+          { situation: "Music time", request: "Shall we sing?",
+            emoji: "🎵", options: [{ label: "Yes", emoji: "👍" }, { label: "No", emoji: "👎" }] },
+        ],
+      },
+    });
+    render(
+      <ChoiceRequestEngine
+        game={game}
+        onInteraction={handlers.onInteraction}
+        onComplete={handlers.onComplete}
+      />
+    );
+    expect(screen.getByText(/Snack time/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Yes request" })).toBeTruthy();
+  });
+});
+
+describe("OddOneOutEngine setItems override", () => {
+  it("plays the authored set with the authored odd item", async () => {
+    handlers.onComplete.mockClear();
+    const game = makeGame({
+      engine: "odd-one-out",
+      category: "sorting",
+      config: { setItems: ["🦁", "🐘", "🦒", "🚗"], oddIndex: 3 },
+    });
+    render(
+      <OddOneOutEngine game={game} onInteraction={handlers.onInteraction} onComplete={handlers.onComplete} />
+    );
+    for (const b of Array.from(screen.getAllByRole("button"))) fireEvent.click(b);
+    await waitFor(() => expect(handlers.onComplete).toHaveBeenCalled());
   });
 });

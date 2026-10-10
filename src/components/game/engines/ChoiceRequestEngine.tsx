@@ -257,7 +257,13 @@ function sentenceCase(value: string) {
 export default function ChoiceRequestEngine({ game, onInteraction, onComplete }: Props) {
   const { supportLevel } = getAdaptiveGameConfig(game);
   const theme = String(game.config.theme || "help");
-  const scenarios = useMemo(() => packForTheme(theme), [theme]);
+  const scenarios = useMemo(
+    () =>
+      Array.isArray(game.config.scenarios)
+        ? (game.config.scenarios as unknown[] as RequestScenario[])
+        : packForTheme(theme),
+    [game.config.scenarios, theme]
+  );
   const totalRounds = Math.max(1, Number(game.config.rounds) || 3);
   const targetCount = supportLevel === "high" ? Math.min(2, scenarios.length) : Math.min(totalRounds, scenarios.length);
   const activeScenarios = useMemo(() => scenarios.slice(0, targetCount), [scenarios, targetCount]);
