@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { ClinicalRatings, SkillDomain, useApp } from "@/context/AppContext";
-import { getGameById } from "@/data/games";
+import { getCatalogGameById, useCatalog } from "@/lib/customCatalog";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend } from "recharts";
 import { analyzeMonthlyPlanWeekOutcome } from "@/lib/personalization";
 
@@ -25,6 +25,7 @@ const clinicalRatingLabels: Array<{ key: keyof ClinicalRatings; label: string }>
 
 export default function HomeworkReview() {
   const { assignments, children, removeGameFromAssignment, approveAssignment, updateGoalStatus } = useApp();
+  const catalog = useCatalog();
   const [selectedChildId, setSelectedChildId] = useState<string>("all");
   const [filterType, setFilterType] = useState<"all" | "homework" | "classwork">("all");
   const [reviewMode, setReviewMode] = useState<"quick" | "detailed">("quick");
@@ -561,7 +562,7 @@ export default function HomeworkReview() {
 
               <div className="mb-2 flex flex-wrap gap-2">
                 {assignment.gameIds.map((gameId) => {
-                  const game = getGameById(gameId);
+                  const game = getCatalogGameById(gameId);
                   const done = assignment.completedGames.includes(gameId);
 
                   return (

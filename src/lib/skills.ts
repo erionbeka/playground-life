@@ -1,5 +1,5 @@
 import { GameResult, SkillDomain } from "@/context/AppContext";
-import { allGames } from "@/data/games";
+import { getCatalogGameById } from "@/lib/customCatalog";
 
 const domainKeywordMap: Array<{ keyword: string; domain: SkillDomain }> = [
   { keyword: "social", domain: "social" },
@@ -34,7 +34,7 @@ export function emptySkillProfile(): Record<SkillDomain, number> {
 }
 
 export function getGameSkillDomains(gameId: string): SkillDomain[] {
-  const game = allGames.find((entry) => entry.id === gameId);
+  const game = getCatalogGameById(gameId);
   if (!game) return ["attention"];
 
   const matched = new Set<SkillDomain>();

@@ -2,13 +2,14 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
-import { getGameById } from "@/data/games";
+import { getCatalogGameById, useCatalog } from "@/lib/customCatalog";
 import GamePlayer from "../game/GamePlayer";
 import { getPersonalizationSummary } from "@/lib/personalization";
 
 export default function ParentDashboard() {
   const { setRole, children, assignments, selectedChildId, setSelectedChildId, currentAssignment, setCurrentAssignment, signInFamily, signOut, session } = useApp();
   const navigate = useNavigate();
+  const catalog = useCatalog();
   const [playingGameId, setPlayingGameId] = useState<string | null>(null);
   const [signedInFamilyMemberId, setSignedInFamilyMemberId] = useState<string | null>(null);
   const [familyView, setFamilyView] = useState<"today" | "all" | "completed">("today");
@@ -271,7 +272,7 @@ export default function ParentDashboard() {
                   <div className="rounded-xl bg-muted p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Start with</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">
-                      {nextGameId ? getGameById(nextGameId)?.name || nextGameId : "This session is ready to review"}
+                      {nextGameId ? getCatalogGameById(nextGameId)?.name || nextGameId : "This session is ready to review"}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {nextAssignment.monthlyPlan?.familyGuidance?.[0] || "Keep the session calm and encouraging."}
@@ -390,7 +391,7 @@ export default function ParentDashboard() {
 
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {assignment.gameIds.map((gameId) => {
-                        const game = getGameById(gameId);
+                        const game = getCatalogGameById(gameId);
                         const done = assignment.completedGames.includes(gameId);
 
                         return (
@@ -438,7 +439,7 @@ export default function ParentDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex gap-2">
                       {assignment.gameIds.map((gameId) => {
-                        const game = getGameById(gameId);
+                        const game = getCatalogGameById(gameId);
                         return (
                           <span key={gameId} className="rounded-full bg-secondary/20 px-2 py-1 text-xs text-foreground">
                             {game?.emoji} {game?.name}

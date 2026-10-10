@@ -67,6 +67,15 @@ describe("validateAuthoredGame", () => {
       })
     ).toContain("oddIndex");
   });
+  it("flags a title that duplicates an existing title, ignoring case", () => {
+    expect(validateAuthoredGame(base, ["DINO PAIRS"])).toContain("title");
+  });
+  it("rejects a duplicate title even when the new title differs only in case", () => {
+    expect(validateAuthoredGame({ ...base, title: "dino pairs" }, [" Dino Pairs "])).toContain("title");
+  });
+  it("accepts a unique title when existing titles are provided", () => {
+    expect(validateAuthoredGame(base, ["Other Game"])).toEqual([]);
+  });
 });
 
 describe("runOriginAudit", () => {

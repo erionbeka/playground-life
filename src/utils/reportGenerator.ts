@@ -1,5 +1,5 @@
 import { AuditEntry, Child, GameResult, HomeworkAssignment } from "@/context/AppContext";
-import { getGameById } from "@/data/games";
+import { getCatalogGameById } from "@/lib/customCatalog";
 import { analyzeMonthlyPlanWeekOutcome } from "@/lib/personalization";
 import jsPDF from "jspdf";
 
@@ -129,7 +129,7 @@ export function generateReport(data: ReportData) {
     }
 
     const gameNames = assignment.gameIds.map((gameId) => {
-      const game = getGameById(gameId);
+      const game = getCatalogGameById(gameId);
       const done = assignment.completedGames.includes(gameId);
       return `${done ? "[x]" : "[ ]"} ${game?.name || gameId}`;
     });
@@ -143,7 +143,7 @@ export function generateReport(data: ReportData) {
 
     assignment.results.forEach((result) => {
       checkPage();
-      const game = getGameById(result.gameId);
+      const game = getCatalogGameById(result.gameId);
       const detailLine = [
         `${game?.name || result.gameId}: Score ${result.score}`,
         `${result.interactions} interactions`,

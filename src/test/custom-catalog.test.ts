@@ -8,6 +8,8 @@ import {
   CUSTOM_GAMES_CACHE_KEY,
 } from "@/lib/customCatalog";
 import { authoredGameToGameConfig, PublishedGame } from "@/lib/gameAuthoring";
+import { getGameSkillDomains } from "@/lib/skills";
+import { createSessionRecorder } from "@/lib/gameAnalytics";
 
 function makePublished(overrides: Partial<PublishedGame> = {}): PublishedGame {
   return {
@@ -47,5 +49,19 @@ describe("custom catalog", () => {
     localStorage.setItem(CUSTOM_GAMES_CACHE_KEY, JSON.stringify({ version: "v1", games: [game] }));
     initCustomCatalog();
     expect(getCatalog().length).toBe(allGames.length + 1);
+    expect(getCatalogGameById("d00998e2-c9f0-4b3a-9f7c-1a2b3c4d5e6f")?.name).toBe("Dino Pairs");
+  });
+
+  it("drives skill domain mapping through the merged catalog", () => {
+    registerCustomGames([authoredGameToGameConfig(makePublished({ skills: ["counting", "emotion"] }))]);
+    const domains = getGameSkillDomains("d00998e2-c9f0-4b3a-9f7c-1a2b3c4d5e6f");
+    expect(domains).toEqual(expect.arrayContaining(["academic", "emotional-regulation"]));
+  });
+
+  it("resolves registered custom games in session recorder provenance", () => {
+    registerCustomGames([authoredGameToGameConfig(makePublished())]);
+    const trace = createSessionRecorder("d00998e2-c9f0-4b3a-9f7c-1a2b3c4d5e6f").trace();
+    expect(trace.provenance.engine).toBe("matching");
+    expect(trace.provenance.contentVersion).toBe("custom-v1");
   });
 });

@@ -41,10 +41,11 @@ function unique(values: string[]): string[] {
   return Array.from(new Set(values));
 }
 
-export function validateAuthoredGame(game: AuthoredGame): string[] {
+export function validateAuthoredGame(game: AuthoredGame, existingTitles?: string[]): string[] {
   const errors: string[] = [];
   if (game.title.trim().length === 0) errors.push("title");
   if (game.title.length > 60) errors.push("title");
+  if (existingTitles?.some((t) => t.trim().toLowerCase() === game.title.trim().toLowerCase())) errors.push("title");
   if (game.description.length > 240) errors.push("description");
   if ([...game.emoji].length !== 1) errors.push("emoji");
   if (game.learningGoal.length > 140) errors.push("learningGoal");

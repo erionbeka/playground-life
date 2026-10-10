@@ -33,10 +33,21 @@ const submittedRow = {
 describe("GameApprovals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("VITE_DATA_MODE", "api");
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("shows a server-mode message and skips the draft fetch in local mode", async () => {
+    vi.stubEnv("VITE_DATA_MODE", "local");
+    render(<GameApprovals />);
+    expect(await screen.findByText(/needs the clinic server/i)).toBeTruthy();
+    expect(productionApi.listGameDrafts).not.toHaveBeenCalled();
+  });
 
   it("lists submitted drafts in the review queue", async () => {
     vi.mocked(productionApi.listGameDrafts).mockResolvedValue({ drafts: [submittedRow] } as never);

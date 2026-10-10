@@ -3,7 +3,7 @@ import { AppContext, AppState, AuditEntry, Child, GameResult, HomeworkAssignment
 import { AuthSession } from "@/lib/auth";
 import { AdminUser, TherapistUser } from "@/lib/backend";
 import { productionApi } from "@/lib/productionApi";
-import { registerPublishedGames, clearCustomGames } from "@/lib/customCatalog";
+import { registerPublishedGames, clearCustomGames, initCustomCatalog } from "@/lib/customCatalog";
 import { PublishedGame } from "@/lib/gameAuthoring";
 import { buildSkillScoresFromResult, emptySkillProfile } from "@/lib/skills";
 
@@ -127,6 +127,17 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     }
   }, []);
 
+  const loadCustomGames = useCallback(async () => {
+    await productionApi
+      .listCustomGames()
+      .then(({ games }) => registerPublishedGames(games as PublishedGame[]))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    initCustomCatalog();
+  }, []);
+
   useEffect(() => {
     productionApi.me()
       .then(async ({ user }) => {
@@ -135,13 +146,10 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         setRole(user.role);
         await refreshClinicData();
         await refreshAudit();
-        await productionApi
-          .listCustomGames()
-          .then(({ games }) => registerPublishedGames(games as PublishedGame[]))
-          .catch(() => undefined);
+        await loadCustomGames();
       })
       .catch(() => undefined);
-  }, [refreshAudit, refreshClinicData]);
+  }, [loadCustomGames, refreshAudit, refreshClinicData]);
 
   const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
     try {
@@ -154,11 +162,12 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       setRole(user.role);
       await refreshClinicData();
       await refreshAudit();
+      await loadCustomGames();
       return true;
     } catch {
       return false;
     }
-  }, [refreshAudit, refreshClinicData]);
+  }, [loadCustomGames, refreshAudit, refreshClinicData]);
 
   const signInFamily = useCallback(async (phoneNumber: string, password: string) => {
     try {
@@ -172,11 +181,12 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       setSession({ role: user.role, userId: user.id, displayName: user.name, childId: mappedChildren[0]?.id, familyMemberId: user.id });
       setRole("parent");
       if (mappedChildren[0]) setSelectedChildId(mappedChildren[0].id);
+      await loadCustomGames();
       return mappedChildren[0] ? { childId: mappedChildren[0].id, familyMemberId: user.id } : null;
     } catch {
       return null;
     }
-  }, []);
+  }, [loadCustomGames]);
 
   const value = useMemo<AppState>(() => ({
     role,

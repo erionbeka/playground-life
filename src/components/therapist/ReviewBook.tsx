@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import TraceInspector from "./TraceInspector";
 import type { HomeworkAssignment, GameResult } from "@/context/AppContext";
-import { getGameById } from "@/data/games";
+import { getCatalogGameById, useCatalog } from "@/lib/customCatalog";
 
 interface Props {
   assignment: Omit<HomeworkAssignment, "childName"> & { childName?: string };
@@ -14,9 +14,10 @@ interface Props {
 /** Book-style paged review: one spread per game, paper texture, flip navigation. */
 export default function ReviewBook({ assignment, initialPage, onClose }: Props) {
   const results = assignment.results;
+  const catalog = useCatalog();
   const [page, setPage] = useState(Math.min(initialPage, Math.max(results.length - 1, 0)));
   const result: GameResult | undefined = results[page];
-  const game = result ? getGameById(result.gameId) : undefined;
+  const game = result ? getCatalogGameById(result.gameId) : undefined;
 
   const go = (delta: number) => setPage((p) => Math.max(0, Math.min(results.length - 1, p + delta)));
 

@@ -1,4 +1,4 @@
-import { getGameById } from "@/data/games";
+import { getCatalogGameById } from "@/lib/customCatalog";
 import { classifyEventSource, RESEARCH_EVENT_SCHEMA_VERSION } from "@/lib/researchEvents";
 
 export interface TrialRecord {
@@ -71,7 +71,7 @@ function provenanceFor(gameId: string): ResearchProvenance {
   let engine = "unknown";
   let contentVersion = "v1.0.0";
   try {
-    const game = getGameById(gameId);
+    const game = getCatalogGameById(gameId);
     if (game) {
       engine = game.engine;
       contentVersion = game.contentVersion || "v1.0.0";
