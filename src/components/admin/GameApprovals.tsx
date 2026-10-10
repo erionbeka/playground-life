@@ -10,17 +10,31 @@ interface DraftRow extends Omit<PublishedGame, "status"> {
   authorId: string;
 }
 
+type Decision = "approve" | "reject" | "changes_requested";
+
+const DECISION_CONFIRM_TEXT: Record<Decision, string> = {
+  approve: "Approve this submission?",
+  reject: "Reject this submission?",
+  changes_requested: "Request changes to this submission?",
+};
+
+const LOAD_ERROR_TEXT = "We couldn't load game submissions. Please try again.";
+const DECIDE_ERROR_TEXT = "We couldn't save that decision. Please try again.";
+
 export default function GameApprovals() {
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const load = async () => {
     setLoading(true);
+    setError("");
     try {
       const { drafts: rows } = await productionApi.listGameDrafts();
       setDrafts(rows as DraftRow[]);
     } catch {
       setDrafts([]);
+      setError(LOAD_ERROR_TEXT);
     } finally {
       setLoading(false);
     }
@@ -30,13 +44,14 @@ export default function GameApprovals() {
   const queue = drafts.filter((d) => d.status === "submitted");
   const decided = drafts.filter((d) => d.status === "approved" || d.status === "rejected");
 
-  const decide = async (id: string, decision: "approve" | "reject" | "changes_requested") => {
-    if (!window.confirm(`Mark this submission as ${decision}d?`)) return;
+  const decide = async (id: string, decision: Decision) => {
+    if (!window.confirm(DECISION_CONFIRM_TEXT[decision])) return;
+    setError("");
     try {
       await productionApi.decideGameDraft(id, decision);
       await load();
     } catch {
-      // surface as inline error on next load
+      setError(DECIDE_ERROR_TEXT);
     }
   };
 
@@ -51,7 +66,13 @@ export default function GameApprovals() {
 
       {loading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
 
-      {!loading && queue.length === 0 ? (
+      {error ? (
+        <p role="alert" className="rounded-xl border border-border bg-background/50 p-4 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+
+      {!loading && queue.length === 0 && !error ? (
         <p className="rounded-xl border border-border bg-background/50 p-4 text-sm text-muted-foreground">
           No games waiting for review.
         </p>

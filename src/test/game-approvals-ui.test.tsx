@@ -95,6 +95,24 @@ describe("GameApprovals", () => {
     expect(screen.getByText(/Dino Pairs/)).toBeTruthy();
   });
 
+  it("keeps the row and surfaces an error when a decision fails", async () => {
+    vi.mocked(productionApi.listGameDrafts).mockResolvedValue({ drafts: [submittedRow] } as never);
+    vi.mocked(productionApi.decideGameDraft).mockRejectedValue(new Error("network down"));
+    render(<GameApprovals />);
+    await waitFor(() => expect(screen.getByText(/Dino Pairs/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /approve/i }));
+    await waitFor(() => expect(screen.getByText(/couldn't save that decision/i)).toBeTruthy());
+    expect(productionApi.decideGameDraft).toHaveBeenCalledWith(submittedRow.id, "approve");
+    expect(screen.getByText(/Dino Pairs/)).toBeTruthy();
+  });
+
+  it("shows an error state instead of the empty queue when loading fails", async () => {
+    vi.mocked(productionApi.listGameDrafts).mockRejectedValue(new Error("network down"));
+    render(<GameApprovals />);
+    await waitFor(() => expect(screen.getByText(/couldn't load game submissions/i)).toBeTruthy());
+    expect(screen.queryByText(/No games waiting for review/i)).toBeNull();
+  });
+
   it("keeps drafts awaiting changes out of the review queue", async () => {
     vi.mocked(productionApi.listGameDrafts).mockResolvedValue({
       drafts: [{ ...submittedRow, id: "changes-1", status: "changes_requested" }],
