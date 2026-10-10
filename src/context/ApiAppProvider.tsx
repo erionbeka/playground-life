@@ -37,12 +37,16 @@ function mapChild(row: Record<string, unknown>): Child {
   const profile = asRecord(row.personalization_profile || row.personalizationProfile);
   const settings = asRecord(row.progression_settings || row.progressionSettings);
   const skillProfile = asRecord(row.skill_profile || row.skillProfile);
+  const birthDate = row.birth_date || row.birthDate;
+  const age = typeof birthDate === "string" && birthDate
+    ? Math.max(0, new Date().getFullYear() - new Date(birthDate).getFullYear())
+    : 0;
 
   return {
     id: String(row.id),
     name: String(row.display_name || row.displayName || row.first_name || row.firstName || "Child"),
     avatar: String(row.avatar || "kid"),
-    age: 0,
+    age,
     notes: String(row.notes || ""),
     diagnosis: row.diagnosis ? String(row.diagnosis) : undefined,
     familyMembers: [],
@@ -101,6 +105,17 @@ function mapFamilyMember(row: Record<string, unknown>): FamilyMember {
   };
 }
 
+function mapGoal(row: Record<string, unknown>): TherapyGoal {
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    domain: String(row.domain) as TherapyGoal["domain"],
+    targetLevel: Number(row.target_level ?? row.targetLevel ?? 0),
+    status: (row.status as TherapyGoal["status"]) || "active",
+    notes: String(row.notes || ""),
+  };
+}
+
 function mapAudit(row: Record<string, unknown>): AuditEntry {
   return {
     id: String(row.id),
@@ -124,12 +139,14 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
   const [currentAssignment, setCurrentAssignment] = useState<HomeworkAssignment | null>(null);
 
   const refreshClinicData = useCallback(async () => {
-    const [childResponse, assignmentResponse, familyResponse] = await Promise.all([
+    const [childResponse, assignmentResponse, familyResponse, goalResponse] = await Promise.all([
       productionApi.listChildren(),
       productionApi.listAssignments(),
       productionApi.listFamilyLinks().catch(() => ({ familyLinks: [] as unknown[] })),
+      productionApi.listGoals().catch(() => ({ goals: [] as unknown[] })),
     ]);
     const familyLinks = familyResponse.familyLinks as Array<Record<string, unknown>>;
+    const goals = goalResponse.goals as Array<Record<string, unknown>>;
     setChildren(
       childResponse.children.map((entry) => {
         const child = mapChild(entry as Record<string, unknown>);
@@ -138,6 +155,9 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
           familyMembers: familyLinks
             .filter((link) => String(link.child_id || link.childId) === child.id)
             .map((link) => mapFamilyMember(link)),
+          therapyGoals: goals
+            .filter((goal) => String(goal.child_id || goal.childId) === child.id)
+            .map((goal) => mapGoal(goal)),
         };
       })
     );
@@ -298,6 +318,17 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     },
     updateGoalStatus: async (_childId, goalId, status: TherapyGoal["status"]) => {
       await productionApi.updateGoalStatus(goalId, status);
+      await refreshClinicData();
+      await refreshAudit();
+    },
+    addGoal: async (childId, goal) => {
+      await productionApi.createGoal({
+        childId,
+        domain: goal.domain,
+        title: goal.title,
+        targetLevel: goal.targetLevel,
+        notes: goal.notes,
+      });
       await refreshClinicData();
       await refreshAudit();
     },

@@ -348,6 +348,25 @@ describe("personalization helpers", () => {
 });
 
 describe("app workflows", () => {
+  it("persists a new goal through addGoal", () => {
+    function GoalProbe() {
+      const { addGoal, children } = useApp();
+      const didRun = useRef(false);
+      useEffect(() => {
+        if (didRun.current) return;
+        didRun.current = true;
+        addGoal("child-1", { title: "New focus goal", domain: "attention", targetLevel: 70, status: "active", notes: "" });
+      }, [addGoal]);
+      return <pre data-testid="goals">{JSON.stringify(children.find((c) => c.id === "child-1")?.therapyGoals ?? [])}</pre>;
+    }
+    render(
+      <AppProvider>
+        <GoalProbe />
+      </AppProvider>
+    );
+    expect(screen.getByTestId("goals").textContent).toMatch(/New focus goal/);
+  });
+
   it("removes assignments when a child is deleted and avoids duplicate completed games", () => {
     render(
       <AppProvider>

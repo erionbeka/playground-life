@@ -25,7 +25,7 @@ const ratingLabels: Array<{ key: keyof ClinicalRatings; label: string }> = [
 ];
 
 export default function ChildList() {
-  const { children, removeChild, updateChild, assignments } = useApp();
+  const { children, removeChild, updateChild, addGoal, assignments } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -208,9 +208,8 @@ export default function ChildList() {
     const duplicate = child.therapyGoals.some((goal) => goal.title === template.title && goal.domain === template.domain);
     if (duplicate) return;
 
-    updateChild(childId, {
-      therapyGoals: [...child.therapyGoals, buildGoalFromTemplate(template)],
-    });
+    const { id: _ignored, ...goal } = buildGoalFromTemplate(template);
+    addGoal(childId, goal);
   };
 
   return (

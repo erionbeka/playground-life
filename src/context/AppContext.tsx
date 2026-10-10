@@ -203,6 +203,7 @@ export interface AppState {
   issueFamilyInvite: (childId: string, familyMemberId: string) => MaybePromise<string | null>;
   resetFamilyCredentials: (childId: string, familyMemberId: string, temporaryPassword: string, activate?: boolean) => MaybePromise<boolean>;
   updateGoalStatus: (childId: string, goalId: string, status: TherapyGoal["status"]) => MaybePromise<void>;
+  addGoal: (childId: string, goal: Omit<TherapyGoal, "id">) => MaybePromise<void>;
   assignments: HomeworkAssignment[];
   createAssignment: (assignment: Omit<HomeworkAssignment, "id" | "createdAt" | "status" | "completedGames" | "results" | "therapistApproval" | "approvedAt" | "approvedBy">) => MaybePromise<void>;
   approveAssignment: (assignmentId: string, approval: "approved" | "adjusted", difficulty?: Difficulty) => MaybePromise<void>;
@@ -930,6 +931,16 @@ export function AppProvider({
     });
   }, [appendAudit, persist, session]);
 
+  const addGoal = useCallback((childId: string, goal: Omit<TherapyGoal, "id">) => {
+    persist((current) => {
+      const updatedChildren = current.children.map((child) => child.id !== childId ? child : ({
+        ...child,
+        therapyGoals: [...child.therapyGoals, { ...goal, id: `goal-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }],
+      }));
+      return appendAudit({ ...current, children: updatedChildren }, createAuditEntry("goal_created", session, "goal", childId, `Added goal ${goal.title}`));
+    });
+  }, [appendAudit, persist, session]);
+
   const createAssignment = useCallback((assignment: Omit<HomeworkAssignment, "id" | "createdAt" | "status" | "completedGames" | "results" | "therapistApproval" | "approvedAt" | "approvedBy">) => {
     const prefix = assignment.type === "classwork" ? "cw" : "hw";
 
@@ -1041,6 +1052,7 @@ export function AppProvider({
     issueFamilyInvite,
     resetFamilyCredentials,
     updateGoalStatus,
+    addGoal,
     assignments: snapshot.assignments,
     createAssignment,
     approveAssignment,
@@ -1051,7 +1063,7 @@ export function AppProvider({
     currentAssignment,
     setCurrentAssignment,
     auditLog: snapshot.auditLog,
-  }), [addChild, addFamilyMember, addStaffUser, approveAssignment, completeGame, createAssignment, currentAssignment, issueFamilyInvite, removeChild, removeGameFromAssignment, resetFamilyCredentials, role, selectedChildId, session, signInAdmin, signInFamily, signInTherapist, signOut, snapshot, updateChild, updateGoalStatus]);
+  }), [addChild, addFamilyMember, addGoal, addStaffUser, approveAssignment, completeGame, createAssignment, currentAssignment, issueFamilyInvite, removeChild, removeGameFromAssignment, resetFamilyCredentials, role, selectedChildId, session, signInAdmin, signInFamily, signInTherapist, signOut, snapshot, updateChild, updateGoalStatus]);
 
   return <AppContext.Provider value={value}>{childrenNodes}</AppContext.Provider>;
 }
