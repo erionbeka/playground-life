@@ -49,6 +49,20 @@ export default function RoleSelector() {
             <p className="text-sm opacity-90">View homework, play games with your child at home</p>
           </motion.button>
         </div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.4 }}
+          className="mt-8 flex items-center justify-center"
+        >
+          <button
+            onClick={() => navigate("/admin")}
+            className="touch-target rounded-full px-4 py-2 text-sm text-muted-foreground transition hover:bg-card/70 hover:text-foreground"
+          >
+            Clinic Admin · caseloads
+          </button>
+        </motion.div>
       </div>
     </div>
   );
