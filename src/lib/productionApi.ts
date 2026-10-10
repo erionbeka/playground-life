@@ -239,4 +239,31 @@ export const productionApi = {
   listAuditLog() {
     return request<{ auditLog: unknown[] }>("/api/audit");
   },
+
+  listGameDrafts() {
+    return request<{ drafts: unknown[] }>("/api/games/drafts");
+  },
+
+  createGameDraft(payload: Record<string, unknown>) {
+    return request<{ id: string }>("/api/games/drafts", { method: "POST", body: JSON.stringify(payload) });
+  },
+
+  updateGameDraft(id: string, payload: Record<string, unknown>) {
+    return request<{ id: string }>(`/api/games/drafts/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  },
+
+  submitGameDraft(id: string) {
+    return request<{ id: string; status: string }>(`/api/games/drafts/${id}/submit`, { method: "POST" });
+  },
+
+  decideGameDraft(id: string, decision: "approve" | "reject", note?: string) {
+    return request<{ id: string; status: string }>(`/api/games/drafts/${id}/decide`, {
+      method: "POST",
+      body: JSON.stringify({ decision, note }),
+    });
+  },
+
+  listCustomGames() {
+    return request<{ games: unknown[] }>("/api/games/custom");
+  },
 };

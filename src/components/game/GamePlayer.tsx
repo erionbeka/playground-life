@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useApp, HomeworkAssignment } from "@/context/AppContext";
-import { getGameById } from "@/data/games";
+import { getCatalogGameById, useCatalog } from "@/lib/customCatalog";
 import { AnimatePresence, motion } from "framer-motion";
 import MatchingEngine from "./engines/MatchingEngine";
 import TappingEngine from "./engines/TappingEngine";
@@ -37,7 +37,8 @@ interface Props {
 
 export default function GamePlayer({ gameId, assignment, onComplete, onExit }: Props) {
   const { completeGame, children, assignments } = useApp();
-  const game = getGameById(gameId);
+  const catalog = useCatalog();
+  const game = getCatalogGameById(gameId);
   const [started, setStarted] = useState(false);
   const [startTime] = useState(Date.now());
   const [interactions, setInteractions] = useState(0);

@@ -3,6 +3,8 @@ import { AppContext, AppState, AuditEntry, Child, GameResult, HomeworkAssignment
 import { AuthSession } from "@/lib/auth";
 import { AdminUser, TherapistUser } from "@/lib/backend";
 import { productionApi } from "@/lib/productionApi";
+import { registerPublishedGames, clearCustomGames } from "@/lib/customCatalog";
+import { PublishedGame } from "@/lib/gameAuthoring";
 import { buildSkillScoresFromResult, emptySkillProfile } from "@/lib/skills";
 
 const emptyProfile: Child["personalizationProfile"] = {
@@ -133,6 +135,10 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         setRole(user.role);
         await refreshClinicData();
         await refreshAudit();
+        await productionApi
+          .listCustomGames()
+          .then(({ games }) => registerPublishedGames(games as PublishedGame[]))
+          .catch(() => undefined);
       })
       .catch(() => undefined);
   }, [refreshAudit, refreshClinicData]);
@@ -183,6 +189,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     signInFamily,
     signOut: async () => {
       await productionApi.logout().catch(() => undefined);
+      clearCustomGames();
       setSession(null);
       setRole("none");
       setChildren([]);
