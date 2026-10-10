@@ -261,6 +261,7 @@ export default function GameAuthoring() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [originConfirmed, setOriginConfirmed] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [submitNotice, setSubmitNotice] = useState("");
 
   const load = async () => {
     if (!apiMode) return;
@@ -282,14 +283,29 @@ export default function GameAuthoring() {
 
   const update = (patch: Partial<AuthoredGame>) => setEditing((prev) => (prev ? { ...prev, ...patch } : prev));
 
+  const payload = (game: AuthoredGame): Record<string, unknown> => ({
+    title: game.title,
+    description: game.description,
+    emoji: game.emoji,
+    difficulty: game.difficulty,
+    learningGoal: game.learningGoal,
+    successCriteria: game.successCriteria,
+    skills: game.skills,
+    supportsShared: game.supportsShared,
+    engine: game.engine,
+    config: game.config,
+    originConfirmed,
+  });
+
   const createDraft = async () => {
     if (!editing) return;
     if (validateAuthoredGame(editing).length > 0) return;
     try {
-      await productionApi.createGameDraft(editing as unknown as Record<string, unknown>);
+      await productionApi.createGameDraft(payload(editing));
       setEditing(null);
       setStep(1);
       setOriginConfirmed(false);
+      setSubmitNotice("");
       await load();
     } catch {
       setLoadError("Could not save the draft.");
@@ -299,10 +315,11 @@ export default function GameAuthoring() {
   const updateDraft = async (draft: DraftRow) => {
     if (validateAuthoredGame(draft).length > 0) return;
     try {
-      await productionApi.updateGameDraft(draft.id, draft as unknown as Record<string, unknown>);
+      await productionApi.updateGameDraft(draft.id, payload(draft));
       setEditing(null);
       setStep(1);
       setOriginConfirmed(false);
+      setSubmitNotice("");
       await load();
     } catch {
       setLoadError("Could not save the draft.");
@@ -319,10 +336,17 @@ export default function GameAuthoring() {
   };
 
   const submitDraft = async (draft: DraftRow) => {
-    if (!originConfirmed) return;
+    if (!draft.originConfirmed) {
+      setEditing(draft);
+      setOriginConfirmed(false);
+      setStep(3);
+      setSubmitNotice("");
+      return;
+    }
     try {
       await productionApi.submitGameDraft(draft.id);
       setOriginConfirmed(false);
+      setSubmitNotice("");
       await load();
     } catch {
       setLoadError("Submission failed — check originality flags.");
@@ -333,15 +357,36 @@ export default function GameAuthoring() {
     if (!editing || !originConfirmed) return;
     if (validateAuthoredGame(editing).length > 0) return;
     try {
-      const created = await productionApi.createGameDraft(editing as unknown as Record<string, unknown>);
-      await productionApi.submitGameDraft(created.id);
+      let id: string;
+      if ("id" in editing) {
+        await productionApi.updateGameDraft((editing as DraftRow).id, payload(editing));
+        id = (editing as DraftRow).id;
+      } else {
+        const created = await productionApi.createGameDraft(payload(editing));
+        id = created.id;
+      }
+      await productionApi.submitGameDraft(id);
       setEditing(null);
       setStep(1);
       setOriginConfirmed(false);
+      setSubmitNotice("");
       await load();
     } catch {
       setLoadError("Submission failed — check originality flags.");
     }
+  };
+
+  const requestSubmit = () => {
+    if (errors.length > 0) {
+      setSubmitNotice(`Resolve these before submitting: ${errors.join(", ")}`);
+      return;
+    }
+    if (!originConfirmed) {
+      setSubmitNotice("Origin confirmation is required before submitting.");
+      return;
+    }
+    setSubmitNotice("");
+    void submitNewDraft();
   };
 
   const saveLabel = editing && "id" in editing ? "Save changes" : "Create draft";
@@ -365,7 +410,7 @@ export default function GameAuthoring() {
           <p className="text-sm text-muted-foreground">Build a game from scratch, then send it to a clinic admin for approval.</p>
         </div>
         <button
-          onClick={() => { setEditing(emptyGame); setStep(1); setOriginConfirmed(false); }}
+          onClick={() => { setEditing(emptyGame); setStep(1); setOriginConfirmed(false); setSubmitNotice(""); }}
           className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground touch-target"
         >
           New game
@@ -395,9 +440,12 @@ export default function GameAuthoring() {
           {step === 1 ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="block sm:col-span-2">
-                <input aria-label="title" value={editing.title} maxLength={60}
-                  onChange={(e) => update({ title: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-border bg-background px-3" />
+                <label className="block">
+                  <span className="mb-1 block text-sm font-semibold">Game name</span>
+                  <input aria-label="title" value={editing.title} maxLength={60}
+                    onChange={(e) => update({ title: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-border bg-background px-3" />
+                </label>
               </div>
               <label className="block">
                 <span className="mb-1 block text-sm font-semibold">Emoji</span>
@@ -490,25 +538,17 @@ export default function GameAuthoring() {
             </div>
           )}
 
-          {errors.length > 0 && step !== 3 ? (
+          {errors.length > 0 ? (
             <p className="mt-3 text-sm text-destructive">Check: {errors.join(", ")}</p>
           ) : null}
 
-          {step !== 3 ? (
-            <CreateReviewButtons
-              onSave={saveCurrent}
-              onSaveLabel={saveLabel}
-              disabled={errors.length > 0}
-              onSubmit={() => setStep(3)}
-            />
-          ) : originConfirmed ? (
-            <CreateReviewButtons
-              onSave={saveCurrent}
-              onSaveLabel={saveLabel}
-              disabled={errors.length > 0}
-              onSubmit={() => void submitNewDraft()}
-            />
-          ) : null}
+          <CreateReviewButtons
+            onSave={saveCurrent}
+            onSaveLabel={saveLabel}
+            disabled={errors.length > 0}
+            onSubmit={() => (step === 3 ? requestSubmit() : setStep(3))}
+          />
+          {submitNotice ? <p className="mt-3 text-sm text-destructive">{submitNotice}</p> : null}
         </div>
       ) : null}
 
@@ -522,7 +562,7 @@ export default function GameAuthoring() {
             <div className="flex gap-2">
               {draft.status === "draft" || draft.status === "changes_requested" ? (
                 <>
-                  <button onClick={() => { setEditing(draft); setOriginConfirmed(draft.originConfirmed); }} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold touch-target">
+                  <button onClick={() => { setEditing(draft); setOriginConfirmed(draft.originConfirmed); setStep(1); setSubmitNotice(""); }} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold touch-target">
                     Edit
                   </button>
                   <button onClick={() => void submitDraft(draft)} className="rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground touch-target">

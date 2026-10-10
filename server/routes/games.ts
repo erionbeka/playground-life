@@ -44,7 +44,8 @@ gameRoutes.get("/drafts", async (req: Request, res: Response) => {
 });
 
 gameRoutes.post("/drafts", async (req: Request, res: Response) => {
-  const body = req.body as Partial<AuthoredGame>;
+  const body = req.body as Partial<AuthoredGame> & { originConfirmed?: unknown };
+  const originConfirmed = Boolean(body.originConfirmed);
   const candidate: AuthoredGame = {
     title: body.title || "",
     description: body.description || "",
@@ -65,11 +66,11 @@ gameRoutes.post("/drafts", async (req: Request, res: Response) => {
   await query(
     `INSERT INTO game_drafts
       (id, clinic_id, author_id, status, title, description, emoji, difficulty,
-       learning_goal, success_criteria, skills, supports_shared, engine, config)
-     VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+       learning_goal, success_criteria, skills, supports_shared, engine, config, origin_confirmed)
+     VALUES ($1, $2, $3, 'draft', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
     [id, req.user?.clinicId, req.user?.id, candidate.title, candidate.description, candidate.emoji,
      candidate.difficulty, candidate.learningGoal, candidate.successCriteria, candidate.skills,
-     candidate.supportsShared, candidate.engine, JSON.stringify(candidate.config)]
+     candidate.supportsShared, candidate.engine, JSON.stringify(candidate.config), originConfirmed]
   );
   return res.status(201).json({ id });
 });
@@ -84,15 +85,15 @@ gameRoutes.put("/drafts/:id", async (req: Request, res: Response) => {
   if (String(row.status) !== "draft" && String(row.status) !== "changes_requested") {
     return res.status(409).json({ error: "Cannot edit a submitted draft" });
   }
-  const body = req.body as Partial<AuthoredGame>;
+  const body = req.body as Partial<AuthoredGame> & { originConfirmed?: unknown };
   await query(
     `UPDATE game_drafts SET title = $1, description = $2, emoji = $3, difficulty = $4,
        learning_goal = $5, success_criteria = $6, skills = $7, supports_shared = $8,
-       engine = $9, config = $10, updated_at = now()
-     WHERE id = $11`,
+       engine = $9, config = $10, origin_confirmed = $11, updated_at = now()
+     WHERE id = $12`,
     [body.title, body.description, body.emoji, body.difficulty, body.learningGoal,
      body.successCriteria, body.skills, body.supportsShared, body.engine,
-     JSON.stringify(body.config || {}), req.params.id]
+     JSON.stringify(body.config || {}), Boolean(body.originConfirmed), req.params.id]
   );
   return res.json({ id: req.params.id });
 });

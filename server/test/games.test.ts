@@ -64,6 +64,35 @@ describe("game draft lifecycle", () => {
     expect(res.body).toHaveProperty("id");
   });
 
+  it("stores origin confirmation when creating a draft", async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rows: [] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).post("/api/games/drafts").send({
+      title: "Dino Pairs", description: "Find the matching dinosaur cards.", emoji: "🦕",
+      difficulty: "easy", learningGoal: "Match two cards that are the same.",
+      successCriteria: ["Finds all pairs"], skills: ["attention"], supportsShared: true,
+      engine: "matching", config: { pairList: ["🦕", "🐲"] }, originConfirmed: true,
+    });
+    expect(res.status).toBe(201);
+    const [sql, params] = vi.mocked(query).mock.calls[0];
+    expect(String(sql)).toMatch(/origin_confirmed/);
+    expect(params[params.length - 1]).toBe(true);
+  });
+
+  it("stores origin confirmation when updating a draft", async () => {
+    vi.mocked(query).mockResolvedValueOnce({ rows: [{ ...draftRow }] } as unknown as Awaited<ReturnType<typeof query>>);
+    vi.mocked(query).mockResolvedValueOnce({ rows: [] } as unknown as Awaited<ReturnType<typeof query>>);
+    const res = await request(app).put(`/api/games/drafts/${draftRow.id}`).send({
+      title: "Dino Pairs", description: "Find the matching dinosaur cards.", emoji: "🦕",
+      difficulty: "easy", learningGoal: "Match two cards that are the same.",
+      successCriteria: ["Finds all pairs"], skills: ["attention"], supportsShared: true,
+      engine: "matching", config: { pairList: ["🦕", "🐲"] }, originConfirmed: true,
+    });
+    expect(res.status).toBe(200);
+    const updateCall = vi.mocked(query).mock.calls[1];
+    expect(String(updateCall[0])).toMatch(/origin_confirmed/);
+    expect(updateCall[1].includes(true)).toBe(true);
+  });
+
   it("rejects invalid drafts with 400", async () => {
     const res = await request(app).post("/api/games/drafts").send({
       title: "", description: "", emoji: "🦕", difficulty: "easy",
