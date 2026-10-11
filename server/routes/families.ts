@@ -1,4 +1,5 @@
-﻿import { Router } from "express";
+﻿import { createHash, randomBytes } from "node:crypto";
+import { Router } from "express";
 import { z } from "zod";
 import { hashPassword } from "../auth.ts";
 import { writeAudit } from "../audit.ts";
@@ -6,6 +7,14 @@ import { query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 
 const router = Router();
+
+function generateInviteCode() {
+  return `INV-${randomBytes(4).toString("hex").toUpperCase()}`;
+}
+
+function hashInviteCode(code: string) {
+  return createHash("sha256").update(code).digest("hex");
+}
 
 const caregiverSchema = z.object({
   childId: z.string().uuid(),
@@ -54,11 +63,12 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
     [req.user?.clinicId, parsed.data.name, parsed.data.phoneNumber, passwordHash]
   );
 
+  const inviteCode = generateInviteCode();
   const link = await query<{ id: string }>(
-    `INSERT INTO family_child_links (clinic_id, child_id, user_id, relationship, invited_at)
-     VALUES ($1, $2, $3, $4, now())
+    `INSERT INTO family_child_links (clinic_id, child_id, user_id, relationship, invited_at, invite_code_hash)
+     VALUES ($1, $2, $3, $4, now(), $5)
      RETURNING id`,
-    [req.user?.clinicId, parsed.data.childId, user.rows[0].id, parsed.data.relationship]
+    [req.user?.clinicId, parsed.data.childId, user.rows[0].id, parsed.data.relationship, hashInviteCode(inviteCode)]
   );
 
   await writeAudit(req, "caregiver_created", "credential", link.rows[0].id, {
@@ -66,7 +76,7 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
     relationship: parsed.data.relationship,
   });
 
-  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id });
+  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id, inviteCode });
 });
 
 router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
@@ -87,6 +97,23 @@ router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async 
 
   await writeAudit(req, "caregiver_password_reset", "credential", userId, { credentialStatus: parsed.data.credentialStatus });
   return res.json({ userId, credentialStatus: parsed.data.credentialStatus });
+});
+
+router.post("/:userId/invite", requireAuth, requireRole("admin"), async (req, res) => {
+  const userId = String(req.params.userId);
+  const inviteCode = generateInviteCode();
+
+  const updated = await query<{ id: string }>(
+    `UPDATE family_child_links
+     SET invite_code_hash = $1, invited_at = now()
+     WHERE user_id = $2 AND clinic_id = $3
+     RETURNING id`,
+    [hashInviteCode(inviteCode), userId, req.user?.clinicId]
+  );
+  if (!updated.rows[0]) return res.status(404).json({ error: "Family member not found" });
+
+  await writeAudit(req, "family_invite_issued", "credential", userId, {});
+  return res.json({ inviteCode });
 });
 
 export default router;

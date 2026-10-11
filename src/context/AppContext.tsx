@@ -199,7 +199,7 @@ export interface AppState {
   addStaffUser: (user: { role: "admin" | "therapist"; name: string; email: string; clinicName: string; password: string }) => MaybePromise<void>;
   children: Child[];
   addChild: (child: Omit<Child, "id">) => MaybePromise<void>;
-  addFamilyMember: (childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => MaybePromise<void>;
+  addFamilyMember: (childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => MaybePromise<string | null>;
   removeChild: (id: string) => MaybePromise<void>;
   updateChild: (id: string, updates: Partial<Child>) => MaybePromise<void>;
   recordChildEvent: (childId: string, type: string, detail?: string) => MaybePromise<void>;
@@ -860,6 +860,7 @@ export function AppProvider({
   }, []);
 
   const addFamilyMember = useCallback((childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => {
+    const inviteCode = createInviteCode();
     persist((current) => {
       const familyMember: FamilyMember = {
         id: `fm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -871,10 +872,12 @@ export function AppProvider({
         credentialStatus: "active",
         invitedAt: new Date().toISOString(),
         lastCredentialUpdateAt: new Date().toISOString(),
+        inviteCode,
       };
       const updatedChildren = current.children.map((child) => child.id !== childId ? child : ({ ...child, familyMembers: [...child.familyMembers, familyMember] }));
       return appendAudit({ ...current, children: updatedChildren }, createAuditEntry("family_member_added", session, "credential", familyMember.id, `Added family member for child ${childId}`));
     });
+    return inviteCode;
   }, [appendAudit, persist, session]);
 
   const issueFamilyInvite = useCallback((childId: string, familyMemberId: string) => {

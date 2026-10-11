@@ -182,10 +182,14 @@ export const productionApi = {
   },
 
   createCaregiver(payload: ApiCaregiverPayload) {
-    return request<{ id: string; userId: string }>("/api/families", {
+    return request<{ id: string; userId: string; inviteCode: string }>("/api/families", {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  issueFamilyInvite(userId: string) {
+    return request<{ inviteCode: string }>(`/api/families/${userId}/invite`, { method: "POST" });
   },
 
   resetCaregiverPassword(userId: string, payload: { temporaryPassword: string; credentialStatus?: "active" | "pending" }) {

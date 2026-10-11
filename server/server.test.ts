@@ -221,7 +221,7 @@ describe("production API", () => {
       })
       .expect(201);
 
-    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1" });
+    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1", inviteCode: expect.any(String) });
     expect(writeAuditMock).toHaveBeenCalledWith(
       expect.anything(),
       "caregiver_created",
@@ -229,6 +229,20 @@ describe("production API", () => {
       "link-1",
       expect.objectContaining({ relationship: "Mother" })
     );
+  });
+
+  it("re-issues a family invite code", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "link-1" }] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/families/00000000-0000-0000-0000-000000000009/invite")
+      .set("Authorization", "Bearer admin-token")
+      .expect(200);
+
+    expect(response.body.inviteCode).toEqual(expect.any(String));
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("invite_code_hash"), expect.any(Array));
+    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "family_invite_issued", "credential", "00000000-0000-0000-0000-000000000009", expect.any(Object));
   });
 
   it("blocks therapists from creating family credentials", async () => {

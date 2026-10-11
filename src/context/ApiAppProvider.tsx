@@ -288,7 +288,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       await refreshAudit();
     },
     addFamilyMember: async (childId, member) => {
-      await productionApi.createCaregiver({
+      const { inviteCode } = await productionApi.createCaregiver({
         childId,
         name: member.name,
         relationship: member.relationship,
@@ -297,6 +297,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       });
       await refreshClinicData();
       await refreshAudit();
+      return inviteCode ?? null;
     },
     removeChild: async (id) => {
       await productionApi.deleteChild(id);
@@ -323,7 +324,12 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     recordChildEvent: async (childId, type, detail) => {
       await productionApi.recordChildEvent(childId, type, detail).catch(() => undefined);
     },
-    issueFamilyInvite: async () => null,
+    issueFamilyInvite: async (childId, userId) => {
+      const { inviteCode } = await productionApi.issueFamilyInvite(userId);
+      await refreshClinicData();
+      await refreshAudit();
+      return inviteCode;
+    },
     resetFamilyCredentials: async (_childId, familyMemberId, temporaryPassword, activate = true) => {
       await productionApi.resetCaregiverPassword(familyMemberId, { temporaryPassword, credentialStatus: activate ? "active" : "pending" });
       await refreshClinicData();

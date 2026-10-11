@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
   const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
+  const [generatedInvites, setGeneratedInvites] = useState<Record<string, string>>({});
   const [showAddChild, setShowAddChild] = useState(false);
   const [childName, setChildName] = useState("");
   const [childAvatar, setChildAvatar] = useState("🧒");
@@ -98,15 +99,16 @@ export default function AdminDashboard() {
     setAddingFamilyTo(null);
   };
 
-  const handleAddFamily = (childId: string) => {
+  const handleAddFamily = async (childId: string) => {
     if (!fmName.trim() || !fmPhoneNumber.trim() || fmPassword.trim().length < 12) return;
-    addFamilyMember(childId, {
+    const inviteCode = await addFamilyMember(childId, {
       name: fmName.trim(),
       relationship: fmRelationship,
       avatar: fmAvatar,
       phoneNumber: fmPhoneNumber.trim(),
       password: fmPassword,
     });
+    if (inviteCode) setGeneratedInvites((current) => ({ ...current, [fmPhoneNumber.trim()]: inviteCode }));
     resetFamilyForm();
   };
 
@@ -399,10 +401,16 @@ export default function AdminDashboard() {
                             {generatedPasswords[familyMember.id] ? (
                               <p className="mt-1 text-[11px] text-foreground">Temporary password: <span className="font-mono font-semibold">{generatedPasswords[familyMember.id]}</span></p>
                             ) : null}
+                            {generatedInvites[familyMember.phoneNumber] ? (
+                              <p className="mt-1 text-[11px] text-foreground">Invite code: <span className="font-mono font-semibold">{generatedInvites[familyMember.phoneNumber]}</span></p>
+                            ) : null}
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <button
-                              onClick={() => issueFamilyInvite(child.id, familyMember.id)}
+                              onClick={async () => {
+                                const code = await issueFamilyInvite(child.id, familyMember.id);
+                                if (code) setGeneratedInvites((current) => ({ ...current, [familyMember.phoneNumber]: code }));
+                              }}
                               className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white"
                             >
                               Issue Invite
