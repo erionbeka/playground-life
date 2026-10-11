@@ -319,9 +319,8 @@ describe("production API", () => {
 
   it("records game results and updates assignment status", async () => {
     queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "assignment-1", child_id: "child-1", game_ids: ["game-001"] }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-0000-0000-000000000002", child_id: "00000000-0000-0000-0000-000000000001", game_ids: ["game-001"] }] })
+      .mockResolvedValue({ rows: [] });
 
     const app = await loadApp();
     const response = await request(app)
@@ -332,6 +331,26 @@ describe("production API", () => {
 
     expect(response.body.gameId).toBe("game-001");
     expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "game_result_recorded", "result", "00000000-0000-0000-0000-000000000002", { gameId: "game-001", score: 88 });
+  });
+
+  it("recomputes skill profile and advances goals after a result", async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ id: "a1", child_id: "c1", game_ids: ["game-001"] }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ skill_profile: { attention: 40 } }] })
+      .mockResolvedValueOnce({ rows: [{ skill_scores: { attention: 90 } }] })
+      .mockResolvedValue({ rows: [{ id: "goal-1", domain: "attention", target_level: 75, status: "active" }] });
+
+    const app = await loadApp();
+    await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer therapist-token")
+      .send({ gameId: "game-001", durationSeconds: 60, score: 90, interactions: 5 })
+      .expect(201);
+
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("UPDATE children SET skill_profile"), expect.any(Array));
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("UPDATE therapy_goals SET status = 'achieved'"), expect.any(Array));
   });
 
   it("blocks parent result recording for unlinked assignments", async () => {

@@ -1,5 +1,8 @@
 import { GameResult, SkillDomain } from "@/context/AppContext";
+import { mergeSkillProfiles as mergeSkillBuckets } from "@/lib/skillDomains";
 import { getCatalogGameById } from "@/lib/customCatalog";
+
+export { SKILL_DOMAINS, emptySkillProfile } from "@/lib/skillDomains";
 
 const domainKeywordMap: Array<{ keyword: string; domain: SkillDomain }> = [
   { keyword: "social", domain: "social" },
@@ -19,19 +22,6 @@ const domainKeywordMap: Array<{ keyword: string; domain: SkillDomain }> = [
   { keyword: "counting", domain: "academic" },
   { keyword: "numeracy", domain: "academic" },
 ];
-
-export function emptySkillProfile(): Record<SkillDomain, number> {
-  return {
-    social: 40,
-    communication: 40,
-    attention: 40,
-    motor: 40,
-    sequencing: 40,
-    "emotional-regulation": 40,
-    "daily-living": 40,
-    academic: 40,
-  };
-}
 
 export function getGameSkillDomains(gameId: string): SkillDomain[] {
   const game = getCatalogGameById(gameId);
@@ -69,20 +59,5 @@ export function mergeSkillProfiles(
   baseProfile: Record<SkillDomain, number>,
   results: GameResult[]
 ) {
-  const buckets = new Map<SkillDomain, number[]>();
-
-  results.forEach((result) => {
-    Object.entries(result.skillScores || {}).forEach(([domain, score]) => {
-      if (typeof score !== "number") return;
-      const key = domain as SkillDomain;
-      buckets.set(key, [...(buckets.get(key) || []), score]);
-    });
-  });
-
-  const nextProfile = { ...baseProfile };
-  buckets.forEach((scores, domain) => {
-    nextProfile[domain] = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
-  });
-
-  return nextProfile;
+  return mergeSkillBuckets(baseProfile, results.map((result) => (result.skillScores || {}) as Record<string, number>)) as Record<SkillDomain, number>;
 }

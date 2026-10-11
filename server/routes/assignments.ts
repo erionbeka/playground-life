@@ -3,6 +3,7 @@ import { z } from "zod";
 import { writeAudit } from "../audit.ts";
 import { query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
+import { advanceableGoalIds, emptySkillProfile, mergeSkillProfiles } from "../skills.ts";
 
 const router = Router();
 
@@ -183,6 +184,31 @@ router.post("/:id/results", requireAuth, async (req, res) => {
      WHERE id = $1`,
     [assignmentId]
   );
+
+  const childId = assignment.rows[0].child_id;
+  const profileRow = await query<{ skill_profile: Record<string, number> }>(
+    `SELECT skill_profile FROM children WHERE id = $1`,
+    [childId]
+  );
+  const resultRows = await query<{ skill_scores: Record<string, number> }>(
+    `SELECT skill_scores FROM game_results WHERE child_id = $1`,
+    [childId]
+  );
+  const baseProfile = { ...emptySkillProfile(), ...(profileRow.rows[0]?.skill_profile ?? {}) };
+  const nextProfile = mergeSkillProfiles(baseProfile, resultRows.rows.map((row) => row.skill_scores ?? {}));
+
+  await query(
+    `UPDATE children SET skill_profile = $1, updated_at = now() WHERE id = $2`,
+    [JSON.stringify(nextProfile), childId]
+  );
+
+  const activeGoals = await query<{ id: string; domain: string; target_level: number; status: string }>(
+    `SELECT id, domain, target_level, status FROM therapy_goals WHERE child_id = $1 AND status = 'active'`,
+    [childId]
+  );
+  for (const goalId of advanceableGoalIds(activeGoals.rows, nextProfile)) {
+    await query(`UPDATE therapy_goals SET status = 'achieved', updated_at = now() WHERE id = $1`, [goalId]);
+  }
 
   await writeAudit(req, "game_result_recorded", "result", assignmentId, { gameId: parsed.data.gameId, score: parsed.data.score });
   return res.status(201).json({ assignmentId, gameId: parsed.data.gameId });
