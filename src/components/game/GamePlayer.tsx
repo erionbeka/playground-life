@@ -174,22 +174,26 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   const handleGameComplete = useCallback(
     async (score: number, socialScore?: number) => {
       const durationSeconds = Math.round((Date.now() - startTime) / 1000);
-      await completeGame(assignment.id, {
-        gameId,
-        completedAt: new Date().toISOString().slice(0, 10),
-        durationSeconds,
-        score,
-        interactions,
-        socialScore,
-      });
-      const current = await getChildRewards(assignment.childId);
-      const { next } = applyResultToRewardState(
-        current ?? { stars: 0, stickers: [], plays: 0 },
-        gameId,
-        score,
-        score >= 70
-      );
-      await saveChildRewards(assignment.childId, next);
+      try {
+        await completeGame(assignment.id, {
+          gameId,
+          completedAt: new Date().toISOString().slice(0, 10),
+          durationSeconds,
+          score,
+          interactions,
+          socialScore,
+        });
+        const current = await getChildRewards(assignment.childId);
+        const { next } = applyResultToRewardState(
+          current ?? { stars: 0, stickers: [], plays: 0 },
+          gameId,
+          score,
+          score >= 70
+        );
+        await saveChildRewards(assignment.childId, next);
+      } catch (error) {
+        console.error("Failed to persist game completion:", error);
+      }
       setCelebrationVisible(true);
     },
     [assignment.id, assignment.childId, completeGame, gameId, getChildRewards, interactions, saveChildRewards, startTime]
