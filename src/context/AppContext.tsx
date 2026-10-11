@@ -3,6 +3,7 @@ import { Difficulty } from "@/data/games";
 import { AuthSession, hashSecret, loadSession, saveSession, verifySecret } from "@/lib/auth";
 import { AdminUser, AppDataSnapshot, TherapistUser, createAuditEntry, loadAppData, saveAppData } from "@/lib/backend";
 import { buildSkillScoresFromResult, emptySkillProfile, mergeSkillProfiles } from "@/lib/skills";
+import { appendChildEvent } from "@/lib/sessionEvents";
 
 export type AssignmentType = "homework" | "classwork";
 export type SkillDomain =
@@ -200,6 +201,7 @@ export interface AppState {
   addFamilyMember: (childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => MaybePromise<void>;
   removeChild: (id: string) => MaybePromise<void>;
   updateChild: (id: string, updates: Partial<Child>) => MaybePromise<void>;
+  recordChildEvent: (childId: string, type: string, detail?: string) => MaybePromise<void>;
   issueFamilyInvite: (childId: string, familyMemberId: string) => MaybePromise<string | null>;
   resetFamilyCredentials: (childId: string, familyMemberId: string, temporaryPassword: string, activate?: boolean) => MaybePromise<boolean>;
   updateGoalStatus: (childId: string, goalId: string, status: TherapyGoal["status"]) => MaybePromise<void>;
@@ -850,6 +852,10 @@ export function AppProvider({
     });
   }, [appendAudit, persist, session]);
 
+  const recordChildEvent = useCallback((childId: string, type: string, detail?: string) => {
+    appendChildEvent(childId, type, detail);
+  }, []);
+
   const addFamilyMember = useCallback((childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => {
     persist((current) => {
       const familyMember: FamilyMember = {
@@ -1049,6 +1055,7 @@ export function AppProvider({
     addFamilyMember,
     removeChild,
     updateChild,
+    recordChildEvent,
     issueFamilyInvite,
     resetFamilyCredentials,
     updateGoalStatus,
@@ -1063,7 +1070,7 @@ export function AppProvider({
     currentAssignment,
     setCurrentAssignment,
     auditLog: snapshot.auditLog,
-  }), [addChild, addFamilyMember, addGoal, addStaffUser, approveAssignment, completeGame, createAssignment, currentAssignment, issueFamilyInvite, removeChild, removeGameFromAssignment, resetFamilyCredentials, role, selectedChildId, session, signInAdmin, signInFamily, signInTherapist, signOut, snapshot, updateChild, updateGoalStatus]);
+  }), [addChild, addFamilyMember, addGoal, addStaffUser, approveAssignment, completeGame, createAssignment, currentAssignment, issueFamilyInvite, recordChildEvent, removeChild, removeGameFromAssignment, resetFamilyCredentials, role, selectedChildId, session, signInAdmin, signInFamily, signInTherapist, signOut, snapshot, updateChild, updateGoalStatus]);
 
   return <AppContext.Provider value={value}>{childrenNodes}</AppContext.Provider>;
 }

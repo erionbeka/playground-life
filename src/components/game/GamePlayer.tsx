@@ -22,7 +22,6 @@ import ResponseModes from "./ResponseModes";
 import { useGameAudio } from "./useGameAudio";
 import { getChildReadinessState } from "@/lib/personalization";
 import CoreWordBar from "@/components/aac/CoreWordBar";
-import { appendChildEvent } from "@/lib/sessionEvents";
 import { ResponseMode } from "@/lib/responseModes";
 import { AAC_POSITIONING } from "@/lib/positioning";
 import InputModeProvider from "@/components/input/InputModeProvider";
@@ -36,7 +35,7 @@ interface Props {
 }
 
 export default function GamePlayer({ gameId, assignment, onComplete, onExit }: Props) {
-  const { completeGame, children, assignments } = useApp();
+  const { completeGame, children, assignments, recordChildEvent } = useApp();
   useCatalog();
   const game = getCatalogGameById(gameId);
   const [started, setStarted] = useState(false);
@@ -120,16 +119,16 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   const handleNonScreenResponse = useCallback(
     (mode: ResponseMode) => {
       handleInteraction();
-      appendChildEvent(assignment.childId, "response_mode", mode);
+      recordChildEvent(assignment.childId, "response_mode", mode);
     },
-    [assignment.childId, handleInteraction]
+    [assignment.childId, handleInteraction, recordChildEvent]
   );
 
   const handleAacLog = useCallback(
     (type: string, detail?: string) => {
-      appendChildEvent(assignment.childId, type, detail);
+      recordChildEvent(assignment.childId, type, detail);
     },
-    [assignment.childId]
+    [assignment.childId, recordChildEvent]
   );
 
   const leaveSession = useCallback(() => {
@@ -146,9 +145,9 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   }, [interactions, leaveSession, started, celebrationVisible]);
 
   const confirmQuit = useCallback(() => {
-    appendChildEvent(assignment.childId, "quit_mid_game", `after ${interactions} interactions`);
+    recordChildEvent(assignment.childId, "quit_mid_game", `after ${interactions} interactions`);
     leaveSession();
-  }, [assignment.childId, interactions, leaveSession]);
+  }, [assignment.childId, interactions, leaveSession, recordChildEvent]);
 
   const openBreathing = useCallback(() => {
     breathingOpenedAt.current = Date.now();
@@ -159,11 +158,11 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
     if (breathingOpenedAt.current !== null) {
       const elapsedMs = Date.now() - breathingOpenedAt.current;
       const seconds = Math.max(1, Math.round(elapsedMs / 1000));
-      appendChildEvent(assignment.childId, "breathing_break", `${seconds}s`);
+      recordChildEvent(assignment.childId, "breathing_break", `${seconds}s`);
       breathingOpenedAt.current = null;
     }
     setBreathingVisible(false);
-  }, [assignment.childId]);
+  }, [assignment.childId, recordChildEvent]);
 
   useEffect(() => {
     if (!celebrationVisible) return;
@@ -338,7 +337,7 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
               extensionPrompt={game.adultPrompt}
               regionRef={dialogRef}
               onContinue={() => {
-                appendChildEvent(assignment.childId, "celebration_closed");
+                recordChildEvent(assignment.childId, "celebration_closed");
                 setCelebrationVisible(false);
                 onComplete();
               }}
