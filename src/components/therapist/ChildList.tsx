@@ -25,7 +25,7 @@ const ratingLabels: Array<{ key: keyof ClinicalRatings; label: string }> = [
 ];
 
 export default function ChildList() {
-  const { children, removeChild, updateChild, addGoal, assignments } = useApp();
+  const { children, removeChild, updateChild, addGoal, assignments, role } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -456,9 +456,11 @@ export default function ChildList() {
                 </div>
               </div>
 
-              <button onClick={() => removeChild(child.id)} className="mt-3 text-xs text-destructive hover:underline">
-                Remove Child
-              </button>
+              {role === "admin" ? (
+                <button onClick={() => removeChild(child.id)} className="mt-3 text-xs text-destructive hover:underline">
+                  Remove Child
+                </button>
+              ) : null}
             </motion.div>
           );
         })}

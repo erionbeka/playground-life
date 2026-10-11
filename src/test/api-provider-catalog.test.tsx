@@ -19,6 +19,8 @@ vi.mock("@/lib/productionApi", () => ({
     listGoals: vi.fn(),
     listCustomGames: vi.fn(),
     logout: vi.fn(),
+    createChild: vi.fn(),
+    updateChild: vi.fn(),
   },
 }));
 
@@ -59,6 +61,22 @@ function FamilySignInProbe() {
   return <span>{status}</span>;
 }
 
+function AgePersistenceProbe() {
+  const { signInTherapist, updateChild, addChild } = useApp();
+  const [status, setStatus] = useState("idle");
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    (signInTherapist("therapist@playgroundlife.app", "therapist123") as Promise<boolean>).then(async () => {
+      await updateChild("child-1", { age: 9 } as never);
+      await addChild({ name: "New Kid", avatar: "kid", age: 4 } as never);
+      setStatus("done");
+    });
+  }, [signInTherapist, updateChild, addChild]);
+  return <span>{status}</span>;
+}
+
 describe("ApiAppProvider sign-in catalog hydration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,6 +90,8 @@ describe("ApiAppProvider sign-in catalog hydration", () => {
     vi.mocked(productionApi.listFamilyLinks).mockResolvedValue({ familyLinks: [] } as never);
     vi.mocked(productionApi.listGoals).mockResolvedValue({ goals: [] } as never);
     vi.mocked(productionApi.listCustomGames).mockResolvedValue({ games: [makePublished()] } as never);
+    vi.mocked(productionApi.createChild).mockResolvedValue({ id: "child-new" } as never);
+    vi.mocked(productionApi.updateChild).mockResolvedValue({ id: "child-1" } as never);
   });
 
   it("registers published games when a staff member signs in", async () => {
@@ -93,5 +113,17 @@ describe("ApiAppProvider sign-in catalog hydration", () => {
       </ApiAppProvider>
     );
     await waitFor(() => expect(getCatalogGameById(CUSTOM_ID)?.name).toBe("Dino Pairs"));
+  });
+
+  it("persists a child's age as birthDate on update and create", async () => {
+    const year = new Date().getFullYear();
+    render(
+      <ApiAppProvider>
+        <AgePersistenceProbe />
+      </ApiAppProvider>
+    );
+    await waitFor(() => expect(productionApi.updateChild).toHaveBeenCalled());
+    expect(productionApi.updateChild).toHaveBeenCalledWith("child-1", expect.objectContaining({ birthDate: `${year - 9}-01-01` }));
+    expect(productionApi.createChild).toHaveBeenCalledWith(expect.objectContaining({ birthDate: `${year - 4}-01-01` }));
   });
 });

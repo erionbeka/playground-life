@@ -63,6 +63,11 @@ function mapChild(row: Record<string, unknown>): Child {
   };
 }
 
+function birthDateForAge(age: unknown): string | undefined {
+  if (typeof age !== "number" || Number.isNaN(age)) return undefined;
+  return `${new Date().getFullYear() - age}-01-01`;
+}
+
 function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
   const gameIds = Array.isArray(row.game_ids) ? row.game_ids.map(String) : Array.isArray(row.gameIds) ? row.gameIds.map(String) : [];
   const skillFocus = Array.isArray(row.skill_focus) ? row.skill_focus.map(String) : Array.isArray(row.skillFocus) ? row.skillFocus.map(String) : [];
@@ -278,6 +283,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         firstName: child.name,
         displayName: child.name,
         avatar: child.avatar,
+        birthDate: birthDateForAge(child.age),
         diagnosis: child.diagnosis,
         notes: child.notes,
         personalizationProfile: child.personalizationProfile,
@@ -309,6 +315,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         firstName: updates.name,
         displayName: updates.name,
         avatar: updates.avatar,
+        birthDate: birthDateForAge(updates.age),
         diagnosis: updates.diagnosis,
         notes: updates.notes,
         personalizationProfile: updates.personalizationProfile,
