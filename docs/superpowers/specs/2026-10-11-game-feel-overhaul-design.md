@@ -98,8 +98,9 @@ export function resolveEngine(engine: GameEngine): ComponentType<EngineProps> {
 
 `GamePlayer` renders `const Engine = resolveEngine(game.engine); <Engine {...engineProps} />`.
 
-Note: `GameAuthoring.tsx` (authoring) and `GamePreview.tsx` (preview) must use the same
-registry so preview and play never diverge.
+Note: `src/components/therapist/GameAuthoring.tsx` (authoring) and
+`src/components/game/GamePreview.tsx` (preview) must use the same registry so preview and play
+never diverge.
 
 ### 5.2 Shared game-feel layer (`ActivityShell` + `useActivity`)
 
@@ -118,8 +119,10 @@ registry so preview and play never diverge.
   callout naming what was just learned (engine- or `config`-supplied text).
 - **Completion** — a single `finish({ trials, correctTrials, errors, ... })` that builds
   `GameCompletionMetrics` via the existing `buildCompletionMetrics` helper, calls the host
-  `onComplete(score)` **exactly once** (guarded), and is the recommended path engines use instead
-  of calling `onComplete` directly.
+   `onComplete(score)` **exactly once** — the shell guards against duplicate completion so an
+  engine that both adopts the shell and calls `onComplete` directly cannot double-fire. Using
+  `useActivity().complete` is the recommended path; the shell is optional, so engines that have
+  not yet migrated still call `onComplete` directly and continue to work.
 - **Adaptation accessors** — `assignedDifficulty`, `supportLevel`, `readinessStage` from
   `runtimeGame.config`, so engines scale item counts, offer hints, etc., consistently.
 
