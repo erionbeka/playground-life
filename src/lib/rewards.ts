@@ -48,6 +48,12 @@ export function getRewardState(childId: string): RewardState {
   return store[childId] || { stars: 0, stickers: [], plays: 0 };
 }
 
+export function setRewardState(childId: string, state: RewardState) {
+  const store = loadStore();
+  store[childId] = state;
+  saveStore(store);
+}
+
 export function computeStars(score: number): number {
   if (score >= 90) return 3;
   if (score >= 70) return 2;
@@ -62,29 +68,34 @@ function stickerIndexForGame(gameId: string): number {
   return hash % STICKER_CATALOG.length;
 }
 
-export function recordReward(childId: string, gameId: string, score: number, completedSuccessfully: boolean): RewardResult {
-  const store = loadStore();
-  const current = store[childId] || { stars: 0, stickers: [], plays: 0 };
+export function applyResultToRewardState(
+  current: RewardState,
+  gameId: string,
+  score: number,
+  completedSuccessfully: boolean
+): { next: RewardState; starsEarned: number; sticker: string | null; isNewSticker: boolean } {
   const starsEarned = computeStars(score);
+  let stickers = current.stickers;
   let sticker: string | null = null;
   let isNewSticker = false;
 
-  if (completedSuccessfully && childId) {
+  if (completedSuccessfully && gameId) {
     const candidate = STICKER_CATALOG[stickerIndexForGame(gameId)];
-    if (!current.stickers.includes(candidate)) {
-      sticker = candidate;
+    sticker = candidate;
+    if (!stickers.includes(candidate)) {
       isNewSticker = true;
-      current.stickers = [...current.stickers, candidate];
-    } else {
-      sticker = candidate;
+      stickers = [...stickers, candidate];
     }
   }
 
-  const next: RewardState = {
-    stars: current.stars + starsEarned,
-    stickers: current.stickers,
-    plays: current.plays + 1,
-  };
+  const next: RewardState = { stars: current.stars + starsEarned, stickers, plays: current.plays + 1 };
+  return { next, starsEarned, sticker, isNewSticker };
+}
+
+export function recordReward(childId: string, gameId: string, score: number, completedSuccessfully: boolean): RewardResult {
+  const store = loadStore();
+  const current = store[childId] || { stars: 0, stickers: [], plays: 0 };
+  const { next, starsEarned, sticker, isNewSticker } = applyResultToRewardState(current, gameId, score, completedSuccessfully);
   store[childId] = next;
   saveStore(store);
 

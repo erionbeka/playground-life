@@ -21,6 +21,7 @@ import RealWorldExtension from "./RealWorldExtension";
 import ResponseModes from "./ResponseModes";
 import { useGameAudio } from "./useGameAudio";
 import { getChildReadinessState } from "@/lib/personalization";
+import { applyResultToRewardState } from "@/lib/rewards";
 import CoreWordBar from "@/components/aac/CoreWordBar";
 import { ResponseMode } from "@/lib/responseModes";
 import { AAC_POSITIONING } from "@/lib/positioning";
@@ -35,7 +36,7 @@ interface Props {
 }
 
 export default function GamePlayer({ gameId, assignment, onComplete, onExit }: Props) {
-  const { completeGame, children, assignments, recordChildEvent } = useApp();
+  const { completeGame, children, assignments, recordChildEvent, saveChildRewards, getChildRewards } = useApp();
   useCatalog();
   const game = getCatalogGameById(gameId);
   const [started, setStarted] = useState(false);
@@ -171,9 +172,9 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   }, [celebrationVisible, playCelebrationSound]);
 
   const handleGameComplete = useCallback(
-    (score: number, socialScore?: number) => {
+    async (score: number, socialScore?: number) => {
       const durationSeconds = Math.round((Date.now() - startTime) / 1000);
-      completeGame(assignment.id, {
+      await completeGame(assignment.id, {
         gameId,
         completedAt: new Date().toISOString().slice(0, 10),
         durationSeconds,
@@ -181,9 +182,17 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
         interactions,
         socialScore,
       });
+      const current = await getChildRewards(assignment.childId);
+      const { next } = applyResultToRewardState(
+        current ?? { stars: 0, stickers: [], plays: 0 },
+        gameId,
+        score,
+        score >= 70
+      );
+      await saveChildRewards(assignment.childId, next);
       setCelebrationVisible(true);
     },
-    [assignment.id, completeGame, gameId, interactions, startTime]
+    [assignment.id, assignment.childId, completeGame, gameId, getChildRewards, interactions, saveChildRewards, startTime]
   );
 
   if (!game) {

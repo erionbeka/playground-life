@@ -387,6 +387,13 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       await refreshClinicData();
       await refreshAudit();
     },
+    saveChildRewards: async (childId, rewards) => {
+      await productionApi.saveChildRewards(childId, rewards);
+    },
+    getChildRewards: async (childId) => {
+      const { rewards } = await productionApi.getChildRewards(childId);
+      return rewards;
+    },
     selectedChildId,
     setSelectedChildId,
     currentAssignment,

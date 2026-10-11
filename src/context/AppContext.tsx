@@ -4,6 +4,7 @@ import { AuthSession, hashSecret, loadSession, saveSession, verifySecret } from 
 import { AdminUser, AppDataSnapshot, TherapistUser, createAuditEntry, loadAppData, saveAppData } from "@/lib/backend";
 import { buildSkillScoresFromResult, emptySkillProfile, mergeSkillProfiles } from "@/lib/skills";
 import { appendChildEvent } from "@/lib/sessionEvents";
+import { getRewardState, setRewardState } from "@/lib/rewards";
 
 export type AssignmentType = "homework" | "classwork";
 export type SkillDomain =
@@ -211,6 +212,8 @@ export interface AppState {
   approveAssignment: (assignmentId: string, approval: "approved" | "adjusted", difficulty?: Difficulty) => MaybePromise<void>;
   completeGame: (assignmentId: string, result: Omit<GameResult, "assignmentId" | "skillScores">) => MaybePromise<void>;
   removeGameFromAssignment: (assignmentId: string, gameId: string) => MaybePromise<void>;
+  saveChildRewards: (childId: string, rewards: { stars: number; stickers: string[]; plays: number }) => MaybePromise<void>;
+  getChildRewards: (childId: string) => MaybePromise<{ stars: number; stickers: string[]; plays: number } | null>;
   selectedChildId: string | null;
   setSelectedChildId: (id: string | null) => void;
   currentAssignment: HomeworkAssignment | null;
@@ -1039,6 +1042,12 @@ export function AppProvider({
     });
   }, [appendAudit, persist, session]);
 
+  const saveChildRewards = useCallback((childId: string, rewards: { stars: number; stickers: string[]; plays: number }) => {
+    setRewardState(childId, rewards);
+  }, []);
+
+  const getChildRewards = useCallback((childId: string) => getRewardState(childId), []);
+
   const value = useMemo<AppState>(() => ({
     role,
     setRole,
@@ -1065,12 +1074,14 @@ export function AppProvider({
     approveAssignment,
     completeGame,
     removeGameFromAssignment,
+    saveChildRewards,
+    getChildRewards,
     selectedChildId,
     setSelectedChildId,
     currentAssignment,
     setCurrentAssignment,
     auditLog: snapshot.auditLog,
-  }), [addChild, addFamilyMember, addGoal, addStaffUser, approveAssignment, completeGame, createAssignment, currentAssignment, issueFamilyInvite, recordChildEvent, removeChild, removeGameFromAssignment, resetFamilyCredentials, role, selectedChildId, session, signInAdmin, signInFamily, signInTherapist, signOut, snapshot, updateChild, updateGoalStatus]);
+  }), [addChild, addFamilyMember, addGoal, addStaffUser, approveAssignment, completeGame, createAssignment, currentAssignment, getChildRewards, issueFamilyInvite, recordChildEvent, removeChild, removeGameFromAssignment, resetFamilyCredentials, role, saveChildRewards, selectedChildId, session, signInAdmin, signInFamily, signInTherapist, signOut, snapshot, updateChild, updateGoalStatus]);
 
   return <AppContext.Provider value={value}>{childrenNodes}</AppContext.Provider>;
 }

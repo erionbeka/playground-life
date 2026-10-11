@@ -428,4 +428,21 @@ describe("production API", () => {
 
     expect(writeAuditMock).not.toHaveBeenCalled();
   });
+
+  it("lets staff read child rewards", async () => {
+    queryMock.mockImplementation(async (sql: string) => {
+      if (sql.includes("JOIN family_child_links")) return { rows: [] };
+      if (sql.includes("FROM child_rewards")) return { rows: [{ stars: 3, stickers: ["🦊"], plays: 2 }] };
+      if (sql.includes("FROM children")) return { rows: [{ clinic_id: "clinic-1" }] };
+      return { rows: [] };
+    });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get("/api/children/00000000-0000-0000-0000-000000000001/rewards")
+      .set("Authorization", "Bearer therapist-token")
+      .expect(200);
+
+    expect(response.body).toEqual({ rewards: { stars: 3, stickers: ["🦊"], plays: 2 } });
+  });
 });

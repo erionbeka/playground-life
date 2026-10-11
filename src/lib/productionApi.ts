@@ -163,6 +163,12 @@ export const productionApi = {
     });
   },
 
+  getChildRewards(childId: string) {
+    return request<{ rewards: { stars: number; stickers: string[]; plays: number } | null }>(
+      `/api/children/${childId}/rewards`
+    );
+  },
+
   deleteChild(id: string) {
     return request<void>(`/api/children/${id}`, { method: "DELETE" });
   },

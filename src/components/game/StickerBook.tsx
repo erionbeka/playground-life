@@ -1,9 +1,20 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { STICKER_CATALOG, getRewardState } from "@/lib/rewards";
+import { STICKER_CATALOG } from "@/lib/rewards";
+import type { RewardState } from "@/lib/rewards";
+import { useApp } from "@/context/AppContext";
 
 export default function StickerBook({ childId, childName }: { childId: string; childName: string }) {
-  const state = useMemo(() => getRewardState(childId), [childId]);
+  const { getChildRewards } = useApp();
+  const [state, setState] = useState<RewardState>({ stars: 0, stickers: [], plays: 0 });
+
+  useEffect(() => {
+    let active = true;
+    Promise.resolve(getChildRewards(childId)).then((rewards) => {
+      if (active && rewards) setState(rewards);
+    });
+    return () => { active = false; };
+  }, [childId, getChildRewards]);
 
   return (
     <div className="mb-6 rounded-2xl border border-secondary/25 bg-gradient-to-br from-card to-secondary/10 p-4">
