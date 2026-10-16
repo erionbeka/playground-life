@@ -152,11 +152,11 @@ This Agreement is entered into in good faith, in a spirit of mutual trust, mutua
 
 12.1 As consideration for the confirmations, assignment, waiver and obligations in this Agreement, the Author gives each Confirming Party the acknowledgement recorded in its signature, if any, together with a symbolic sum of one (1) euro, receipt of which each Confirming Party acknowledges.
 
-12.2 The Parties note, with gratitude, that each Confirming Party has already received in full the Participation Benefit, including its share of the prize won at the hackathon (approximately USD 400), which the Parties shared together. That benefit, together with the recognition and shared experience, is regarded by the Parties as the full and final consideration for the confirmations, assignment and waiver under this Agreement.
+12.2 The Parties note, with sincere gratitude, that the fruit of their cooperation has already been shared in full: the experience, the recognition and the prize that the team won and shared together at the hackathon, including each Confirming Party's share (approximately USD 400). That benefit, together with the recognition and shared experience, is regarded by the Parties as valuable and sufficient, and constitutes the full and final consideration for the confirmations, assignment and waiver under this Agreement. The Parties accept this with gratitude and without further claims.
 
 12.3 The Parties express their gratitude for the shared experience and for the fact that each represented the group in their own way. This document does not seek to diminish the value of that experience, but only to clarify the rights in the Work.
 
-12.4 Apart from the symbolic consideration in clause 12.1, there is no other obligation of payment, fee or compensation from the Author towards the Confirming Parties in relation to the Work.
+12.4 Apart from the symbolic consideration in clause 12.1 and the Participation Benefit already received, there is no other obligation of payment, fee or compensation from the Author towards the Confirming Parties in relation to the Work.
 
 12.5 The Parties note that the Work is a computer program; under Article 44(2) of the Law, Articles 40(4), 41, 42 and 43 do not apply to computer programs. The remuneration set in this Article is therefore final.
 

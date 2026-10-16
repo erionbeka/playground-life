@@ -154,11 +154,11 @@ Qëllimi i këtij dokumenti **nuk është** të krijojë mosmarrëveshje, kritik
 
 12.1 Si shpërblim për konfirmimet, kalimin, heqjen dorë dhe detyrimet në këtë Marrëveshje, Autori i jep secilës Palë Konfirmuese njohjen e shënuar në nënshkrimin e saj, nëse ka, si dhe një shumë simbolike prej një (1) euro, marrjen e së cilës Palët Konfirmuese e pohojnë.
 
-12.2 Palët vënë në dukje, me mirënjohje, se secila Palë Konfirmuese e ka marrë tashmë në mënyrë të plotë Përfitimin e Pjesëmarrjes, përfshirë pjesën e saj të çmimit të fituar në hackathon (afërsisht 400 USD), të cilin Palët e ndanë së bashku. Ky përfitim, së bashku me njohjen dhe përvojën e përbashkët, konsiderohet nga Palët si shpërblimi i plotë dhe përfundimtar për konfirmimet, kalimin dhe heqjen dorë sipas kësaj Marrëveshjeje.
+12.2 Palët vënë në dukje, me mirënjohje të sinqertë, se fryti i bashkëpunimit të tyre tashmë është ndarë i plotë: përvoja, njohja dhe çmimi që grupi fitoi dhe ndau bashkërisht në hackathon, përfshirë pjesën e secilës Palë Konfirmuese (afërsisht 400 USD). Ky përfitim, së bashku me njohjen dhe përvojën e përbashkët, konsiderohet nga Palët si i vlefshëm dhe i mjaftueshëm, dhe përbën shpërblimin e plotë e përfundimtar për konfirmimet, kalimin dhe heqjen dorë sipas kësaj Marrëveshjeje. Palët e pranojnë këtë me mirënjohje dhe pa pretendime të mëtejshme.
 
 12.3 Palët shprehin mirënjohje për përvojën e përbashkët dhe për faktin se secili e përfaqësoi grupin në mënyrën e vet. Ky dokument nuk synon të zvogëlojë vlerën e asaj përvoje, por vetëm të qartësojë të drejtat mbi Veprën.
 
-12.4 Përveç shpërblimit simbolik në pikën 12.1, nuk ekziston asnjë detyrim tjetër pagese, honorari apo kompensimi nga Autori ndaj Palëve Konfirmuese në lidhje me Veprën.
+12.4 Përveç shpërblimit simbolik në pikën 12.1 dhe Përfitimit të Pjesëmarrjes të marrë tashmë, nuk ekziston asnjë detyrim tjetër pagese, honorari apo kompensimi nga Autori ndaj Palëve Konfirmuese në lidhje me Veprën.
 
 12.5 Palët vënë në dukje se Vepra është program kompjuterik; sipas nenit 44 pika 2 të Ligjit, rregullat për shpërblimin dhe rishikimin (neni 40 pika 4 dhe nenet 41, 42 e 43) nuk zbatohen për autorët e programeve kompjuterike. Për këtë arsye, shpërblimi i përcaktuar në këtë Nen është përfundimtar.
 

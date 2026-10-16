@@ -172,3 +172,8 @@ it. Strongest to weakest:
   plus the **Participation Benefit already received in full** (the ~USD 400
   hackathon prize shared by the team), with an expression of gratitude.
   Both PDFs regenerated (9 pages each).
+- 2026-10-16: softened the consideration clause (Art. 12). The ~USD 400
+  hackathon prize is now framed as the cooperation's fruit already shared in
+  full, acknowledged "with sincere gratitude" and accepted by the Parties
+  "without further claims" — substance unchanged, tone made dignified rather
+  than pointed.
