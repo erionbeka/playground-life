@@ -1,0 +1,3 @@
+# Keep the evidence bundle byte-stable so its SHA-256 sidecar matches the
+# committed content (independent verification relies on exact bytes).
+docs/legal/evidence/* text eol=lf

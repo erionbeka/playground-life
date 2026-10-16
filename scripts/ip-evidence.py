@@ -150,9 +150,9 @@ def main():
     manifest_digest = hashlib.sha256(json_text.encode("utf-8")).hexdigest()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    (OUT_DIR / "ip-evidence-manifest.json").write_text(json_text, encoding="utf-8")
-    (OUT_DIR / "ip-evidence-manifest.sha256").write_text(
-        f"{manifest_digest}  ip-evidence-manifest.json\n", encoding="utf-8"
+    (OUT_DIR / "ip-evidence-manifest.json").write_bytes(json_text.encode("utf-8"))
+    (OUT_DIR / "ip-evidence-manifest.sha256").write_bytes(
+        f"{manifest_digest}  ip-evidence-manifest.json\n".encode("utf-8")
     )
 
     def row(cells):
@@ -245,7 +245,7 @@ def main():
     md.append("*Evidence of provenance only. Not legal advice.*")
     md.append("")
 
-    (OUT_DIR / "ip-evidence-manifest.md").write_text("\n".join(md), encoding="utf-8")
+    (OUT_DIR / "ip-evidence-manifest.md").write_bytes("\n".join(md).encode("utf-8"))
     print("wrote", OUT_DIR / "ip-evidence-manifest.md")
     print("wrote", OUT_DIR / "ip-evidence-manifest.json")
     print("manifest sha256:", manifest_digest)

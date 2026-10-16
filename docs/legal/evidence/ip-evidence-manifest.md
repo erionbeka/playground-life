@@ -1,9 +1,9 @@
 # IP Evidence Manifest — Playground Life
 
-**Generated (UTC):** 2026-10-16T22:04:22Z  
+**Generated (UTC):** 2026-10-16T22:05:13Z  
 **Product:** Playground Life  
 **Author / owner:** Erion Beka  
-**Manifest file SHA-256:** `5fe83a6b53860436ec2c596d8010dcb9e953f19b561eb7d27652e173f09d6308`
+**Manifest file SHA-256:** `036e2e8014bb66757a3a94e5f88bc6877d2b761d3b525252722a3630227bfc51`
 
 > This manifest records the state of the repository at generation time. It is intended as **evidence of provenance** — it supports, but does not replace, the copyright that subsists automatically under Law No. 08/L-205. It is not legal advice.
 
@@ -12,12 +12,12 @@
 | Field | Value |
 | --- | --- |
 | Branch | `full-db-persistence` |
-| Commit | `1bdda89a9808eb631722f75c518ddc1c66bb859c` |
-| Tree | `25b2a91824907c54e453d1e648a4c9cffbf4e5af` |
-| Commit date (UTC) | 2026-10-17T00:04:16+02:00 |
+| Commit | `b661990ad18970981b3a2ea57b744c4009d5ac27` |
+| Tree | `0860fd88d489cd57e2e7aff7e4df31f154f021df` |
+| Commit date (UTC) | 2026-10-17T00:04:31+02:00 |
 | Remote | https://github.com/erionbeka/playground.git |
 | Tracked files | 1713 |
-| Commits (history) | 59 |
+| Commits (history) | 60 |
 | First commit | `5e9d90a8c3921bd6cc2f2f4636a221e0922899d6` |
 | First commit date (UTC) | 2026-04-06T15:10:26+02:00 |
 
@@ -27,10 +27,10 @@ Computed independently of git, so a third party can verify file contents without
 
 | Scope | Files | SHA-256 |
 | --- | --- | --- |
-| Full tracked tree | 1713 | `a147a60b8ab5bcebca8a949ad8af3a11d7303509b147955d0ea7d8d7b9a921ac` |
+| Full tracked tree | 1713 | `2072ada4e7408bd14983ad24161a0b44e145b9c18660c124b570b050daeb0d7b` |
 | `src/` | 229 | `76dfcd34fd35c43da36adfd2d6c0b1a970a8ceabef1543ecf5a2d4aadbafbe77` |
 | `server/` | 39 | `972f1d6fa67ffee62a10a3cabd5763657b2f89623849d61a6d656932bf04c962` |
-| `docs/` | 57 | `9cd2be5a0fe80d0620399d6c4acfc9e113be8b347fd9fc50dc40a1a4d3570319` |
+| `docs/` | 57 | `2f8b945d70d63b257faf84c117d6a06941a2ad84ede3d898daa1bef2a43cf590` |
 | `scripts/` | 9 | `176d544703f5669fb52310143557d5fde5be66ea15a1e491fb6ab874a831c5e6` |
 
 ## Key documents
