@@ -55,7 +55,7 @@ Two concepts to keep separate:
 
 | File | Use it for |
 |---|---|
-| `team-ip-confirmation.md` | Long-form, one document covering several people at once — works for contributors (assign) and non-contributors (confirm "none"). |
+| `team-ip-confirmation.md` / `.pdf` | Final, sign-ready agreement covering **four people** at once — works for contributors (assign) and non-contributors (confirm "none"). Print the PDF and have each person fill in their block. |
 | `ip-assignment.md` | One contributor, contractor, or anyone who did real work on the code/docs/assets. |
 | `authorship-declaration.md` | Your own dated, signed statement of authorship and provenance. |
 | `mutual-nda.md` | Before showing the private code to anyone (investors, partners, vendors). |
