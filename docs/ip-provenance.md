@@ -4,7 +4,7 @@ This file documents the authorship and origin of **Playground Life** and the
 third-party terms that bear on its ownership. It is an internal record, kept
 under version control so the timeline is verifiable. It is not legal advice.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ## 1. Authorship
 
@@ -191,3 +191,15 @@ it. Strongest to weakest:
   `docs/legal/evidence/`. Produced a side-by-side **English | Shqip** PDF of
   the agreement (`docs/legal/team-ip-confirmation-bilingual.pdf`) and an
   Albanian authorship declaration (`docs/legal/authorship-declaration-sq.md`).
+- 2026-10-17: expanded both confirmation agreements to a **28-Article** version
+  (SQ controlling, EN mirror) with a plain-language table of contents and
+  introduction, richer recitals (incl. a recital disclaiming any statement that
+  the Parties became acquainted at the event), and more detailed clauses
+  throughout (definitions, subject matter, purpose, principles, background,
+  authorship, no-creative-contribution, assignment, waiver, moral rights,
+  warranties, consideration, confidentiality, personal data, indemnity, further
+  cooperation, free consent, good faith, relationship, entire agreement,
+  notices, term, costs, language, governing law, general provisions, evidence,
+  signatures). Both `.md` files now share the same 28-section structure so the
+  bilingual builder aligns row-for-row. Regenerated both single-language PDFs
+  (17 pages each) and the bilingual PDF (23 pages).

@@ -79,7 +79,7 @@ Two concepts to keep separate:
 
 | File | Use it for |
 |---|---|
-| `team-ip-confirmation.md` / `.pdf` | **Sign-ready agreement** (final, refined version) covering **four people** at once — works for contributors (assign) and non-contributors (confirm "none"). Titled *Agreement on Authorship and Rights in the Work "Playground Life"*. 20 Articles, written in a warm, non-confrontational register: recitals + "spirit of the document" preamble; definitions; subject matter; purpose; principles; background & roles (incl. the on-stage presentation); the Author's contribution & authorship (**the "created it himself…" clause sits in the middle**); absence of any creative contribution by the others; transfer of rights (Arts. 37–38); waiver & non-challenge; moral rights (Art. 22); warranties; remuneration & benefit received (€1 plus the ~USD 400 hackathon prize already shared, Art. 44(2)); confidentiality/AI clause; indemnity; further assurances; free consent (Arts. 45/46/49); no-partnership; governing law; general provisions; signatures with a signed acknowledgement. Optional notarisation (Art. 43, Law 06/L-010). A parallel **Albanian** version (controlling) is at `team-ip-confirmation-sq.md` / `.pdf`. Print the PDF and have each person fill in their block. |
+| `team-ip-confirmation.md` / `.pdf` | **Sign-ready agreement** (final, refined version) covering **four people** at once — works for contributors (assign) and non-contributors (confirm "none"). Titled *Agreement on Authorship and Rights in the Work "Playground Life"*. 28 Articles (the English and Albanian mirrors share the same 28-Article structure, so the bilingual builder aligns row-for-row), written in a warm, non-confrontational register: recitals + "spirit of the document" preamble; definitions; subject matter; purpose; principles; background & roles (incl. the on-stage presentation); the Author's contribution & authorship (**the "created it himself…" clause sits in the middle**); absence of any creative contribution by the others; transfer of rights (Arts. 37–38); waiver & non-challenge; moral rights (Art. 22); warranties; remuneration & benefit received (€1 plus the ~USD 400 hackathon prize already shared, Art. 44(2)); confidentiality/AI clause; indemnity; further assurances; free consent (Arts. 45/46/49); no-partnership; governing law; general provisions; signatures with a signed acknowledgement. Optional notarisation (Art. 43, Law 06/L-010). A parallel **Albanian** version (controlling) is at `team-ip-confirmation-sq.md` / `.pdf`. Print the PDF and have each person fill in their block. |
 | `team-ip-confirmation-bilingual.pdf` | Side-by-side **English | Shqip** version of the agreement, for signing when both languages are wanted on one page. |
 | `ip-assignment.md` | One contributor, contractor, or anyone who did real work on the code/docs/assets. |
 | `authorship-declaration.md` / `-sq.md` | Your own dated, signed statement of authorship and provenance (English / Shqip). |
@@ -167,7 +167,7 @@ Why:
 - **It cannot be detected.** There is no reliable way to prove someone used an
   AI tool to read a PDF, so you could never enforce it.
 
-**What actually works** (and is in clause 10 / §10 of the documents): a
+**What actually works** (and is in Article 13 of the documents): a
 **confidentiality clause** that (a) keeps the Agreement and non-public
 information about the Work confidential; (b) treats uploading it to an
 external AI/cloud/data service as a **disclosure to a third party** requiring

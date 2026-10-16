@@ -1,21 +1,21 @@
 {
   "manifest_version": 1,
-  "generated_utc": "2026-10-16T22:28:31Z",
+  "generated_utc": "2026-10-16T22:44:59Z",
   "product": "Playground Life",
   "author": "Erion Beka",
   "repository": {
     "branch": "full-db-persistence",
-    "commit": "88ed085d1bf0818612b30dbcf116c4d5dc7d17cd",
-    "tree": "e37a7d4e6f3f71308448eafcee3abfa3c5e41904",
-    "commit_date_utc": "2026-10-17T00:28:22+02:00",
+    "commit": "4469c5de059a68db1209e03ee1d9d85d08d27d43",
+    "tree": "7428c5ae6c9a31eca2128a20c74dc1a91fa3d621",
+    "commit_date_utc": "2026-10-17T00:28:36+02:00",
     "remote": "https://github.com/erionbeka/playground.git",
     "tracked_files": 1714,
-    "commits": 63,
+    "commits": 64,
     "first_commit": "5e9d90a8c3921bd6cc2f2f4636a221e0922899d6",
     "first_commit_date_utc": "2026-04-06T15:10:26+02:00"
   },
   "digests": {
-    "tree_listing_sha256": "d758a199ee1110f716038d905706904dfe107d0aca2a1dc788a5bcd92a3fd948",
+    "tree_listing_sha256": "d821b86e1a70914af917ea407709cb01d9d67e824da249f138ef34df7fd5d5cc",
     "subtrees": {
       "src": {
         "files": 229,
@@ -27,14 +27,14 @@
       },
       "docs": {
         "files": 57,
-        "sha256": "836c59bd545e24cea7e2ee6e192fd4de1e7f167084e013b8d0cfd556d614ecf1"
+        "sha256": "ebfce29e382f28b80b5294fb7eef0d9703a1c487f4ec4a2a46800c7f2311633d"
       },
       "scripts": {
         "files": 9,
         "sha256": "6ae9abe01b9c053aed407ec6460a3fd7444ee576cd6f25b1935d2879f5c9eba1"
       }
     },
-    "key_documents_sha256": "4e8ebfc54a8a8c07444b8a716971f5027d4ee8a7889868bcf21a892eb202ed4b"
+    "key_documents_sha256": "8353d9eeb28f843853c0c531d8ceb1dcecffe9270aeb099603a88a2ecfb2e6e7"
   },
   "key_documents": [
     {
@@ -69,18 +69,18 @@
     },
     {
       "path": "docs/ip-provenance.md",
-      "bytes": 10166,
-      "sha256": "796475b66aa04c392a17a231f67101aeb1878613f2f0795fdb25221e50cfbba1"
+      "bytes": 11064,
+      "sha256": "3519c915b479ebfcd282340a164e0c59050329d4ff90dbc43f83fbc54142f5a8"
     },
     {
       "path": "docs/legal/team-ip-confirmation.md",
-      "bytes": 23452,
-      "sha256": "400d9bb0824255e9b5a368146d3a7a5801a2a7bab889a7265b195de35fd24eff"
+      "bytes": 44704,
+      "sha256": "6ed93c6149fa988a2ee33fc797ed78a70e27a253e43239f3094c7c0db218f9c7"
     },
     {
       "path": "docs/legal/team-ip-confirmation-sq.md",
-      "bytes": 24773,
-      "sha256": "05f82b00196aac325653d86605e68150369657d52a9162a3ba8afe6d902dcf58"
+      "bytes": 48676,
+      "sha256": "b024a487975e6e3acd9380194ceead8cfcd5b9eb7591f1e73d235d38e2f8613b"
     },
     {
       "path": "docs/legal/authorship-declaration.md",
