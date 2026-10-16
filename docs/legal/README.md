@@ -76,6 +76,44 @@ Two concepts to keep separate:
 7. Kosovo requires **no registration** for copyright (Art. 15); you may
    optionally lodge a dated copy with a notary to strengthen evidence.
 
+## Can we stop a teammate from feeding the PDF to an AI, or make them lose rights if they do?
+
+**Short answer: a "forfeit your rights if you use AI" clause is not valid or
+enforceable, and it is counter-productive. Do not use one.**
+
+Why:
+
+- **No rights to lose.** A teammate who did no creative work owns **nothing**
+  (Arts. 7 and 9). A clause stripping "their rights" therefore has no object
+  — it is legally meaningless as to them.
+- **Ownership passes only by written assignment.** For a real contributor,
+  copyright can only move by a written assignment (Art. 37(1)). A
+  "forfeiture on conduct" is not an assignment mechanism and would likely be
+  **void**.
+- **Penalty clause.** A disproportionate penalty for an unrelated act is a
+  penalty clause; under the Kosovo Law on Obligations (Law No. 04/L-077) a
+  court can reduce or void it, and courts disfavour such traps.
+- **It undermines free consent.** The whole document rests on being a
+  voluntary, factual record. A punitive trap invites the argument that the
+  consent was not free, which could jeopardise the *entire* agreement.
+- **It cannot be detected.** There is no reliable way to prove someone used an
+  AI tool to read a PDF, so you could never enforce it.
+
+**What actually works** (and is in clause 10 / §10 of the documents): a
+**confidentiality clause** that (a) keeps the Agreement and non-public
+information about the Work confidential; (b) treats uploading it to an
+external AI/cloud/data service as a **disclosure to a third party** requiring
+written consent; (c) **carves out** a person's own lawyer, tax adviser, and
+legally compelled disclosures, and preserves their rights over their **own
+personal data** (Law No. 06/L-082); and (d) makes the remedy **compensation
+for proven loss**, expressly **not** forfeiture, so a breach never jeopardises
+the assignment itself.
+
+Practical reality: even this clause is hard to enforce if a breach is never
+detectable. Its value is partly **deterrent and evidential**. The strongest
+protection remains the **facts and evidence** — a non-contributor simply has
+no claim to win.
+
 ## If a teammate refuses to sign
 
 You cannot compel a signature, and you should not try to. Instead:

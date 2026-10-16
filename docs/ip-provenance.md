@@ -133,3 +133,8 @@ it. Strongest to weakest:
 - 2026-10-16: Albanian (shqip) version of the teammate confirmation
   document added (`team-ip-confirmation-sq.md`/`.pdf`) with a refusal
   record (Annex A).
+- 2026-10-16: enhanced both confirmation agreements with a confidentiality
+  and third-party-disclosure (incl. AI/cloud services) clause and a
+  survival clause; deliberately **no** forfeiture clause (invalid under
+  Arts. 7/9/37 and the Law on Obligations). Fixed numbering; regenerated
+  PDFs.

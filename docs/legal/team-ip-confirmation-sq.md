@@ -271,13 +271,40 @@ kundërshtuar i asaj Pale mbi Veprën.
 
 9.2 Ky detyrim mbijeton përfundimin ose skadimin e kësaj Marrëveshjeje.
 
-## 10. KONFIDENCIALITETI DHE MOSDENIGRIMI
+## 10. KONFIDENCIALITETI, ZBULIMI NDAJ PALËVE TË TRETA DHE MJETET E IA
 
-10.1 Çdo Palë Konfirmuese mban **konfidenciale** çdo informacion jopublik
-për Veprën dhe nuk e zbulon apo përdor jashtë qëllimit të kësaj
+10.1 Çdo Palë mban **konfidenciale** përmbajtjen e kësaj Marrëveshjeje dhe
+çdo informacion jopublik për Veprën ("**Informacioni Konfidencial**") dhe nuk
+i zbulon ato ndaj ndonjë pale të tretë pa pëlqimin paraprak me shkrim të
+Autorit.
+
+10.2 Pa kufizim të pikës 10.1, **zbulimi ose ngarkimi i Informacionit
+Konfidencial në një shërbim të jashtëm e të palës së tretë të inteligjencës
+artificiale (IA), të kompjuteristikës në re apo të përpunimit të të dhënave,
+që nuk është nën kontrollin e vetëm të Palës zbuluese, përbën zbulim ndaj një
+pale të tretë** në kuptim të pikës 10.1 dhe kërkon pëlqimin paraprak me
+shkrim të Autorit.
+
+10.3 Pika 10.2 **nuk** e kufizon zbulimin: (a) ndaj këshilltarëve ligjorë,
+fiskalë, financiarë apo profesionalë të vetë Palës, të cilët kanë detyrim
+konfidencialiteti; (b) kur kërkohet me ligj, nga gjykata ose nga një autoritet
+kompetent; ose (c) të informacionit që bëhet publik pa shkelje të kësaj
+Marrëveshjeje. Asgjë në këtë pikë nuk i kufizon të drejtat e ndonjë Pale mbi
+**të dhënat e veta personale** sipas **Ligjit nr. 06/L-082 për Mbrojtjen e të
+Dhënave Personale**.
+
+10.4 Shkelja e kësaj pike **nuk** cenon vlefshmërinë apo efektin e
+vazhdueshëm të konfirmimeve, kalimit, heqjes dorë apo detyrimeve në këtë
+Marrëveshje, të cilat mbeten plotësisht në fuqi. Mjeti i vetëm juridik për
+shkelje të kësaj pike është **kompensimi i dëmit të provuar që rrjedh nga
+shkelja**, dhe **jo** humbja apo heqja e ndonjë të drejte sipas kësaj
 Marrëveshjeje.
 
-10.2 Palët **nuk do të denigrojnë** njëra-tjetrën publikisht në lidhje me
+10.5 Palët pranojnë se një Palë që nuk zotëron asnjë të drejtë mbi Veprën
+(shih pjesën 2) **nuk ka asnjë të drejtë që mund të humbet**, dhe se asgjë në
+këtë pikë nuk krijon, kalon apo konfirmon ndonjë pronësi.
+
+10.6 Palët **nuk do të denigrojnë** njëra-tjetrën publikisht në lidhje me
 Veprën. Kjo nuk kufizon të drejtën për të thënë të vërtetën në procedura
 ligjore.
 
@@ -309,8 +336,9 @@ regjistruar ose dokumentuar kalimin e çdo të drejte.
 13.2 Palët i nënshtrohen juridiksionit ekskluziv të **gjykatave kompetente
 në Prishtinë, Republikа e Kosovës**.
 
-13.3 Çështjet e parregulluara me Ligjin rregullohen sipas **ligjit të
-detyrimeve** në fuqi në Republikën e Kosovës (neni 40 paragrafi 7 i Ligjit).
+13.3 Çështjet e parregulluara me Ligjin rregullohen sipas ligjit të
+detyrimeve në fuqi në Republikën e Kosovës, **Ligji nr. 04/L-077** (neni 40
+paragrafi 7 i Ligjit).
 
 ## 14. DISPOZITA TË NDRYSHME
 
@@ -334,6 +362,10 @@ konsiderohet i pranuar ditën e dërgimit.
 gjuha zyrtare dhe përcaktuese. Çdo përkthim është vetëm për referencë.
 
 14.6 **Kopjet për palët.** Pas nënshkrimit, secila Palë merr një kopje.
+
+14.7 **Vazhdimësia.** Pikat për konfidencialitetin, garancitë, dëmshpërblimin,
+detyrimin për bashkëpunim dhe zbatimin e ligjit **mbetën në fuqi** edhe pas
+përfundimit ose skadimit të kësaj Marrëveshjeje.
 
 ---
 
