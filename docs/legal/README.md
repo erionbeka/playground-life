@@ -94,7 +94,8 @@ You cannot compel a signature, and you should not try to. Instead:
 
 ## Order of operations for this project
 
-1. Non-contributing teammates → sign `team-ip-confirmation.md` (confirm
+1. Non-contributing teammates → sign `team-ip-confirmation.md` (English) or
+   its Albanian counterpart `team-ip-confirmation-sq.md`/`.pdf` (confirm
    "none" + non-assertion). Real contributors → sign `ip-assignment.md`.
 2. Confirm the hackathon organizer's 25%-share position **in writing**
    (see `docs/ip-provenance.md`).

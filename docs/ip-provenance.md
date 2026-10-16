@@ -29,14 +29,19 @@ Last updated: 2026-10-16
   organized by **HealthCare Futurists GmbH**
   (Stadtwaldgürtel 13, 50935 Köln, Germany; managing director Dr. med.
   Tobias D. Gantner).
-- Challenge worked on: "AI-Powered Interactive Fear-Overcoming Tool for
+- Challenge theme: "AI-Powered Interactive Fear-Overcoming Tool for
   Children".
+- **What was actually submitted/presented at the event:** only a
+  **slide presentation** and a few **small pictures** of how the app might
+  look. The **application itself was NOT submitted** to the hackathon, and no
+  working code, repository, or build was handed over at the event.
 - Timeline note: the hackathon took place 04–06 April **2025**, whereas
   this repository's history begins **April 2026** (first commits by the
   copyright holder). The current application therefore **postdates the
   event by about a year** and was not created as a hackathon submission;
-  only the originating idea came from the event. This is relevant to the
-  scope of the organizer's "solution you create during the event" clause.
+  only the originating **idea** came from the event, and the event output
+  was **slides/images only**. This is relevant to the scope of the
+  organizer's "solution you create during the event" clause.
 
 Controlling terms, quoted from the organizer's official FAQ
 (`https://pristina.innovate.healthcare/faq/`, Q31, accessed 2026-10-16):
@@ -122,3 +127,9 @@ it. Strongest to weakest:
 - 2026-10-16: Kosovo-specific legal templates added under `docs/legal/`,
   citing Law No. 08/L-205 (in force 27 Oct 2023); copyright holder's
   address recorded there.
+- 2026-10-16: corrected hackathon facts — the app was **not** submitted to
+  the event; only a slide presentation and a few small screenshots were
+  presented. The codebase postdates the event by ~1 year.
+- 2026-10-16: Albanian (shqip) version of the teammate confirmation
+  document added (`team-ip-confirmation-sq.md`/`.pdf`) with a refusal
+  record (Annex A).

@@ -49,11 +49,13 @@ Prishtina, Republic of Kosovo**, declare that:
    the owner of the copyright in the software and documentation known as
    **"Playground Life"** (the "Work"), having created it myself.
 
-2. The Work originated as an idea and prototype at the
+2. The Work originated as an idea at the
    **pristina.innovate.healthcare** hackathon (04–06 April 2025, organised by
-   HealthCare Futurists GmbH), which I attended. The present codebase was
-   **created after the event**, beginning in **April 2026**, and is not a
-   hackathon submission.
+   HealthCare Futurists GmbH), which I attended. At that event I presented
+   **only a slide presentation and a few small pictures** of how the app might
+   look; the **application itself was not submitted** to the hackathon and no
+   working code was handed over. The present codebase was **created after the
+   event**, beginning in **April 2026**, and is not a hackathon submission.
 
 3. The Work was created by me alone, using the **Lovable** AI tool under my
    **personal** email account (`erion.beka@insteap.com` was used only
