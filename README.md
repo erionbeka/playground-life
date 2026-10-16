@@ -79,3 +79,15 @@ The platform now includes prepared review work products for an independent secur
 Grant-safe wording:
 
 "The platform is complete as a functional application and now includes a self-hosted Postgres production backend foundation with real authentication, role-based authorization, audit logging, structured clinical workflow data storage, frontend API integration methods, backend API tests, and draft security/data-governance/pilot documentation. The grant will support the final production-hardening and evidence-generation steps: independent security/data protection review, pilot deployment, validation reporting, and publication preparation."
+
+## License and Ownership
+
+This project is proprietary. **Copyright (c) 2026 Erion Beka. All rights reserved.** See the `LICENSE` file for the full terms.
+
+- `LICENSE` — proprietary terms (all rights reserved).
+- `COPYRIGHT` — per-file copyright notice and the SPDX convention.
+- `NOTICE` and `THIRD_PARTY_NOTICES.md` — third-party attributions (regenerate with `npm run notices`).
+- `AUTHORS` — copyright holder.
+- `CONTRIBUTING.md` — contribution and rights-assignment terms.
+
+New first-party source files must carry the standard header. Apply with `npm run headers:write`; verify in CI with `npm run headers:check`.

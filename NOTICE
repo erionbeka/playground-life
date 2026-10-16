@@ -1,0 +1,15 @@
+Playground Life
+Copyright (c) 2026 Erion Beka. All rights reserved.
+
+This product is proprietary. See the LICENSE file for the full terms.
+
+This product includes third-party software and assets. Those components
+are copyright their respective authors and are used under their own
+licenses. A generated listing is maintained in THIRD_PARTY_NOTICES.md.
+
+The generated listing is produced by:
+
+  npm run notices
+
+Attribution obligations apply whenever this product is distributed or
+served, including bundled production builds.

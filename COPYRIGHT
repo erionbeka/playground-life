@@ -1,0 +1,21 @@
+Playground Life — Copyright notice
+===================================
+
+Copyright (c) 2026 Erion Beka. All rights reserved.
+
+Every file in this repository is Copyright (c) 2026 Erion Beka unless the
+file or its directory states otherwise.
+
+Ownership of contributions is governed by CONTRIBUTING.md. Third-party
+components bundled with or served by this software remain subject to
+their own licenses; see NOTICE and THIRD_PARTY_NOTICES.md.
+
+Source files carry a machine-readable identifier of the form:
+
+  SPDX-License-Identifier: LicenseRef-Proprietary
+
+"LicenseRef-Proprietary" refers to the terms in the LICENSE file.
+
+This notice does not replace the LICENSE file, which states the full
+terms. Registration of this Work is pursued separately by the copyright
+holder.

@@ -1,7 +1,9 @@
 {
-  "name": "vite_react_shadcn_ts",
+  "name": "playground-life",
   "private": true,
   "version": "0.0.0",
+  "license": "UNLICENSED",
+  "author": "Erion Beka",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,7 +19,11 @@
     "preview": "vite preview",
     "typecheck:server": "tsc -p tsconfig.server.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "notices": "node scripts/third-party-notices.mjs",
+    "headers": "node scripts/license-headers.mjs",
+    "headers:check": "node scripts/license-headers.mjs --check",
+    "headers:write": "node scripts/license-headers.mjs --write"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
