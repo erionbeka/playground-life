@@ -161,3 +161,14 @@ it. Strongest to weakest:
   "declared contribution" signature field with neutral fields (name,
   address, signature, date, optional notarial certification) plus a signed
   acknowledgment paragraph. Both PDFs regenerated (7 pages each).
+- 2026-10-16: expanded both documents to a **20-Article** version in a warmer,
+  more human register. Added a "spirit of the document" preamble and an
+  explicit background-and-roles article; moved the "Author created the Work
+  by himself, independently and originally…" clause into the **middle** (the
+  Author's-contribution and authorship article). Added an article stating
+  honestly that, beyond the group participation and the on-stage
+  presentation (delivered by one of the Confirming Parties), no other task
+  or creative contribution was performed. Reframed consideration as the €1
+  plus the **Participation Benefit already received in full** (the ~USD 400
+  hackathon prize shared by the team), with an expression of gratitude.
+  Both PDFs regenerated (9 pages each).
