@@ -151,3 +151,13 @@ it. Strongest to weakest:
   notarisation (Art. 43, Law 06/L-010) and apostille; and an **Annex A**
   refusal record in both languages. Restructured both documents to a clean
   1–18 numbering and regenerated both PDFs (9 pages each).
+- 2026-10-16: rewrote both documents in a refined, non-confrontational legal
+  register. New title: *Agreement on Authorship and Rights in the Work
+  "Playground Life"* (*Marrëveshje mbi Autorësinë dhe të Drejtat mbi Veprën
+  "Playground Life"*). Removed the "not legal advice" notice block and the
+  Annex A refusal record. Reorganised into **17 Articles** with the
+  transfer-determinative clauses (authorship, transfer of rights, waiver,
+  moral rights, warranties) placed in the **middle**; replaced the blunt
+  "declared contribution" signature field with neutral fields (name,
+  address, signature, date, optional notarial certification) plus a signed
+  acknowledgment paragraph. Both PDFs regenerated (7 pages each).
