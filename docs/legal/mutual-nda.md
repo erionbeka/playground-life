@@ -11,7 +11,8 @@ anyone — investors, partners, vendors, or prospective collaborators.
 
 This Agreement is made on **[DATE]** between:
 
-- **Erion Beka**, of **[FULL ADDRESS]** ("Party A"); and
+- **Erion Beka**, of **Str. Zekeria Cana, House No. 4, Laxha e Profesoreve,
+  Prishtina, Republic of Kosovo** ("Party A"); and
 - **[OTHER PARTY FULL LEGAL NAME]**, of **[ADDRESS]** ("Party B").
 
 (each a "Party" and together the "Parties")

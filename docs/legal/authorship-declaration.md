@@ -42,7 +42,8 @@ Key provisions relied on:
 
 ## Declaration of Authorship
 
-I, **Erion Beka**, of **[FULL ADDRESS]**, declare that:
+I, **Erion Beka**, of **Str. Zekeria Cana, House No. 4, Laxha e Profesoreve,
+Prishtina, Republic of Kosovo**, declare that:
 
 1. I am the **author**, within the meaning of Art. 7 of Law No. 08/L-205, and
    the owner of the copyright in the software and documentation known as
@@ -83,7 +84,7 @@ I, **Erion Beka**, of **[FULL ADDRESS]**, declare that:
 | Name | Erion Beka |
 | Signature | ________________ |
 | Date | [DD.MM.YYYY] |
-| Place | [CITY], Republic of Kosovo |
+| Place | Prishtina, Republic of Kosovo |
 
 ---
 

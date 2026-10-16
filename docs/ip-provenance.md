@@ -119,3 +119,6 @@ it. Strongest to weakest:
 ## 5. Change log
 
 - 2026-10-16: initial record; hackathon FAQ terms captured and quoted.
+- 2026-10-16: Kosovo-specific legal templates added under `docs/legal/`,
+  citing Law No. 08/L-205 (in force 27 Oct 2023); copyright holder's
+  address recorded there.

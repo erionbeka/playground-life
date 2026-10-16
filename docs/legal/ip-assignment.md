@@ -11,7 +11,8 @@ This Copyright Assignment Agreement (the "Agreement") is made on
 **[DATE]** between:
 
 - **Assignor:** [FULL LEGAL NAME], of [FULL ADDRESS] ("Assignor"); and
-- **Assignee:** Erion Beka, of [FULL ADDRESS] ("Assignee"), a resident of the
+- **Assignee:** Erion Beka, of Str. Zekeria Cana, House No. 4, Laxha e
+  Profesoreve, Prishtina, Republic of Kosovo ("Assignee"), a resident of the
   Republic of Kosovo.
 
 ## Background

@@ -28,15 +28,26 @@ these documents:
 
 ## Why these documents matter
 
-Owning code is not automatic just because you typed it. Where more than
-one person contributes, copyright is generally held **jointly** unless it
-is transferred. A transfer must be in **writing and signed** to be
-effective in most jurisdictions. These templates do exactly that: they
-move all rights in a person's contribution to you.
+In Kosovo, ownership follows **who actually created the work**, not who was on
+the team. Under Art. 7 the author is the natural person who created it, and
+under Art. 9 joint authorship requires a **joint creative effort**. So:
+
+- A person who did **real creative work** owns part of the copyright, and you
+  need a **written assignment** from them (Art. 37(1)); and
+- A person who did **no creative work** owns **nothing** and has nothing to
+  transfer — for them the document simply **records that fact** and removes
+  any future argument.
+
+You generally **cannot force** anyone to sign: consent must be free, and a
+signature obtained under pressure or by a false statement can be void. If
+someone refuses, your position rests on the **facts and evidence** (see
+`docs/ip-provenance.md`) — which, when a person truly did nothing, is already
+strong.
 
 Two concepts to keep separate:
 
-- **Assignment** = transfer of *ownership*. This is what you want.
+- **Assignment** = transfer of *ownership*. This is what you want from a
+  real contributor.
 - **Licence** = permission to use something that someone else still owns.
   That is *not* enough.
 
@@ -44,7 +55,8 @@ Two concepts to keep separate:
 
 | File | Use it for |
 |---|---|
-| `ip-assignment.md` | A teammate, contractor, or anyone who contributed code, docs, or assets. |
+| `team-ip-confirmation.md` | Long-form, one document covering several people at once — works for contributors (assign) and non-contributors (confirm "none"). |
+| `ip-assignment.md` | One contributor, contractor, or anyone who did real work on the code/docs/assets. |
 | `authorship-declaration.md` | Your own dated, signed statement of authorship and provenance. |
 | `mutual-nda.md` | Before showing the private code to anyone (investors, partners, vendors). |
 
@@ -61,12 +73,29 @@ Two concepts to keep separate:
    helps enforceability.
 6. Keep the **signed original** plus a scanned copy under version control
    (e.g. store the scanned PDF in a private folder, not this public doc).
-7. Where available, **record** the assignment (e.g. with a copyright
-   office) so it appears in the public register.
+7. Kosovo requires **no registration** for copyright (Art. 15); you may
+   optionally lodge a dated copy with a notary to strengthen evidence.
+
+## If a teammate refuses to sign
+
+You cannot compel a signature, and you should not try to. Instead:
+
+1. Keep the **evidence** that you did the work alone — git history, signed
+   commits, the Lovable project history, and your dated `authorship-declaration.md`.
+2. Make sure the repo **names only you** as author (`AUTHORS`, `COPYRIGHT`,
+   `CONTRIBUTING.md`, `docs/ip-provenance.md`). Never list a non-contributor
+   as an author or contributor.
+3. Ask once, **in writing**, and keep a dated record of the request and any
+   refusal (a short email is enough).
+4. Offer **non-monetary recognition** (e.g. "hackathon participant") instead
+   of framing it as "giving up rights" — most refusals are about that wording.
+5. If a real dispute arises, consult a Kosovo IP lawyer; a formal letter or
+   mediation usually resolves it, because a non-author has no claim to win.
 
 ## Order of operations for this project
 
-1. Every teammate → sign `ip-assignment.md` (assign rights to you).
+1. Non-contributing teammates → sign `team-ip-confirmation.md` (confirm
+   "none" + non-assertion). Real contributors → sign `ip-assignment.md`.
 2. Confirm the hackathon organizer's 25%-share position **in writing**
    (see `docs/ip-provenance.md`).
 3. Clear any employer claim (get a written statement it is outside scope).
