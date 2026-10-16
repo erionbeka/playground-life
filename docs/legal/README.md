@@ -24,7 +24,31 @@ these documents:
   If left out, the term defaults to 3 or 5 years and the territory defaults to
   Kosovo only — so always specify them.
 - A clause assigning rights in **unidentified future works is invalid**
-  (Art. 39(1)).
+  (Art. 39(1)); and a licence clause covering **future, unknown uses** is
+  likewise invalid, except that a method **already known** at the date of the
+  contract, and any method that **evolves from** it, is covered (Art. 39(2)).
+- Any **clause contrary to the Law is void**, and the Law applies in its place
+  (Art. 39(3)).
+- If a term of the transfer is **unclear, the ambiguity is construed in favour
+  of the author** (Art. 38(5)) — so the agreement must state the scope
+  explicitly, which it does.
+- A **co-author may waive the exploitation of his share**, and that share then
+  **passes to the other co-author(s)** (Art. 9(4)); the agreement uses this as
+  a subsidiary basis in addition to the assignment.
+- For **computer programs**, the remuneration and revision rules in Arts.
+  40(4), 41, 42 and 43 **do not apply to authors** (Art. 44(2)) — so a
+  software contributor cannot later claim extra remuneration.
+
+Supplementary rules come from the **Law on Obligational Relationships (Law No.
+04/L-077**, Official Gazette No. 16/2012): freedom of contract (Art. 2); the
+duty of **good faith**, which cannot be excluded (Art. 4); and the grounds on
+which a contract may be annulled — **threat/duress** (Art. 45), **essential
+error** (Art. 46) and **fraud** (Art. 49). A **disproportionate contractual
+penalty** ("dënimi kontraktues") can be reduced by the court at the debtor's
+request (Art. 258), which is why the agreement avoids punitive forfeiture
+clauses. Signatures may optionally be **notarised** under the **Law on Notary
+(Law No. 06/L-010**, Official Gazette No. 23/2018); a notarised deed is
+directly enforceable (Art. 43).
 
 ## Why these documents matter
 
@@ -55,7 +79,7 @@ Two concepts to keep separate:
 
 | File | Use it for |
 |---|---|
-| `team-ip-confirmation.md` / `.pdf` | Final, sign-ready agreement covering **four people** at once — works for contributors (assign) and non-contributors (confirm "none"). Print the PDF and have each person fill in their block. |
+| `team-ip-confirmation.md` / `.pdf` | **Hardened, sign-ready agreement** (final version) covering **four people** at once — works for contributors (assign) and non-contributors (confirm "none"). Includes fact-confirmation, confirmatory assignment, co-author waiver (Art. 9(4)), moral-rights consent, warranties, confidentiality/AI clause, consideration, indemnity, voluntary-consent recitals and **Annex A** (record of offer and refusal). Optional notarisation. A parallel **Albanian** version is at `team-ip-confirmation-sq.md` / `.pdf`. Print the PDF and have each person fill in their block. |
 | `ip-assignment.md` | One contributor, contractor, or anyone who did real work on the code/docs/assets. |
 | `authorship-declaration.md` | Your own dated, signed statement of authorship and provenance. |
 | `mutual-nda.md` | Before showing the private code to anyone (investors, partners, vendors). |

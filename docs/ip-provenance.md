@@ -138,3 +138,16 @@ it. Strongest to weakest:
   survival clause; deliberately **no** forfeiture clause (invalid under
   Arts. 7/9/37 and the Law on Obligations). Fixed numbering; regenerated
   PDFs.
+- 2026-10-16: issued the **final, hardened** bilingual agreement after
+  verifying the Kosovo **Law on Obligations (Law No. 04/L-077)** and the
+  **Law on Notary (Law No. 06/L-010)**. Added: a co-author
+  waiver/transfer (Art. 9(4)); an explicit broadest-scope transfer that
+  defeats the Art. 38(2)/(3) defaults, with an Art. 38(5) anti-ambiguity
+  recital; an existing-work-only clause addressing Art. 39(1)/(2)/(3);
+  expanded warranties (including employment/commission); a nominal €1
+  consideration with Art. 44(2) (no remuneration revision for software);
+  indemnity; further assurances; a free-consent and non-reliance clause
+  (Arts. 45/46/49 of Law 04/L-077); a no-partnership clause; optional
+  notarisation (Art. 43, Law 06/L-010) and apostille; and an **Annex A**
+  refusal record in both languages. Restructured both documents to a clean
+  1–18 numbering and regenerated both PDFs (9 pages each).
