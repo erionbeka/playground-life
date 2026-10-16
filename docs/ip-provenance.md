@@ -177,3 +177,11 @@ it. Strongest to weakest:
   full, acknowledged "with sincere gratitude" and accepted by the Parties
   "without further claims" — substance unchanged, tone made dignified rather
   than pointed.
+- 2026-10-17: added provenance tooling and outputs. New first-party scripts
+  `scripts/md2html.py` (Markdown → print HTML), `scripts/bilingual-docs.py`
+  (side-by-side HTML) and `scripts/ip-evidence.py`, which generates a
+  timestamped evidence manifest (commit/tree identifiers plus independent
+  **SHA-256** digests of the tracked tree and key documents) under
+  `docs/legal/evidence/`. Produced a side-by-side **English | Shqip** PDF of
+  the agreement (`docs/legal/team-ip-confirmation-bilingual.pdf`) and an
+  Albanian authorship declaration (`docs/legal/authorship-declaration-sq.md`).

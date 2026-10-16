@@ -80,9 +80,53 @@ Two concepts to keep separate:
 | File | Use it for |
 |---|---|
 | `team-ip-confirmation.md` / `.pdf` | **Sign-ready agreement** (final, refined version) covering **four people** at once — works for contributors (assign) and non-contributors (confirm "none"). Titled *Agreement on Authorship and Rights in the Work "Playground Life"*. 20 Articles, written in a warm, non-confrontational register: recitals + "spirit of the document" preamble; definitions; subject matter; purpose; principles; background & roles (incl. the on-stage presentation); the Author's contribution & authorship (**the "created it himself…" clause sits in the middle**); absence of any creative contribution by the others; transfer of rights (Arts. 37–38); waiver & non-challenge; moral rights (Art. 22); warranties; remuneration & benefit received (€1 plus the ~USD 400 hackathon prize already shared, Art. 44(2)); confidentiality/AI clause; indemnity; further assurances; free consent (Arts. 45/46/49); no-partnership; governing law; general provisions; signatures with a signed acknowledgement. Optional notarisation (Art. 43, Law 06/L-010). A parallel **Albanian** version (controlling) is at `team-ip-confirmation-sq.md` / `.pdf`. Print the PDF and have each person fill in their block. |
+| `team-ip-confirmation-bilingual.pdf` | Side-by-side **English | Shqip** version of the agreement, for signing when both languages are wanted on one page. |
 | `ip-assignment.md` | One contributor, contractor, or anyone who did real work on the code/docs/assets. |
-| `authorship-declaration.md` | Your own dated, signed statement of authorship and provenance. |
+| `authorship-declaration.md` / `-sq.md` | Your own dated, signed statement of authorship and provenance (English / Shqip). |
 | `mutual-nda.md` | Before showing the private code to anyone (investors, partners, vendors). |
+
+## Evidence bundle (timestamped provenance)
+
+The folder `docs/legal/evidence/` holds a generated manifest that records the
+repository state at a point in time — commit and tree identifiers, independent
+**SHA-256** digests of the tracked tree and of the key documents, and the
+manifest's own checksum:
+
+- `ip-evidence-manifest.md` / `.pdf` — human-readable summary.
+- `ip-evidence-manifest.json` — full machine-readable detail.
+- `ip-evidence-manifest.sha256` — checksum of the JSON file.
+
+Regenerate it after meaningful changes with:
+
+```sh
+py -3 scripts/ip-evidence.py
+```
+
+To prove *when* the manifest existed, timestamp its SHA-256 with
+**OpenTimestamps** (free, blockchain-anchored) or have a notary certify it:
+
+```sh
+ots stamp docs/legal/evidence/ip-evidence-manifest.json
+ots upgrade docs/legal/evidence/ip-evidence-manifest.json.ots
+ots verify  docs/legal/evidence/ip-evidence-manifest.json.ots
+```
+
+## Rebuilding the PDFs
+
+The `.pdf` files are generated from the `.md` sources with first-party tooling
+(no external dependencies):
+
+```sh
+py -3 scripts/md2html.py docs/legal/team-ip-confirmation.md /tmp/out.html
+msedge --headless --disable-gpu --no-pdf-header-footer \
+  "--print-to-pdf=docs/legal/team-ip-confirmation.pdf" file:///tmp/out.html
+
+# side-by-side English | Shqip agreement
+py -3 scripts/bilingual-docs.py docs/legal/team-ip-confirmation.md \
+  docs/legal/team-ip-confirmation-sq.md /tmp/bi.html "Agreement (English | Shqip)"
+msedge --headless --disable-gpu --no-pdf-header-footer \
+  "--print-to-pdf=docs/legal/team-ip-confirmation-bilingual.pdf" file:///tmp/bi.html
+```
 
 ## How to execute an assignment (practical steps)
 
