@@ -16,7 +16,7 @@ Qëllimi i këtij dokumenti **nuk është** të krijojë mosmarrëveshje, kritik
 
 **Duke pasur parasysh se:**
 
-**(A)** Palët u njohën dhe punuan së bashku si grup në hackathon-in **pristina.innovate.healthcare** (04–06 prill 2025, Prishtinë), i organizuar nga **HealthCare Futurists GmbH**;
+**(A)** Palët morën pjesë dhe punuan së bashku si grup në hackathon-in **pristina.innovate.healthcare** (04–06 prill 2025, Prishtinë), i organizuar nga **HealthCare Futurists GmbH**;
 
 **(B)** gjatë atij eventi grupi ndau ide, zhvilloi diskutime dhe përgatiti një prezantim; në skenë, në emër të grupit, prezantimin e paraqiti njëra nga Palët Konfirmuese, e cila foli përpara publikut;
 
@@ -72,7 +72,7 @@ Qëllimi i këtij dokumenti **nuk është** të krijojë mosmarrëveshje, kritik
 
 ## NENI 5 — HISTORIKU I BASHKËPUNIMIT DHE ROLET
 
-5.1 Palët konfirmojnë se u njohën dhe bashkëpunuan si grup në hackathon-in **pristina.innovate.healthcare**, mbajtur në Prishtinë më 04–06 prill 2025 dhe organizuar nga HealthCare Futurists GmbH.
+5.1 Palët konfirmojnë se morën pjesë dhe bashkëpunuan si grup në hackathon-in **pristina.innovate.healthcare**, mbajtur në Prishtinë më 04–06 prill 2025 dhe organizuar nga HealthCare Futurists GmbH.
 
 5.2 Gjatë atij eventi grupi ndau mendime, diskutoi ide dhe përgatiti një prezantim. Në skenë, në emër të grupit, prezantimin e paraqiti njëra nga Palët Konfirmuese, e cila foli përpara publikut. Kjo pjesëmarrje dhe guximi për të përfaqësuar grupin vlerësohen sinqerisht nga të gjithë Palët.
 

@@ -14,7 +14,7 @@ This Agreement is entered into in good faith, in a spirit of mutual trust, mutua
 
 **Whereas:**
 
-**(A)** the Parties met and worked together as a group at the **pristina.innovate.healthcare** hackathon (04-06 April 2025, Prishtina), organised by **HealthCare Futurists GmbH**;
+**(A)** the Parties took part and worked together as a group at the **pristina.innovate.healthcare** hackathon (04-06 April 2025, Prishtina), organised by **HealthCare Futurists GmbH**;
 
 **(B)** during that event the group shared ideas and prepared a presentation; on stage, on behalf of the group, the presentation was delivered by one of the Confirming Parties, who spoke before the audience;
 
@@ -70,7 +70,7 @@ This Agreement is entered into in good faith, in a spirit of mutual trust, mutua
 
 ## Article 5 - BACKGROUND AND ROLES
 
-5.1 The Parties confirm that they met and cooperated as a group at the **pristina.innovate.healthcare** hackathon, held in Prishtina on 04-06 April 2025 and organised by HealthCare Futurists GmbH.
+5.1 The Parties confirm that they took part and cooperated as a group at the **pristina.innovate.healthcare** hackathon, held in Prishtina on 04-06 April 2025 and organised by HealthCare Futurists GmbH.
 
 5.2 During that event the group shared thoughts, discussed ideas and prepared a presentation. On stage, on behalf of the group, the presentation was delivered by one of the Confirming Parties, who spoke before the audience. That participation, and the courage to represent the group, are sincerely appreciated by all Parties.
 

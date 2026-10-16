@@ -177,6 +177,12 @@ it. Strongest to weakest:
   full, acknowledged "with sincere gratitude" and accepted by the Parties
   "without further claims" — substance unchanged, tone made dignified rather
   than pointed.
+- 2026-10-17: corrected a factual statement about how the Parties became
+  acquainted. Recital (A) and Art. 5.1 previously said the Parties "met" **at**
+  the hackathon; that is not accurate (some of them knew each other before).
+  Both now say only that the Parties **took part and worked together as a
+  group** at the hackathon. Both single-language PDFs and the bilingual PDF
+  regenerated.
 - 2026-10-17: added provenance tooling and outputs. New first-party scripts
   `scripts/md2html.py` (Markdown → print HTML), `scripts/bilingual-docs.py`
   (side-by-side HTML) and `scripts/ip-evidence.py`, which generates a
