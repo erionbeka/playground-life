@@ -19,8 +19,8 @@ export default function AdminDashboard() {
   const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, addChild, addFamilyMember, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
-  const [email, setEmail] = useState(adminUsers[0]?.email || "admin@playgroundlife.app");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [staffRole, setStaffRole] = useState<"admin" | "therapist">("therapist");
   const [staffName, setStaffName] = useState("");
@@ -132,15 +132,17 @@ export default function AdminDashboard() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
-          <button onClick={() => { setRole("none"); navigate("/enter"); }} className="absolute left-4 top-4 text-sm text-muted-foreground hover:text-foreground touch-target">
-            Back
-          </button>
-
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-3xl border border-white/35 bg-card/82 p-6 shadow-[0_24px_70px_rgba(21,31,56,0.16)] backdrop-blur-xl sm:p-8"
           >
+            <button
+              onClick={() => { setRole("none"); navigate("/enter"); }}
+              className="touch-target -ml-2 mb-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-muted-foreground transition hover:bg-accent/15 hover:text-foreground"
+            >
+              ← Back
+            </button>
             <div className="mb-8 text-center">
               <h1 className="mb-2 font-display text-3xl font-extrabold text-foreground">Clinic Admin Sign In</h1>
               <p className="text-sm text-muted-foreground sm:text-base">Manage clinic access, onboarding, and readiness before backend rollout.</p>
@@ -190,11 +192,6 @@ export default function AdminDashboard() {
                 Sign In
               </button>
             </form>
-
-            <div className="mt-6 rounded-2xl border border-border/70 bg-background/45 p-4 text-sm text-muted-foreground">
-              <p>admin@playgroundlife.app</p>
-              <p>admin123</p>
-            </div>
           </motion.div>
         </div>
       </div>

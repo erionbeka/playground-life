@@ -400,6 +400,12 @@ describe("app workflows", () => {
       </MemoryRouter>
     );
 
+    fireEvent.change(screen.getByLabelText(/Admin email/i), {
+      target: { value: "admin@playgroundlife.app" },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: "admin123" },
+    });
     fireEvent.click(screen.getByText("Sign In"));
     await screen.findByText(/Clinic Admin Dashboard/i);
 
@@ -642,6 +648,12 @@ describe("app workflows", () => {
       </MemoryRouter>
     );
 
+    fireEvent.change(screen.getByLabelText(/Clinic email/i), {
+      target: { value: "therapist@playgroundlife.app" },
+    });
+    fireEvent.change(screen.getByLabelText(/^password$/i), {
+      target: { value: "therapist123" },
+    });
     fireEvent.click(screen.getByText("Sign In"));
 
     expect(screen.getByRole("heading", { name: /Caseload Overview/i })).toBeInTheDocument();

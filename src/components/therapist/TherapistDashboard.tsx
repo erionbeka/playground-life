@@ -21,26 +21,28 @@ const tabs: { key: Tab; label: string; emoji: string }[] = [
 ];
 
 export default function TherapistDashboard() {
-  const { setRole, session, therapistUsers, signInTherapist, signOut } = useApp();
+  const { setRole, session, signInTherapist, signOut } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
-  const [email, setEmail] = useState(therapistUsers[0]?.email || "therapist@playgroundlife.app");
-  const [password, setPassword] = useState("therapist123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
   if (session?.role !== "therapist") {
     return (
       <div className="flex min-h-screen items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
-          <button onClick={() => { setRole("none"); navigate("/enter"); }} className="absolute left-4 top-4 text-sm text-muted-foreground hover:text-foreground touch-target">
-            Back
-          </button>
-
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-3xl border border-white/35 bg-card/82 p-6 shadow-[0_24px_70px_rgba(21,31,56,0.16)] backdrop-blur-xl sm:p-8"
           >
+            <button
+              onClick={() => { setRole("none"); navigate("/enter"); }}
+              className="touch-target -ml-2 mb-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-muted-foreground transition hover:bg-accent/15 hover:text-foreground"
+            >
+              ← Back
+            </button>
             <div className="mb-8 text-center">
               <h1 className="mb-2 font-display text-3xl font-extrabold text-foreground">Therapist Sign In</h1>
               <p className="text-sm text-muted-foreground sm:text-base">Secure clinic access for assignments, approvals, reports, and audit history.</p>
@@ -100,14 +102,6 @@ export default function TherapistDashboard() {
                 Sign In
               </button>
             </form>
-
-            <div className="mt-6 rounded-2xl border border-border/70 bg-background/45 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Demo clinic access</p>
-              <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <p>therapist@playgroundlife.app</p>
-                <p>therapist123</p>
-              </div>
-            </div>
           </motion.div>
         </div>
       </div>

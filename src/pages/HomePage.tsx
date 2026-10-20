@@ -1,9 +1,12 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Heart } from "lucide-react";
+import { Heart, HeartHandshake, Hospital, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import BlobCritter from "@/components/home/BlobCritter";
 import type { CritterMood, CritterShape } from "@/components/home/BlobCritter";
+import TermsModal from "@/components/TermsModal";
+import InstallAppHint from "@/components/InstallAppHint";
+import BackToTop from "@/components/BackToTop";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -22,15 +25,29 @@ const pals: { shape: CritterShape; color: string; blush: string; caption: string
 ];
 
 const audiences = [
-  { emoji: "🧑‍⚕️", title: "Therapists", body: "Assign homework & classwork, tune games per child, approve progression, and review outcome reports." },
-  { emoji: "👪", title: "Families", body: "See today's session, play together at home, and send results straight back to the care team." },
-  { emoji: "🏥", title: "Clinics", body: "Manage staff access, family onboarding, caseloads, and audit activity — clinic-ready from day one." },
+  { icon: "stethoscope", title: "Therapists", body: "Assign homework & classwork, tune games per child, approve progression, and review outcome reports." },
+  { icon: "family", title: "Families", body: "See today's session, play together at home, and send results straight back to the care team." },
+  { icon: "clinic", title: "Clinics", body: "Manage staff access, family onboarding, caseloads, and audit activity — clinic-ready from day one." },
 ];
+
+const audienceIcons = {
+  stethoscope: Stethoscope,
+  family: HeartHandshake,
+  clinic: Hospital,
+} as const;
 
 const stats = [
   { value: "192", label: "structured activities" },
   { value: "3", label: "roles: therapist, family, admin" },
   { value: "AAC", label: "enabled & supported" },
+];
+
+const team = [
+  { id: "erion", name: "Erion Beka", initials: "EB", color: "hsl(199 60% 45%)", roleKey: "teamRoleCeo", bioKey: "teamBioErion" },
+  { id: "ilirjana", name: "Ilirjana Gjetaj", initials: "IG", color: "hsl(142 40% 40%)", roleKey: "teamRoleCofounder", bioKey: "teamBioIlirjana" },
+  { id: "loris", name: "Loris Canolli", initials: "LC", color: "hsl(260 45% 52%)", roleKey: "teamRoleCofounder", bioKey: "teamBioLoris" },
+  { id: "saimir", name: "Saimir Balaj", initials: "SB", color: "hsl(15 75% 52%)", roleKey: "teamRoleCofounder", bioKey: "teamBioSaimir" },
+  { id: "altin", name: "Altin Millaku", initials: "AM", color: "hsl(35 80% 45%)", roleKey: "teamRoleCofounder", bioKey: "teamBioAltin" },
 ];
 
 type Lang = "en" | "sq";
@@ -54,21 +71,24 @@ const TEXTS: Record<Lang, Record<string, string>> = {
     contact: "Contact us for a demo",
     contactBody: "Want to see Playground Life in action before you commit? Book a demo of the product with our team.",
     emailLabel: "Demo requests & questions:",
-    email: "info@playground-life.com",
+    email: "bekaerion@gmail.com",
     ready: "Ready to play?",
     readyBody: "Open the app to choose your role — therapist, family, or clinic admin.",
     aboutUs: "About us",
-    ceo: "Erion Beka — CEO & Co-founder",
-    ceoBio:
-      "Erion leads Playground Life out of Prishtina, Kosovo. He is Support Team Leader at insteap (2024–present), was IT Support Specialist at Pc Kosovo (2022–2024), and started as an IT Support Technician in 2022. He holds a Bachelor's degree (2018–2021), with certifications in API Security Fundamentals, Junior Cybersecurity Analyst, and Cisco Digital Healthcare & Wellbeing (eHealth). He is also a student at Kolegji Riinvest and builds software end-to-end — TypeScript, Node, React, Postgres, and mobile.",
-    ceoHackathon:
-      "Playground Life began as an idea at the pristina.innovate.healthcare hackathon (April 2025) with teammates Ilirjana Gjetaj, Loris Canolli, Saimir Balaj and Altin Millaku. Erion then built the full product himself: a clinic-ready backend with real authentication, role-based authorization, Argon2id password hashing, audit logging and structured clinical data — plus this frontend.",
-    ceoInvestor:
-      "For investors: Erion runs security-hardened support operations full-time while shipping Playground Life nights and weekends. The platform already stores clinics, users, child profiles, goals, assignments and results in PostgreSQL, and is built to scale with therapy providers.",
+    teamRoleCeo: "CEO & Co-founder",
+    teamRoleCofounder: "Co-founder",
+    teamBioErion:
+      "Erion leads Playground Life from Prishtina, Kosovo. He works in IT and security, and has been building the platform evenings and weekends since April 2025.",
+    teamBioIlirjana:
+      "Co-founder. Ilirjana was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025, and helps shape how the product works for families.",
+    teamBioLoris:
+      "Co-founder. Loris was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
+    teamBioSaimir:
+      "Co-founder. Saimir was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
+    teamBioAltin:
+      "Co-founder. Altin was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
     footerCopy: "Play Together, Grow Together · AAC-enabled guided play",
     terms: "Terms & Conditions",
-    termsAcceptBody:
-      "By continuing you accept our {terms}, which cover use of the platform, data handling, responsibilities, and disclaimers. You can review them anytime at /terms.",
   },
   sq: {
     brand: "Playground Life",
@@ -88,29 +108,30 @@ const TEXTS: Record<Lang, Record<string, string>> = {
     contact: "Kontaktoni ne për demo",
     contactBody: "Doni ta shihni Playground Life në veprim para se të komituoni? Rezervoni një demo të produktit me ekipën tonë.",
     emailLabel: "Kërkesa demo & pyetje:",
-    email: "info@playground-life.com",
+    email: "bekaerion@gmail.com",
     ready: "Gati për të luajtur?",
     readyBody: "Hap aplikacionin për të zgjeruar rolin — terapist, familje, ose admin i klinikës.",
     aboutUs: "Rreth nesh",
-    ceo: "Erion Beka — CEO & Co-fondues",
-    ceoBio:
-      "Erion e ngarkon Playground Life nga Prishtina, Kosova. Ai është Support Team Leader në insteap (2024–tani), ishte IT Support Specialist në Pc Kosovo (2022–2024), dhe filloi si IT Support Technician në 2022. Ai ka diplomë Bachelor (2018–2021), me certifikime në API Security Fundamentals, Junior Cybersecurity Analyst, dhe Cisco Digital Healthcare & Wellbeing (eHealth). Ai është Student në Kolegj Riinvest dhe kujdeset nga software në fund — TypeScript, Node, React, Postgres, dhe mobile.",
-    ceoHackathon:
-      "Playground Life filloi si ide në hackathon-in pristina.innovate.healthcare (prill 2025) me qashtërit Ilirjana Gjetaj, Loris Canolli, Saimir Balaj dhe Altin Millaku. Erion pastërt veçanërisht produktin e plotë: një backend i gatshme për klinikë me auth real, autorizim bazë rolet, Argon2id, logu auditing dhe të dhëna klinike — dhe këtë frontend.",
-    ceoInvestor:
-      "Për investitorë: Erion të drejtohet operacionin sigurtë full-time ndërsa dorëzon Playground Life ditët e hershja e ditëve të sie. Platforma tashmë ruajt klinika, përdorues, profila fëmijësh, vlefshmet, asignime dhe rezultate në PostgreSQL, dhe është i gatshëm për të skaleruar me furnizuesit e terapisë.",
+    teamRoleCeo: "CEO & Co-fondues",
+    teamRoleCofounder: "Co-fondues",
+    teamBioErion:
+      "Erion e drejton Playground Life nga Prishtina, Kosova. Ai punon në IT dhe siguri, dhe ndërton platformën mbrëmjeve dhe fundjavave që nga prilli 2025.",
+    teamBioIlirjana:
+      "Co-fondues. Ilirjana ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025, dhe ndihmon në formësimin e produktit për familjet.",
+    teamBioLoris:
+      "Co-fondues. Loris ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
+    teamBioSaimir:
+      "Co-fondues. Saimir ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
+    teamBioAltin:
+      "Co-fondues. Altin ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
     footerCopy: "Luajmë Së Bashku, Rritemi Së Bashku · Lojë e udhëhequr me AAC",
     terms: "Termat e Përdorimit",
-    termsAcceptBody: "Duam vazhdim pranohet tërmat tona {terms}, mbrojtje të dhënave, rëollet dhe deklaratat. Mund e rishikoni çdoherë në /terms.",
   },
 };
 
 export default function HomePage() {
   const navigate = useNavigate();
   const [lang, setLang] = useState<Lang>("en");
-  const [termsAccepted, setTermsAccepted] = useState(() => {
-    try { return localStorage.getItem("pl_terms_accepted") === "1"; } catch { return false; }
-  });
   const [likes, setLikes] = useState(() => {
     try { return Number(localStorage.getItem("pl_likes") || "0"); } catch { return 0; }
   });
@@ -123,100 +144,65 @@ export default function HomePage() {
   const toggleLike = () => {
     setLiked((l) => {
       const next = !l;
-      try { localStorage.setItem("pl_liked", next ? "1" : "0"); } catch {}
+      try { localStorage.setItem("pl_liked", next ? "1" : "0"); } catch { /* storage unavailable */ }
       setLikes((c) => {
         const nextC = next ? c + 1 : Math.max(0, c - 1);
-        try { localStorage.setItem("pl_likes", String(nextC)); } catch {}
+        try { localStorage.setItem("pl_likes", String(nextC)); } catch { /* storage unavailable */ }
         return nextC;
       });
       return next;
     });
   };
 
-  const acceptTerms = () => {
-    try { localStorage.setItem("pl_terms_accepted", "1"); } catch {}
-    setTermsAccepted(true);
-  };
-
   return (
     <div className="relative z-10 mx-auto min-h-screen max-w-5xl px-4 pb-12 pt-8 sm:px-6">
+      <TermsModal lang={lang} />
+      <InstallAppHint lang={lang} />
+      <BackToTop />
+
       <motion.header
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, ease: EASE }}
-        className="flex items-center justify-between"
+        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3"
       >
         <span className="font-display text-lg font-extrabold text-foreground">Playground Life</span>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           <button
             onClick={() => setLang(lang === "en" ? "sq" : "en")}
-            className="touch-target rounded-full border border-border px-3 py-1 text-xs font-bold capitalize transition hover:bg-accent"
+            className="touch-target inline-flex items-center justify-center rounded-full border border-border px-3 py-1 text-xs font-bold capitalize transition hover:bg-accent"
           >
             {lang === "en" ? "SQ" : "EN"}
           </button>
           <button
             onClick={() => toggleLike()}
             aria-pressed={liked}
-            className={`touch-target rounded-full border px-3 py-1.5 text-xs font-bold transition ${liked ? "bg-accent text-accent-foreground border-accent" : "border-border text-muted-foreground hover:bg-accent/10"}`}
+            className={`touch-target inline-flex items-center justify-center rounded-full border px-3 py-1.5 text-xs font-bold transition ${liked ? "bg-accent text-accent-foreground border-accent" : "border-border text-muted-foreground hover:bg-accent/10"}`}
             title={liked ? t("liked") : t("like")}
           >
             <Heart size={13} className={liked ? "text-accent-foreground" : "text-muted-foreground"} />
             <span className="pl-1">{likes}</span>
           </button>
           <a
-            href="mailto:info@playground-life.com"
-            className="touch-target rounded-full border border-border px-3 py-1 text-xs font-bold transition hover:bg-accent/10"
+            href={`mailto:${t("email")}`}
+            className="touch-target inline-flex items-center justify-center rounded-full border border-border px-3 py-1 text-xs font-bold transition hover:bg-accent/10"
           >
             {t("contactBtn")}
           </a>
           <a
             href="#about-us"
-            className="touch-target rounded-full border border-border px-3 py-1 text-xs font-bold transition hover:bg-accent/10"
+            className="touch-target inline-flex items-center justify-center rounded-full border border-border px-3 py-1 text-xs font-bold transition hover:bg-accent/10"
           >
             {t("about")}
           </a>
           <button
             onClick={() => navigate("/enter")}
-            className="touch-target rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-[0_10px_30px_rgba(77,170,206,0.3)] transition-transform hover:scale-105 active:scale-95"
+            className="touch-target inline-flex items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-[0_10px_30px_rgba(77,170,206,0.3)] transition-transform hover:scale-105 active:scale-95"
           >
             {t("openApp")}
           </button>
         </div>
       </motion.header>
-
-      {!termsAccepted && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        >
-          <div className="rounded-2xl border border-border bg-background p-6 shadow-2xl w-full max-w-lg">
-            <h2 className="font-display text-xl font-extrabold text-foreground mb-2">{t("terms")}</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              {t("termsAcceptBody").replace("{terms}", `<a href="/terms" className="text-primary underline hover:text-primary/80">Terms & Conditions</a>`)}
-            </p>
-            <div className="flex items-center gap-3 mt-6">
-              <input
-                id="terms-checkbox"
-                type="checkbox"
-                checked={termsAccepted}
-                onChange={() => setTermsAccepted((a) => !a)}
-                className="rounded border-input bg-background text-primary shadow-sm focus:border-primary focus:ring focus:ring-primary"
-              />
-              <label htmlFor="terms-checkbox" className="text-sm text-foreground cursor-pointer select-none">
-                I have read and accept the Terms & Conditions
-              </label>
-            </div>
-            <button
-              onClick={acceptedTerms}
-              disabled={!termsAccepted}
-              className="mt-5 rounded-2xl bg-primary px-7 py-3 text-base font-bold text-primary-foreground shadow-lg transition-transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-            {t("openApp")}
-            </button>
-          </div>
-        </motion.div>
-      )}
 
       <motion.section
         initial={{ opacity: 0, y: 16 }}
@@ -335,7 +321,12 @@ export default function HomePage() {
               transition={{ duration: 0.65, delay: 0.45 + index * 0.08, ease: EASE }}
               className="rounded-2xl border border-white/50 bg-card/85 p-5 shadow-sm backdrop-blur-sm sm:p-6"
             >
-              <div className="mb-3 text-4xl">{audience.emoji}</div>
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                {(() => {
+                  const Icon = audienceIcons[audience.icon as keyof typeof audienceIcons];
+                  return <Icon size={24} strokeWidth={2} aria-hidden="true" />;
+                })()}
+              </div>
               <h3 className="font-display text-lg font-bold text-foreground">{audience.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{audience.body}</p>
             </motion.div>
@@ -403,19 +394,38 @@ export default function HomePage() {
             {t("aboutUs")}
           </h2>
         </motion.div>
-        <div className="mt-10 rounded-3xl border border-white/50 bg-card/85 p-6 shadow-sm backdrop-blur-sm sm:p-10 sm:flex sm:items-center sm:gap-8">
-          <div className="relative inline-block sm:w-auto">
-            <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-accent/20 to-primary/20 rounded-[46%_54%_58%_42%/_52%_40%_60%_48%] blur-xl opacity-60 animate-pulse"></div>
-            <div className="relative rounded-[46%_54%_58%_42%/_52%_40%_60%_48%] border border-primary/30 bg-primary/10 p-4 sm:p-8 text-center overflow-hidden">
-              <span className="text-6xl sm:text-7xl">EB</span>
-            </div>
-          </div>
-          <div className="mt-8 sm:mt-0 sm:flex-1 text-center sm:text-left">
-            <h3 className="font-display text-xl font-bold text-foreground sm:text-2xl">{t("ceo")}</h3>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base whitespace-pre-wrap">{t("ceoBio")}</p>
-            <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base whitespace-pre-wrap">{t("ceoHackathon")}</p>
-            <p className="mt-4 text-sm font-semibold text-foreground sm:text-base">{t("ceoInvestor")}</p>
-          </div>
+        <div className="mt-10 flex flex-wrap justify-center gap-5">
+          {team.map((member, index) => (
+            <motion.div
+              key={member.id}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.55, delay: index * 0.06, ease: EASE }}
+              className="flex w-[calc(50%-0.625rem)] flex-col items-center rounded-2xl border border-white/50 bg-card/85 p-4 text-center shadow-sm backdrop-blur-sm sm:w-[calc(33.333%-0.833rem)] sm:p-5 lg:w-[calc(20%-1rem)]"
+            >
+              <div className="relative">
+                <div
+                  aria-hidden
+                  className="absolute -inset-1.5 rounded-[46%_54%_58%_42%_/_52%_40%_60%_48%] opacity-40 blur-lg"
+                  style={{ background: `linear-gradient(135deg, ${member.color}, hsl(10 70% 75%))` }}
+                />
+                <div
+                  className="relative flex size-20 items-center justify-center overflow-hidden rounded-[46%_54%_58%_42%_/_52%_40%_60%_48%] border sm:size-24"
+                  style={{ borderColor: `${member.color}59`, background: `${member.color}1a` }}
+                >
+                  <span className="font-display text-2xl font-extrabold sm:text-3xl" style={{ color: member.color }}>
+                    {member.initials}
+                  </span>
+                </div>
+              </div>
+              <h3 className="mt-4 font-display text-sm font-bold text-foreground sm:text-base">{member.name}</h3>
+              <p className="mt-0.5 text-[0.7rem] font-bold uppercase tracking-wide text-primary sm:text-xs">
+                {t(member.roleKey)}
+              </p>
+              <p className="mt-2 text-xs leading-snug text-muted-foreground">{t(member.bioKey)}</p>
+            </motion.div>
+          ))}
         </div>
       </section>
 

@@ -77,15 +77,17 @@ export default function ParentDashboard() {
     return (
       <div className="flex min-h-screen items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
-          <button onClick={() => { setRole("none"); navigate("/enter"); }} className="absolute left-4 top-4 text-sm text-muted-foreground hover:text-foreground touch-target">
-            Back
-          </button>
-
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             className="rounded-3xl border border-white/35 bg-card/82 p-6 shadow-[0_24px_70px_rgba(21,31,56,0.16)] backdrop-blur-xl sm:p-8"
           >
+            <button
+              onClick={() => { setRole("none"); navigate("/enter"); }}
+              className="touch-target -ml-2 mb-4 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold text-muted-foreground transition hover:bg-accent/15 hover:text-foreground"
+            >
+              ← Back
+            </button>
             <div className="mb-8 text-center">
               <h1 className="mb-2 font-display text-3xl font-extrabold text-foreground">Family Sign In</h1>
               <p className="text-sm text-muted-foreground sm:text-base">Sign in with your phone number and password to open your child&apos;s activities.</p>
@@ -122,7 +124,7 @@ export default function ParentDashboard() {
                   }}
                   inputMode="tel"
                   autoComplete="tel"
-                  placeholder="555-0101"
+                  placeholder="Your phone number"
                   className="h-12 w-full rounded-xl border border-border bg-background/85 px-4 text-base text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
               </div>
@@ -154,15 +156,6 @@ export default function ParentDashboard() {
                 Sign In
               </button>
             </form>
-
-            <div className="mt-6 rounded-2xl border border-border/70 bg-background/45 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Demo logins</p>
-              <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-                <p>555-0101 / emma123</p>
-                <p>555-0201 / liam123</p>
-                <p>555-0301 / sofia123</p>
-              </div>
-            </div>
           </motion.div>
         </div>
       </div>
