@@ -7,7 +7,7 @@
       POSTGRES_PASSWORD: playground
       POSTGRES_DB: playground_life
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - playground_life_pgdata:/var/lib/postgresql/data
     healthcheck:

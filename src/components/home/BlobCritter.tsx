@@ -44,26 +44,26 @@ function Ears({ shape, color, size }: { shape: CritterShape; color: string; size
           aria-hidden
           style={{
             ...common,
-            width: size * 0.3,
-            height: size * 0.34,
-            left: size * 0.04,
-            top: -size * 0.1,
+            width: size * 0.32,
+            height: size * 0.36,
+            left: size * 0.02,
+            top: -size * 0.06,
             borderRadius: "60% 60% 40% 40%",
-            transform: "rotate(-18deg)",
-            boxShadow: "inset 0 -4px 8px rgba(0,0,0,0.06)",
+            transform: "rotate(-16deg)",
+            boxShadow: "inset 0 -6px 10px rgba(0,0,0,0.06)",
           }}
         />
         <div
           aria-hidden
           style={{
             ...common,
-            width: size * 0.3,
-            height: size * 0.34,
-            right: size * 0.04,
-            top: -size * 0.1,
+            width: size * 0.32,
+            height: size * 0.36,
+            right: size * 0.02,
+            top: -size * 0.06,
             borderRadius: "60% 60% 40% 40%",
-            transform: "rotate(18deg)",
-            boxShadow: "inset 0 -4px 8px rgba(0,0,0,0.06)",
+            transform: "rotate(16deg)",
+            boxShadow: "inset 0 -6px 10px rgba(0,0,0,0.06)",
           }}
         />
       </>
@@ -77,26 +77,26 @@ function Ears({ shape, color, size }: { shape: CritterShape; color: string; size
           aria-hidden
           style={{
             ...common,
-            width: size * 0.18,
-            height: size * 0.46,
-            left: size * 0.16,
-            top: -size * 0.32,
+            width: size * 0.2,
+            height: size * 0.48,
+            left: size * 0.14,
+            top: -size * 0.24,
             borderRadius: "50%",
             transform: "rotate(-10deg)",
-            boxShadow: "inset 0 -4px 8px rgba(0,0,0,0.06)",
+            boxShadow: "inset 0 -6px 10px rgba(0,0,0,0.06)",
           }}
         />
         <div
           aria-hidden
           style={{
             ...common,
-            width: size * 0.18,
-            height: size * 0.46,
-            right: size * 0.16,
-            top: -size * 0.32,
+            width: size * 0.2,
+            height: size * 0.48,
+            right: size * 0.14,
+            top: -size * 0.24,
             borderRadius: "50%",
             transform: "rotate(10deg)",
-            boxShadow: "inset 0 -4px 8px rgba(0,0,0,0.06)",
+            boxShadow: "inset 0 -6px 10px rgba(0,0,0,0.06)",
           }}
         />
       </>
@@ -110,10 +110,10 @@ function Ears({ shape, color, size }: { shape: CritterShape; color: string; size
           aria-hidden
           style={{
             ...common,
-            width: size * 0.24,
-            height: size * 0.24,
-            left: size * 0.02,
-            top: -size * 0.06,
+            width: size * 0.26,
+            height: size * 0.26,
+            left: size * 0.0,
+            top: -size * 0.02,
             borderRadius: "50%",
           }}
         />
@@ -121,10 +121,10 @@ function Ears({ shape, color, size }: { shape: CritterShape; color: string; size
           aria-hidden
           style={{
             ...common,
-            width: size * 0.24,
-            height: size * 0.24,
-            right: size * 0.02,
-            top: -size * 0.06,
+            width: size * 0.26,
+            height: size * 0.26,
+            right: size * 0.0,
+            top: -size * 0.02,
             borderRadius: "50%",
           }}
         />
@@ -137,10 +137,10 @@ function Ears({ shape, color, size }: { shape: CritterShape; color: string; size
       aria-hidden
       style={{
         ...common,
-        width: size * 0.14,
-        height: size * 0.22,
+        width: size * 0.16,
+        height: size * 0.24,
         left: "50%",
-        top: -size * 0.14,
+        top: -size * 0.1,
         borderRadius: "50%",
         transform: "translateX(-50%) rotate(-12deg)",
       }}
@@ -172,8 +172,8 @@ function Face({
 
   const calmBlink =
     mood === "safe"
-      ? { duration: 6, times: [0, 0.32, 0.36, 0.72, 0.76, 1], repeat: Infinity, ease: "easeInOut" as const }
-      : { duration: 4.8, times: [0, 0.44, 0.47, 0.5, 1], repeat: Infinity, ease: "easeInOut" as const };
+      ? { duration: 7, times: [0, 0.32, 0.36, 0.72, 0.76, 1], repeat: Infinity, ease: "easeInOut" as const }
+      : { duration: 5.6, times: [0, 0.44, 0.47, 0.5, 1], repeat: Infinity, ease: "easeInOut" as const };
   const calmScaleY = mood === "safe" ? [1, 1, 0.08, 0.08, 1, 1] : [1, 1, 0.08, 1, 1];
 
   if (config.eyeStyle === "frog") {
@@ -404,7 +404,7 @@ function PersonalityProp({ mood, size, color }: { mood: CritterMood; size: numbe
           zIndex: 3,
         }}
         animate={{ y: [0, -size * 0.34, 0, -size * 0.16, 0], scaleY: [1, 0.85, 1, 0.92, 1] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut", times: [0, 0.35, 0.55, 0.75, 1] }}
+        transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut", times: [0, 0.35, 0.55, 0.75, 1] }}
       />
     );
   }
@@ -415,7 +415,7 @@ function PersonalityProp({ mood, size, color }: { mood: CritterMood; size: numbe
         <motion.div
           style={{ width: size * 0.05, height: size * 0.14, borderRadius: 99, background: "hsl(142 45% 42%)", transformOrigin: "bottom center" }}
           animate={{ scaleY: [0.55, 1, 0.75, 1, 0.55] }}
-          transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
+          transition={{ duration: 4.6, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
           style={{
@@ -430,7 +430,7 @@ function PersonalityProp({ mood, size, color }: { mood: CritterMood; size: numbe
             rotate: -24,
           }}
           animate={{ scaleX: [0.6, 1, 0.8, 1, 0.6], rotate: [-24, -10, -18, -10, -24] }}
-          transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
+          transition={{ duration: 4.6, repeat: Infinity, ease: "easeInOut" }}
         />
         <motion.div
           style={{
@@ -445,7 +445,7 @@ function PersonalityProp({ mood, size, color }: { mood: CritterMood; size: numbe
             rotate: 20,
           }}
           animate={{ scaleX: [0.6, 1, 0.8, 1, 0.6], rotate: [20, 8, 16, 8, 20] }}
-          transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
+          transition={{ duration: 4.6, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
         />
       </div>
     );
@@ -469,14 +469,14 @@ function PersonalityProp({ mood, size, color }: { mood: CritterMood; size: numbe
           alignItems: "center",
         }}
         animate={{ opacity: [0, 1, 1, 0], y: [6, 0, 0, -4], scale: [0.7, 1, 1, 0.85] }}
-        transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut", times: [0, 0.15, 0.75, 1] }}
+        transition={{ duration: 4.4, repeat: Infinity, ease: "easeInOut", times: [0, 0.15, 0.75, 1] }}
       >
         {[0, 1, 2].map((i) => (
           <motion.span
             key={i}
             style={{ width: size * 0.05, height: size * 0.05, borderRadius: "50%", background: color, display: "block" }}
             animate={{ opacity: [0.35, 1, 0.35] }}
-            transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+            transition={{ duration: 1.6, repeat: Infinity, delay: i * 0.24, ease: "easeInOut" }}
           />
         ))}
       </motion.div>
@@ -497,7 +497,7 @@ function PersonalityProp({ mood, size, color }: { mood: CritterMood; size: numbe
           x: "-50%",
         }}
         animate={{ opacity: [0, 1, 1, 0], y: [0, -size * 0.35, -size * 0.55], scale: [0.5, 1.1, 0.9] }}
-        transition={{ duration: 2.8, repeat: Infinity, ease: "easeOut", times: [0, 0.2, 0.7, 1] }}
+        transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut", times: [0, 0.2, 0.7, 1] }}
       >
         💗
       </motion.div>
@@ -536,19 +536,20 @@ export default function BlobCritter({
   const rootRef = useRef<HTMLDivElement>(null);
   const rawX = useMotionValue(0);
   const rawY = useMotionValue(0);
-  const px = useSpring(rawX, { stiffness: 90, damping: 18, mass: 0.7 });
-  const py = useSpring(rawY, { stiffness: 90, damping: 18, mass: 0.7 });
+  const px = useSpring(rawX, { stiffness: 75, damping: 24, mass: 1 });
+  const py = useSpring(rawY, { stiffness: 75, damping: 24, mass: 1 });
   const [hover, setHover] = useState(false);
   const hoverRef = useRef(false);
+  const nearRef = useRef(false);
 
-  const radiusA = useTransform(time, (v) => 46 + Math.sin(v * 0.0009 + phase) * 7);
-  const radiusB = useTransform(time, (v) => 56 + Math.cos(v * 0.0011 + phase) * 6);
-  const radiusC = useTransform(time, (v) => 48 + Math.sin(v * 0.001 + phase + 1.2) * 6);
-  const radiusD = useTransform(time, (v) => 54 + Math.cos(v * 0.00095 + phase + 0.5) * 7);
+  const radiusA = useTransform(time, (v) => 46 + Math.sin(v * 0.00055 + phase) * 7);
+  const radiusB = useTransform(time, (v) => 56 + Math.cos(v * 0.00068 + phase) * 6);
+  const radiusC = useTransform(time, (v) => 48 + Math.sin(v * 0.00062 + phase + 1.2) * 6);
+  const radiusD = useTransform(time, (v) => 54 + Math.cos(v * 0.00058 + phase + 0.5) * 7);
   const borderRadius = useMotionTemplate`${radiusA}% ${radiusB}% ${radiusC}% ${radiusD}% / ${radiusD}% ${radiusC}% ${radiusB}% ${radiusA}%`;
 
   const dist = useTransform([px, py], ([x, y]: number[]) => Math.hypot(x, y));
-  const near = useTransform(dist, (d) => (d < size * 1.9 ? 1 : 0));
+  const near = useTransform(dist, (d) => (d < size * 2.0 ? 1 : 0));
   const leanRotate = useTransform([px, py, near], ([x, y, n]: number[]) => (n ? (x / size) * 10 : 0));
   const leanX = useTransform([px, py, near], ([x, y, n]: number[]) => (n ? (x / size) * size * 0.05 : 0));
   const leanY = useTransform([px, py, near], ([x, y, n]: number[]) => (n ? (y / size) * size * 0.03 : 0));
@@ -576,9 +577,24 @@ export default function BlobCritter({
       const cy = rect.top + rect.height / 2 + size * 0.1;
       const dx = event.clientX - cx;
       const dy = event.clientY - cy;
-      rawX.set(dx);
-      rawY.set(dy);
-      const isHover = Math.hypot(dx, dy) < size * 0.55;
+      const d = Math.hypot(dx, dy);
+
+      const engage = size * 2.0;
+      const release = size * 2.6;
+      if (!nearRef.current && d < engage) nearRef.current = true;
+      else if (nearRef.current && d > release) nearRef.current = false;
+
+      if (nearRef.current) {
+        rawX.set(dx);
+        rawY.set(dy);
+      } else {
+        rawX.set(0);
+        rawY.set(0);
+      }
+
+      const hoverIn = size * 0.55;
+      const hoverOut = size * 0.72;
+      const isHover = hoverRef.current ? d < hoverOut : d < hoverIn;
       if (isHover !== hoverRef.current) {
         hoverRef.current = isHover;
         setHover(isHover);
@@ -595,7 +611,6 @@ export default function BlobCritter({
     return (
       <div ref={rootRef} className={`relative ${className}`} style={{ width: bodyWidth, height: bodyHeight + size * 0.2 }}>
         <div style={{ position: "relative", width: bodyWidth, height: bodyHeight, marginTop: size * 0.2 }}>
-          <Ears shape={shape} color={color} size={bodyWidth} />
           <div
             style={{
               position: "absolute",
@@ -605,15 +620,17 @@ export default function BlobCritter({
               boxShadow: "inset 0 -10px 24px rgba(0,0,0,0.07), inset 0 8px 16px rgba(255,255,255,0.25)",
               zIndex: 1,
             }}
-          />
-          <Face
-            shape={shape}
-            size={bodyWidth}
-            blush={blush}
-            pupilX={zeroX}
-            pupilY={zeroY}
-            mood={undefined}
-          />
+          >
+            <Ears shape={shape} color={color} size={bodyWidth} />
+            <Face
+              shape={shape}
+              size={bodyWidth}
+              blush={blush}
+              pupilX={zeroX}
+              pupilY={zeroY}
+              mood={undefined}
+            />
+          </div>
           {mood ? <PersonalityProp mood={mood} size={bodyWidth} color={color} /> : null}
         </div>
         {label ? <span className="sr-only">{label}</span> : null}
@@ -633,23 +650,11 @@ export default function BlobCritter({
       }
       transition={
         hover
-          ? { duration: 0.34, repeat: Infinity, ease: "easeInOut" }
-          : { duration: 3.2 + phase * 0.3, repeat: Infinity, ease: "easeInOut" }
+          ? { duration: 0.6, repeat: Infinity, ease: "easeInOut" }
+          : { duration: 4.8 + phase * 0.4, repeat: Infinity, ease: "easeInOut" }
       }
     >
       <div style={{ position: "relative", width: bodyWidth, height: bodyHeight, marginTop: size * 0.2 }}>
-        <motion.div
-          aria-hidden
-          style={{ position: "absolute", inset: 0, zIndex: 0 }}
-          animate={hover ? { rotate: [0, 2, -2, 1, 0] } : { rotate: 0 }}
-          transition={
-            hover
-              ? { duration: 0.36, repeat: Infinity, ease: "easeInOut" }
-              : { duration: 0.25 }
-          }
-        >
-          <Ears shape={shape} color={color} size={bodyWidth} />
-        </motion.div>
         <motion.div
           style={{
             position: "absolute",
@@ -672,10 +677,11 @@ export default function BlobCritter({
           }
           transition={
             hover
-              ? { duration: 0.42, repeat: Infinity, ease: "easeInOut" }
-              : { duration: 5 + phase, repeat: Infinity, ease: "easeInOut" }
+              ? { duration: 0.65, repeat: Infinity, ease: "easeInOut" }
+              : { duration: 7 + phase, repeat: Infinity, ease: "easeInOut" }
           }
         >
+          <Ears shape={shape} color={color} size={bodyWidth} />
           <Face shape={shape} size={bodyWidth} blush={blush} pupilX={pupilX} pupilY={pupilY} mood={mood} tickled={hover} />
         </motion.div>
 
@@ -713,8 +719,8 @@ export default function BlobCritter({
             }
             transition={
               hover
-                ? { duration: 0.45, repeat: Infinity, ease: "easeInOut" }
-                : { duration: 0.25, ease: "easeOut" }
+                ? { duration: 0.7, repeat: Infinity, ease: "easeInOut" }
+                : { duration: 0.4, ease: "easeOut" }
             }
           >
             <div
