@@ -173,7 +173,9 @@ export default function TermsPage() {
           >
             <h3 className="font-display text-lg font-bold text-foreground mb-3">{section.h}</h3>
             {section.ps.map((p, j) => (
-              <p key={j} className="text-sm leading-relaxed text-foreground/90 mb-3 last:mb-0 dangerouslySetInnerHTML={{ __html: p }}"></p>
+              <p key={j} className="mb-3 text-sm leading-relaxed text-foreground/90 last:mb-0">
+                {p}
+              </p>
             ))}
           </motion.div>
         ))}

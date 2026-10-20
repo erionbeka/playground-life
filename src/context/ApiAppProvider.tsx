@@ -204,6 +204,13 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
   }, []);
 
   useEffect(() => {
+    // Only probe for an existing session on routes that actually need one.
+    // Public pages (landing, role selector, terms) render anonymously, so a
+    // blocking round-trip to /api/auth/me there just delays first paint.
+    const path = typeof window !== "undefined" ? window.location.pathname : "/";
+    const isProtected = /^\/(therapist|family|admin)(\/|$)/.test(path);
+    if (!isProtected) return;
+
     productionApi.me()
       .then(async ({ user }) => {
         const nextSession: AuthSession = { role: user.role, userId: user.id, displayName: user.name };
