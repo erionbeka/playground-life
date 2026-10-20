@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,13 +7,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/context/AppContext";
 import { ApiAppProvider } from "@/context/ApiAppProvider";
 import BlobBackground from "@/components/BlobBackground";
-import AdminDashboard from "@/components/admin/AdminDashboard";
-import TherapistDashboard from "@/components/therapist/TherapistDashboard";
-import ParentDashboard from "@/components/parent/ParentDashboard";
-import Index from "./pages/Index.tsx";
-import RoleSelector from "@/components/RoleSelector";
-import TermsPage from "./pages/Terms.tsx";
-import NotFound from "./pages/NotFound.tsx";
+
+const Index = lazy(() => import("./pages/Index.tsx"));
+const RoleSelector = lazy(() => import("@/components/RoleSelector"));
+const TermsPage = lazy(() => import("./pages/Terms.tsx"));
+const AdminDashboard = lazy(() => import("@/components/admin/AdminDashboard"));
+const TherapistDashboard = lazy(() => import("@/components/therapist/TherapistDashboard"));
+const ParentDashboard = lazy(() => import("@/components/parent/ParentDashboard"));
+const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -28,15 +30,21 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/enter" element={<RoleSelector />} />
-                <Route path="/terms" element={<TermsPage />} />
-                <Route path="/therapist" element={<TherapistDashboard />} />
-                <Route path="/family" element={<ParentDashboard />} />
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+              <Suspense
+                fallback={
+                  <div className="flex min-h-screen items-center justify-center" aria-busy="true" aria-label="Loading" />
+                }
+              >
+                <Routes>
+                  <Route path="/" element={<Index />} />
+                  <Route path="/enter" element={<RoleSelector />} />
+                  <Route path="/terms" element={<TermsPage />} />
+                  <Route path="/therapist" element={<TherapistDashboard />} />
+                  <Route path="/family" element={<ParentDashboard />} />
+                  <Route path="/admin" element={<AdminDashboard />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
             </BrowserRouter>
           </div>
         </div>

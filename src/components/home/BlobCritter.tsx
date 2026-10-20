@@ -483,27 +483,6 @@ function PersonalityProp({ mood, size, color }: { mood: CritterMood; size: numbe
     );
   }
 
-  if (mood === "connect") {
-    return (
-      <motion.div
-        aria-hidden
-        style={{
-          position: "absolute",
-          left: "50%",
-          top: -size * 0.1,
-          zIndex: 3,
-          fontSize: size * 0.2,
-          lineHeight: 1,
-          x: "-50%",
-        }}
-        animate={{ opacity: [0, 1, 1, 0], y: [0, -size * 0.35, -size * 0.55], scale: [0.5, 1.1, 0.9] }}
-        transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut", times: [0, 0.2, 0.7, 1] }}
-      >
-        💗
-      </motion.div>
-    );
-  }
-
   return null;
 }
 
@@ -569,14 +548,22 @@ export default function BlobCritter({
 
   useEffect(() => {
     if (reducedMotion) return;
-    const onMove = (event: MouseEvent) => {
+    let rafId = 0;
+    let pendingX = 0;
+    let pendingY = 0;
+    let hasPending = false;
+
+    const applyMove = () => {
+      rafId = 0;
+      if (!hasPending) return;
+      hasPending = false;
       const el = rootRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2 + size * 0.1;
-      const dx = event.clientX - cx;
-      const dy = event.clientY - cy;
+      const dx = pendingX - cx;
+      const dy = pendingY - cy;
       const d = Math.hypot(dx, dy);
 
       const engage = size * 2.0;
@@ -600,8 +587,38 @@ export default function BlobCritter({
         setHover(isHover);
       }
     };
-    window.addEventListener("mousemove", onMove, { passive: true });
-    return () => window.removeEventListener("mousemove", onMove);
+
+    const onMove = (event: PointerEvent) => {
+      pendingX = event.clientX;
+      pendingY = event.clientY;
+      hasPending = true;
+      if (!rafId) rafId = requestAnimationFrame(applyMove);
+    };
+
+    const release = () => {
+      hasPending = false;
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+      nearRef.current = false;
+      if (hoverRef.current) {
+        hoverRef.current = false;
+        setHover(false);
+      }
+      rawX.set(0);
+      rawY.set(0);
+    };
+
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerup", release, { passive: true });
+    window.addEventListener("pointercancel", release, { passive: true });
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+    };
   }, [rawX, rawY, size, reducedMotion]);
 
   const bodyWidth = size;

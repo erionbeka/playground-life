@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { HeartHandshake, Stethoscope } from "lucide-react";
 import TermsModal from "@/components/TermsModal";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -28,7 +29,9 @@ export default function RoleSelector() {
             onClick={() => navigate("/therapist")}
             className="touch-target rounded-2xl border border-white/40 bg-primary/90 p-6 text-primary-foreground shadow-[0_18px_50px_rgba(77,170,206,0.28)] backdrop-blur-md sm:p-8"
           >
-            <div className="mb-4 text-5xl">🧑‍⚕️</div>
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 mx-auto">
+              <Stethoscope size={28} strokeWidth={2} aria-hidden="true" />
+            </div>
             <h2 className="mb-2 font-display text-2xl font-bold">Therapist</h2>
             <p className="text-sm opacity-90">Assign homework & classwork, track progress, generate reports</p>
           </motion.button>
@@ -42,7 +45,9 @@ export default function RoleSelector() {
             onClick={() => navigate("/family")}
             className="touch-target rounded-2xl border border-white/40 bg-secondary/90 p-6 text-secondary-foreground shadow-[0_18px_50px_rgba(102,190,132,0.26)] backdrop-blur-md sm:p-8"
           >
-            <div className="mb-4 text-5xl">👪</div>
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/25 mx-auto">
+              <HeartHandshake size={28} strokeWidth={2} aria-hidden="true" />
+            </div>
             <h2 className="mb-2 font-display text-2xl font-bold">Family</h2>
             <p className="text-sm opacity-90">View homework, play games with your child at home</p>
           </motion.button>

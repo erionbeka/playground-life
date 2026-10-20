@@ -122,8 +122,53 @@ function Sparkle({
   );
 }
 
+function useNarrowViewport() {
+  const [narrow, setNarrow] = useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    return window.matchMedia("(max-width: 639px)").matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mql = window.matchMedia("(max-width: 639px)");
+    const onChange = () => setNarrow(mql.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  return narrow;
+}
+
+function StaticBackground({ scale = 1, float = false }: { scale?: number; float?: boolean }) {
+  return (
+    <div data-testid="blob-static" className="fixed inset-0 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.86),_transparent_52%),linear-gradient(180deg,_rgba(255,255,255,0.22),_rgba(255,255,255,0))]" />
+      <div className={`pointer-events-none absolute inset-0 ${float ? "blob-float-soft" : ""}`}>
+        {blobs.map((blob, index) => (
+          <div
+            key={index}
+            className="absolute"
+            style={{
+              left: blob.x,
+              top: blob.y,
+              width: blob.size * scale,
+              height: blob.size * scale,
+              background: blob.color,
+              borderRadius: "48% 52% 44% 56% / 54% 46% 58% 42%",
+              boxShadow: "inset 0 0 40px rgba(255,255,255,0.16), 0 0 50px rgba(255,255,255,0.08)",
+            }}
+          />
+        ))}
+      </div>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0,_transparent_58%,rgba(255,255,255,0.14)_100%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(rgba(255,255,255,0.9)_0.8px,transparent_0.8px)] [background-size:26px_26px]" />
+    </div>
+  );
+}
+
 export default function BlobBackground() {
   const reducedMotion = useReducedMotionMode();
+  const narrow = useNarrowViewport();
   const rawPointerX = useMotionValue(0);
   const rawPointerY = useMotionValue(0);
   const pointerX = useSpring(rawPointerX, { stiffness: 70, damping: 20, mass: 1.2 });
@@ -146,30 +191,11 @@ export default function BlobBackground() {
   }, []);
 
   if (reducedMotion) {
-    return (
-      <div data-testid="blob-static" className="fixed inset-0 overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.86),_transparent_52%),linear-gradient(180deg,_rgba(255,255,255,0.22),_rgba(255,255,255,0))]" />
-        <div className="pointer-events-none absolute inset-0">
-          {blobs.map((blob, index) => (
-            <div
-              key={index}
-              className="absolute"
-              style={{
-                left: blob.x,
-                top: blob.y,
-                width: blob.size * scale,
-                height: blob.size * scale,
-                background: blob.color,
-                borderRadius: "48% 52% 44% 56% / 54% 46% 58% 42%",
-                boxShadow: "inset 0 0 40px rgba(255,255,255,0.16), 0 0 50px rgba(255,255,255,0.08)",
-              }}
-            />
-          ))}
-        </div>
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0,_transparent_58%,rgba(255,255,255,0.14)_100%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-20 [background-image:radial-gradient(rgba(255,255,255,0.9)_0.8px,transparent_0.8px)] [background-size:26px_26px]" />
-      </div>
-    );
+    return <StaticBackground scale={scale} />;
+  }
+
+  if (narrow) {
+    return <StaticBackground scale={scale} float />;
   }
 
   return (

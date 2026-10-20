@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Heart, HeartHandshake, Hospital, Stethoscope } from "lucide-react";
+import { ChevronDown, Heart, HeartHandshake, Hospital, Stethoscope } from "lucide-react";
 import { useState } from "react";
 import BlobCritter from "@/components/home/BlobCritter";
 import type { CritterMood, CritterShape } from "@/components/home/BlobCritter";
@@ -68,6 +68,7 @@ const TEXTS: Record<Lang, Record<string, string>> = {
     pals: "Meet the play pals",
     palsSub: "The little blob friends who show up in every session",
     whoFor: "Who it's for",
+    faqTitle: "Frequently asked questions",
     contact: "Contact us for a demo",
     contactBody: "Want to see Playground Life in action before you commit? Book a demo of the product with our team.",
     emailLabel: "Demo requests & questions:",
@@ -105,6 +106,7 @@ const TEXTS: Record<Lang, Record<string, string>> = {
     pals: "Njihuni me shokët e lojës",
     palsSub: "Shokët e vogël blob që qenë në çdo seancë",
     whoFor: "Për kush është",
+    faqTitle: "Pyetje të shpeshta",
     contact: "Kontaktoni ne për demo",
     contactBody: "Doni ta shihni Playground Life në veprim para se të komituoni? Rezervoni një demo të produktit me ekipën tonë.",
     emailLabel: "Kërkesa demo & pyetje:",
@@ -127,6 +129,61 @@ const TEXTS: Record<Lang, Record<string, string>> = {
     footerCopy: "Luajmë Së Bashku, Rritemi Së Bashku · Lojë e udhëhequr me AAC",
     terms: "Termat e Përdorimit",
   },
+};
+
+const FAQ: Record<Lang, { q: string; a: string }[]> = {
+  en: [
+    {
+      q: "What is Playground Life?",
+      a: "A guided-play platform for children with communication and developmental support needs. Therapists assign games, children play them at home or in the clinic, and the results flow back to the care team.",
+    },
+    {
+      q: "Who is it for?",
+      a: "Children who use AAC or need structured play support, their therapists, and their families. There are three roles: therapist, family, and clinic admin.",
+    },
+    {
+      q: "Does it work at home and in the clinic?",
+      a: "Yes — that's the whole idea. A therapist assigns homework or classwork, the child plays at home on the family device, and the therapist reviews the results in their caseload.",
+    },
+    {
+      q: "Which devices does it support?",
+      a: "Any modern phone, tablet, or computer browser. There's also an Android app on Google Play, and phones and tablets can install the app to the home screen.",
+    },
+    {
+      q: "Is my child's data safe?",
+      a: "Accounts are role-based and managed by the clinic, every action is audited, and families only see their own child's activities. Contact us for details on how data is stored.",
+    },
+    {
+      q: "How do we get access?",
+      a: "Playground Life is rolling out with pilot clinics and families. Email bekaerion@gmail.com for a demo or any questions — or open the app and choose your role.",
+    },
+  ],
+  sq: [
+    {
+      q: "Çfarë është Playground Life?",
+      a: "Një platformë loje të udhëhequr për fëmijë me nevoja mbështetjeje në komunikim dhe zhvillim. Terapistët caktojnë lojëra, fëmijët i luajnë në shtëpi ose në klinikë, dhe rezultatet kthehen te ekipi i kujdesit.",
+    },
+    {
+      q: "Për kë është?",
+      a: "Për fëmijë që përdorin AAC ose kanë nevojë për lojë të strukturuar, për terapistët e tyre dhe për familjet. Ka tre role: terapist, familje dhe administrator klinike.",
+    },
+    {
+      q: "A funksionon si në shtëpi ashtu edhe në klinikë?",
+      a: "Po — pikërisht kjo është ideja. Terapisti cakton detyra shtëpie ose detyra klase, fëmija luan në shtëpi në pajisjen e familjes, dhe terapisti sheh rezultatet te lista e pacientëve.",
+    },
+    {
+      q: "Çfarë pajisjesh mbështet?",
+      a: "Çdo telefon, tablet ose kompjuter modern me shfletues. Ka gjithashtu një aplikacion Android në Google Play, dhe telefoni dhe tableti mund ta instalojnë aplikacionin në ekranin kryesor.",
+    },
+    {
+      q: "A është e sigurt të dhënat e fëmijës tim?",
+      a: "Llogaritë menaxhohen nga klinika sipas roleve, çdo veprim regjistrohet për auditim, dhe familjet shohin vetëm aktivitetet e fëmijës së tyre. Na kontaktoni për detaje se si ruhen të dhënat.",
+    },
+    {
+      q: "Si të marrim akses?",
+      a: "Playground Life po zgjerohet me klinika dhe familje pilot. Shkruani në bekaerion@gmail.com për një demo ose për çdo pyetje — ose hapni aplikacionin dhe zgjidhni rolin tuaj.",
+    },
+  ],
 };
 
 export default function HomePage() {
@@ -245,7 +302,7 @@ export default function HomePage() {
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="rounded-2xl border border-white/50 bg-card/85 p-4 text-center shadow-sm backdrop-blur-sm sm:p-5"
+            className="rounded-2xl border border-white/50 bg-card/92 sm:bg-card/85 p-4 text-center shadow-sm sm:backdrop-blur-sm sm:p-5"
           >
             <div className="font-display text-2xl font-extrabold text-primary sm:text-3xl">{stat.value}</div>
             <div className="mt-1 text-xs text-muted-foreground sm:text-sm">{stat.label}</div>
@@ -257,7 +314,7 @@ export default function HomePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, delay: 0.25, ease: EASE }}
-        className="mt-14 rounded-3xl border border-white/50 bg-card/85 p-6 shadow-sm backdrop-blur-sm sm:p-8"
+        className="mt-14 rounded-3xl border border-white/50 bg-card/92 sm:bg-card/85 p-6 shadow-sm sm:backdrop-blur-sm sm:p-8"
       >
         <h2 className="font-display text-2xl font-extrabold text-foreground sm:text-3xl">{t("whatWeDo")}</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
@@ -284,7 +341,7 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.35 + index * 0.08, ease: EASE }}
-              className="flex w-40 flex-col items-center rounded-2xl border border-white/50 bg-card/80 p-4 text-center shadow-sm backdrop-blur-sm sm:w-44"
+              className="flex w-40 flex-col items-center rounded-2xl border border-white/50 bg-card/90 sm:bg-card/80 p-4 text-center shadow-sm sm:backdrop-blur-sm sm:w-44"
             >
               <BlobCritter
                 shape={pal.shape}
@@ -319,7 +376,7 @@ export default function HomePage() {
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.45 + index * 0.08, ease: EASE }}
-              className="rounded-2xl border border-white/50 bg-card/85 p-5 shadow-sm backdrop-blur-sm sm:p-6"
+              className="rounded-2xl border border-white/50 bg-card/92 sm:bg-card/85 p-5 shadow-sm sm:backdrop-blur-sm sm:p-6"
             >
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/12 text-primary">
                 {(() => {
@@ -334,6 +391,41 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="mt-16" aria-labelledby="faq-heading">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.6, ease: EASE }}
+          className="text-center"
+        >
+          <h2 id="faq-heading" className="font-display text-2xl font-extrabold text-foreground sm:text-3xl">
+            {t("faqTitle")}
+          </h2>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.6, ease: EASE }}
+          className="mt-8 rounded-3xl border border-white/50 bg-card/92 p-2 shadow-sm sm:bg-card/85 sm:backdrop-blur-sm sm:p-3"
+        >
+          {FAQ[lang].map((item) => (
+            <details key={item.q} className="group border-b border-border/60 last:border-b-0">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-accent/10 sm:px-5 [&::-webkit-details-marker]:hidden">
+                {item.q}
+                <ChevronDown
+                  size={18}
+                  aria-hidden="true"
+                  className="shrink-0 text-muted-foreground transition-transform duration-300 group-open:rotate-180"
+                />
+              </summary>
+              <p className="px-4 pb-4 text-sm leading-relaxed text-muted-foreground sm:px-5">{item.a}</p>
+            </details>
+          ))}
+        </motion.div>
+      </section>
+
       <section className="mt-16" aria-labelledby="contact-heading">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -345,7 +437,7 @@ export default function HomePage() {
             {t("contact")}
           </h2>
         </motion.div>
-        <div className="mt-8 rounded-3xl border border-white/50 bg-card/85 p-6 shadow-sm backdrop-blur-sm sm:p-10 sm:flex sm:items-center sm:justify-between">
+        <div className="mt-8 rounded-3xl border border-white/50 bg-card/92 sm:bg-card/85 p-6 shadow-sm sm:backdrop-blur-sm sm:p-10 sm:flex sm:items-center sm:justify-between">
           <div className="text-center sm:text-left">
             <h3 className="font-display text-lg font-bold text-foreground sm:text-xl">{t("contactBody")}</h3>
             <p className="mt-2 text-sm text-muted-foreground sm:text-base">{t("emailLabel")}</p>
@@ -364,7 +456,7 @@ export default function HomePage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, delay: 0.55, ease: EASE }}
-        className="mt-14 rounded-3xl bg-primary/95 p-8 text-center shadow-[0_18px_50px_rgba(77,170,206,0.28)] backdrop-blur-sm sm:p-10"
+        className="mt-14 rounded-3xl bg-primary/95 p-8 text-center shadow-[0_18px_50px_rgba(77,170,206,0.28)] sm:backdrop-blur-sm sm:p-10"
       >
         <div className="mb-4 flex justify-center">
           <BlobCritter shape="frog" color="hsl(142 40% 58%)" blush="hsl(10 70% 75%)" size={90} phase={2.7} label="Green blob frog cheering you on" />
@@ -402,7 +494,7 @@ export default function HomePage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.55, delay: index * 0.06, ease: EASE }}
-              className="flex w-[calc(50%-0.625rem)] flex-col items-center rounded-2xl border border-white/50 bg-card/85 p-4 text-center shadow-sm backdrop-blur-sm sm:w-[calc(33.333%-0.833rem)] sm:p-5 lg:w-[calc(20%-1rem)]"
+              className="flex w-[calc(50%-0.625rem)] flex-col items-center rounded-2xl border border-white/50 bg-card/92 sm:bg-card/85 p-4 text-center shadow-sm sm:backdrop-blur-sm sm:w-[calc(33.333%-0.833rem)] sm:p-5 lg:w-[calc(20%-1rem)]"
             >
               <div className="relative">
                 <div

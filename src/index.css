@@ -92,3 +92,25 @@
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+@media (max-width: 639px) {
+  @keyframes blob-float-soft {
+    0%, 100% {
+      transform: translate3d(0, 0, 0);
+    }
+    50% {
+      transform: translate3d(0, -12px, 0);
+    }
+  }
+
+  .blob-float-soft {
+    animation: blob-float-soft 14s ease-in-out infinite;
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .blob-float-soft {
+      animation: none;
+    }
+  }
+}
