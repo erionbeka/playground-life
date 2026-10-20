@@ -43,11 +43,11 @@ const stats = [
 ];
 
 const team = [
-  { id: "erion", name: "Erion Beka", initials: "EB", color: "hsl(199 60% 45%)", roleKey: "teamRoleCeo", bioKey: "teamBioErion" },
-  { id: "ilirjana", name: "Ilirjana Gjetaj", initials: "IG", color: "hsl(142 40% 40%)", roleKey: "teamRoleCofounder", bioKey: "teamBioIlirjana" },
-  { id: "loris", name: "Loris Canolli", initials: "LC", color: "hsl(260 45% 52%)", roleKey: "teamRoleCofounder", bioKey: "teamBioLoris" },
-  { id: "saimir", name: "Saimir Balaj", initials: "SB", color: "hsl(15 75% 52%)", roleKey: "teamRoleCofounder", bioKey: "teamBioSaimir" },
-  { id: "altin", name: "Altin Millaku", initials: "AM", color: "hsl(35 80% 45%)", roleKey: "teamRoleCofounder", bioKey: "teamBioAltin" },
+  { id: "erion", name: "Erion Beka", initials: "EB", color: "hsl(199 60% 45%)", bioKey: "teamBioErion" },
+  { id: "ilirjana", name: "Ilirjana Gjetaj", initials: "IG", color: "hsl(142 40% 40%)", roleKey: "teamRoleBusinessLead", bioKey: "teamBioIlirjana" },
+  { id: "loris", name: "Loris Canolli", initials: "LC", color: "hsl(260 45% 52%)", bioKey: "teamBioLoris" },
+  { id: "saimir", name: "Saimir Balaj", initials: "SB", color: "hsl(15 75% 52%)", bioKey: "teamBioSaimir" },
+  { id: "altin", name: "Altin Millaku", initials: "AM", color: "hsl(35 80% 45%)", bioKey: "teamBioAltin" },
 ];
 
 type Lang = "en" | "sq";
@@ -56,8 +56,6 @@ const TEXTS: Record<Lang, Record<string, string>> = {
   en: {
     brand: "Playground Life",
     openApp: "Open the app",
-    like: "Like",
-    liked: "Liked",
     contactBtn: "Contact",
     about: "About us",
     heroHeadline: "Play Together, Grow Together",
@@ -77,25 +75,23 @@ const TEXTS: Record<Lang, Record<string, string>> = {
     readyBody: "Open the app to choose your role — therapist, family, or clinic admin.",
     aboutUs: "About us",
     teamRoleCeo: "CEO & Co-founder",
-    teamRoleCofounder: "Co-founder",
+    teamRoleBusinessLead: "Co-founder & Business Lead",
     teamBioErion:
       "Erion leads Playground Life from Prishtina, Kosovo. He works in IT and security, and has been building the platform evenings and weekends since April 2025.",
     teamBioIlirjana:
-      "Co-founder. Ilirjana was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025, and helps shape how the product works for families.",
+      "Ilirjana was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025, and leads how the product works for families and clinics.",
     teamBioLoris:
-      "Co-founder. Loris was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
+      "Loris was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
     teamBioSaimir:
-      "Co-founder. Saimir was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
+      "Saimir was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
     teamBioAltin:
-      "Co-founder. Altin was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
+      "Altin was part of the original team that started Playground Life at the pristina.innovate.healthcare hackathon in April 2025.",
     footerCopy: "Play Together, Grow Together · AAC-enabled guided play",
     terms: "Terms & Conditions",
   },
   sq: {
     brand: "Playground Life",
     openApp: "Hap aplikacionin",
-    like: "Do",
-    liked: "E duar",
     contactBtn: "Kontakt",
     about: "Rreth nesh",
     heroHeadline: "Luajmë Së Bashku, Rritemi Së Bashku",
@@ -115,17 +111,17 @@ const TEXTS: Record<Lang, Record<string, string>> = {
     readyBody: "Hap aplikacionin për të zgjeruar rolin — terapist, familje, ose admin i klinikës.",
     aboutUs: "Rreth nesh",
     teamRoleCeo: "CEO & Co-fondues",
-    teamRoleCofounder: "Co-fondues",
+    teamRoleBusinessLead: "Co-fondues & Drejtuesja e Biznesit",
     teamBioErion:
       "Erion e drejton Playground Life nga Prishtina, Kosova. Ai punon në IT dhe siguri, dhe ndërton platformën mbrëmjeve dhe fundjavave që nga prilli 2025.",
     teamBioIlirjana:
-      "Co-fondues. Ilirjana ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025, dhe ndihmon në formësimin e produktit për familjet.",
+      "Ilirjana ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025, dhe drejton se si produkti funksionon për familjet dhe klinikat.",
     teamBioLoris:
-      "Co-fondues. Loris ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
+      "Loris ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
     teamBioSaimir:
-      "Co-fondues. Saimir ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
+      "Saimir ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
     teamBioAltin:
-      "Co-fondues. Altin ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
+      "Altin ishte pjesë e ekipit që themeloi Playground Life në hackathon-in pristina.innovate.healthcare në prill 2025.",
     footerCopy: "Luajmë Së Bashku, Rritemi Së Bashku · Lojë e udhëhequr me AAC",
     terms: "Termat e Përdorimit",
   },
@@ -189,27 +185,8 @@ const FAQ: Record<Lang, { q: string; a: string }[]> = {
 export default function HomePage() {
   const navigate = useNavigate();
   const [lang, setLang] = useState<Lang>("en");
-  const [likes, setLikes] = useState(() => {
-    try { return Number(localStorage.getItem("pl_likes") || "0"); } catch { return 0; }
-  });
-  const [liked, setLiked] = useState(() => {
-    try { return localStorage.getItem("pl_liked") === "1"; } catch { return false; }
-  });
 
   const t = (key: string) => TEXTS[lang][key] || key;
-
-  const toggleLike = () => {
-    setLiked((l) => {
-      const next = !l;
-      try { localStorage.setItem("pl_liked", next ? "1" : "0"); } catch { /* storage unavailable */ }
-      setLikes((c) => {
-        const nextC = next ? c + 1 : Math.max(0, c - 1);
-        try { localStorage.setItem("pl_likes", String(nextC)); } catch { /* storage unavailable */ }
-        return nextC;
-      });
-      return next;
-    });
-  };
 
   return (
     <div className="relative z-10 mx-auto min-h-screen max-w-5xl px-4 pb-12 pt-8 sm:px-6">
@@ -230,15 +207,6 @@ export default function HomePage() {
             className="touch-target inline-flex items-center justify-center rounded-full border border-border px-3 py-1 text-xs font-bold capitalize transition hover:bg-accent"
           >
             {lang === "en" ? "SQ" : "EN"}
-          </button>
-          <button
-            onClick={() => toggleLike()}
-            aria-pressed={liked}
-            className={`touch-target inline-flex items-center justify-center rounded-full border px-3 py-1.5 text-xs font-bold transition ${liked ? "bg-accent text-accent-foreground border-accent" : "border-border text-muted-foreground hover:bg-accent/10"}`}
-            title={liked ? t("liked") : t("like")}
-          >
-            <Heart size={13} className={liked ? "text-accent-foreground" : "text-muted-foreground"} />
-            <span className="pl-1">{likes}</span>
           </button>
           <a
             href={`mailto:${t("email")}`}
@@ -391,41 +359,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mt-16" aria-labelledby="faq-heading">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.6, ease: EASE }}
-          className="text-center"
-        >
-          <h2 id="faq-heading" className="font-display text-2xl font-extrabold text-foreground sm:text-3xl">
-            {t("faqTitle")}
-          </h2>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-40px" }}
-          transition={{ duration: 0.6, ease: EASE }}
-          className="mt-8 rounded-3xl border border-white/50 bg-card/92 p-2 shadow-sm sm:bg-card/85 sm:backdrop-blur-sm sm:p-3"
-        >
-          {FAQ[lang].map((item) => (
-            <details key={item.q} className="group border-b border-border/60 last:border-b-0">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-accent/10 sm:px-5 [&::-webkit-details-marker]:hidden">
-                {item.q}
-                <ChevronDown
-                  size={18}
-                  aria-hidden="true"
-                  className="shrink-0 text-muted-foreground transition-transform duration-300 group-open:rotate-180"
-                />
-              </summary>
-              <p className="px-4 pb-4 text-sm leading-relaxed text-muted-foreground sm:px-5">{item.a}</p>
-            </details>
-          ))}
-        </motion.div>
-      </section>
-
       <section className="mt-16" aria-labelledby="contact-heading">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -475,6 +408,41 @@ export default function HomePage() {
         </button>
       </motion.section>
 
+      <section className="mt-16" aria-labelledby="faq-heading">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.6, ease: EASE }}
+          className="text-center"
+        >
+          <h2 id="faq-heading" className="font-display text-2xl font-extrabold text-foreground sm:text-3xl">
+            {t("faqTitle")}
+          </h2>
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-40px" }}
+          transition={{ duration: 0.6, ease: EASE }}
+          className="mt-8 rounded-3xl border border-white/50 bg-card/92 p-2 shadow-sm sm:bg-card/85 sm:backdrop-blur-sm sm:p-3"
+        >
+          {FAQ[lang].map((item) => (
+            <details key={item.q} className="group border-b border-border/60 last:border-b-0">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-4 py-4 text-sm font-semibold text-foreground transition hover:bg-accent/10 sm:px-5 [&::-webkit-details-marker]:hidden">
+                {item.q}
+                <ChevronDown
+                  size={18}
+                  aria-hidden="true"
+                  className="shrink-0 text-muted-foreground transition-transform duration-300 group-open:rotate-180"
+                />
+              </summary>
+              <p className="px-4 pb-4 text-sm leading-relaxed text-muted-foreground sm:px-5">{item.a}</p>
+            </details>
+          ))}
+        </motion.div>
+      </section>
+
       <section className="mt-16" id="about-us" aria-labelledby="about-heading">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
@@ -512,9 +480,11 @@ export default function HomePage() {
                 </div>
               </div>
               <h3 className="mt-4 font-display text-sm font-bold text-foreground sm:text-base">{member.name}</h3>
-              <p className="mt-0.5 text-[0.7rem] font-bold uppercase tracking-wide text-primary sm:text-xs">
-                {t(member.roleKey)}
-              </p>
+              {member.roleKey ? (
+                <p className="mt-0.5 text-[0.7rem] font-bold uppercase tracking-wide text-primary sm:text-xs">
+                  {t(member.roleKey)}
+                </p>
+              ) : null}
               <p className="mt-2 text-xs leading-snug text-muted-foreground">{t(member.bioKey)}</p>
             </motion.div>
           ))}

@@ -29,7 +29,7 @@ export default function RoleSelector() {
             onClick={() => navigate("/therapist")}
             className="touch-target rounded-2xl border border-white/40 bg-primary/90 p-6 text-primary-foreground shadow-[0_18px_50px_rgba(77,170,206,0.28)] backdrop-blur-md sm:p-8"
           >
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 mx-auto">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-primary shadow-sm ring-1 ring-white/60">
               <Stethoscope size={28} strokeWidth={2} aria-hidden="true" />
             </div>
             <h2 className="mb-2 font-display text-2xl font-bold">Therapist</h2>
@@ -45,7 +45,7 @@ export default function RoleSelector() {
             onClick={() => navigate("/family")}
             className="touch-target rounded-2xl border border-white/40 bg-secondary/90 p-6 text-secondary-foreground shadow-[0_18px_50px_rgba(102,190,132,0.26)] backdrop-blur-md sm:p-8"
           >
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/25 mx-auto">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-secondary shadow-sm ring-1 ring-white/60">
               <HeartHandshake size={28} strokeWidth={2} aria-hidden="true" />
             </div>
             <h2 className="mb-2 font-display text-2xl font-bold">Family</h2>

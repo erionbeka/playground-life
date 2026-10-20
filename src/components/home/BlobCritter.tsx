@@ -562,14 +562,26 @@ export default function BlobCritter({
       const rect = el.getBoundingClientRect();
       const cx = rect.left + rect.width / 2;
       const cy = rect.top + rect.height / 2 + size * 0.1;
-      const dx = pendingX - cx;
-      const dy = pendingY - cy;
+      let dx = pendingX - cx;
+      let dy = pendingY - cy;
+
+      // On a narrow screen the whole viewport is closer to the blob than the
+      // engagement radius, so pull the tracked point onto an ellipse that
+      // always reaches the blob's limit. The blob then reacts to finger
+      // position across the full width instead of sitting at full stretch.
+      const maxReach = Math.min(window.innerWidth, window.innerHeight) * 0.34;
       const d = Math.hypot(dx, dy);
+      if (d > maxReach && d > 0) {
+        const clamp = maxReach / d;
+        dx *= clamp;
+        dy *= clamp;
+      }
+      const clamped = Math.hypot(dx, dy);
 
       const engage = size * 2.0;
       const release = size * 2.6;
-      if (!nearRef.current && d < engage) nearRef.current = true;
-      else if (nearRef.current && d > release) nearRef.current = false;
+      if (!nearRef.current && clamped < engage) nearRef.current = true;
+      else if (nearRef.current && clamped > release) nearRef.current = false;
 
       if (nearRef.current) {
         rawX.set(dx);
@@ -581,7 +593,7 @@ export default function BlobCritter({
 
       const hoverIn = size * 0.55;
       const hoverOut = size * 0.72;
-      const isHover = hoverRef.current ? d < hoverOut : d < hoverIn;
+      const isHover = hoverRef.current ? clamped < hoverOut : clamped < hoverIn;
       if (isHover !== hoverRef.current) {
         hoverRef.current = isHover;
         setHover(isHover);
