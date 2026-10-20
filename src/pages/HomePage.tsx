@@ -43,7 +43,7 @@ const stats = [
 ];
 
 const team = [
-  { id: "erion", name: "Erion Beka", initials: "EB", color: "hsl(199 60% 45%)", bioKey: "teamBioErion" },
+  { id: "erion", name: "Erion Beka", initials: "EB", color: "hsl(199 60% 45%)", roleKey: "teamRoleCeo", bioKey: "teamBioErion" },
   { id: "ilirjana", name: "Ilirjana Gjetaj", initials: "IG", color: "hsl(142 40% 40%)", roleKey: "teamRoleBusinessLead", bioKey: "teamBioIlirjana" },
   { id: "loris", name: "Loris Canolli", initials: "LC", color: "hsl(260 45% 52%)", bioKey: "teamBioLoris" },
   { id: "saimir", name: "Saimir Balaj", initials: "SB", color: "hsl(15 75% 52%)", bioKey: "teamBioSaimir" },
