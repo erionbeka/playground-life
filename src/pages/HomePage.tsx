@@ -198,10 +198,10 @@ export default function HomePage() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, ease: EASE }}
-        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3"
+        className="flex flex-col items-center gap-y-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4"
       >
         <span className="font-display text-lg font-extrabold text-foreground">Playground Life</span>
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end sm:gap-3">
           <button
             onClick={() => setLang(lang === "en" ? "sq" : "en")}
             className="touch-target inline-flex items-center justify-center rounded-full border border-border px-3 py-1 text-xs font-bold capitalize transition hover:bg-accent"
@@ -378,7 +378,7 @@ export default function HomePage() {
           </div>
           <button
             onClick={() => navigate("/enter")}
-            className="mt-6 sm:mt-0 rounded-2xl bg-primary px-7 py-3 text-base font-bold text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
+            className="mt-6 hidden sm:mt-0 sm:block rounded-2xl bg-primary px-7 py-3 text-base font-bold text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
           >
             {t("openApp")}
           </button>
