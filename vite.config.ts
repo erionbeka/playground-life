@@ -30,19 +30,13 @@ const spaFallback = () => ({
 
 // React picks its dev/prod runtime, and Vite picks esbuild's jsxDEV vs jsx, from
 // process.env.NODE_ENV at startup. This repo keeps NODE_ENV=development in .env
-// for the API server, and Vite loads that file before any config runs, so a
-// production build used to emit `jsxDEV` calls against the production React
-// runtime (crashing on load) and ship the React development runtime. Vite reads
-// NODE_ENV as it starts, so it must be corrected in the npm script, not here.
-// See the "build" script. This guard fails loudly if that ever regresses.
-const isProd = process.env.VITE_BUILD_MODE !== "development";
-
-if (isProd && process.env.NODE_ENV !== "production") {
-  throw new Error(
-    "NODE_ENV must be 'production' for a production build (it is set from .env). "
-      + "Run `npm run build`, which pins it, or set NODE_ENV=production explicitly.",
-  );
-}
+// for the API server. Vite does not populate process.env from the env file
+// while it evaluates this file, so the guard below reads NODE_ENV out of the
+// env file with `loadEnv` instead. A production build used to emit `jsxDEV`
+// calls against the production React runtime (crashing on load) and ship the
+// React development runtime. Vite reads NODE_ENV as it starts, so it must be
+// corrected in the npm script, not here. See the "build" script. This guard
+// fails loudly if that ever regresses.
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -53,6 +47,23 @@ export default defineConfig(({ mode }) => {
   // An empty prefix loads every variable, not only the `VITE_`-prefixed ones,
   // which matches how this repo configures everything else.
   const env = loadEnv(mode, process.cwd(), "");
+
+  // A real shell variable wins over the env file. `npm run build` pins
+  // NODE_ENV=production in the shell; `npm run dev` relies on `.env`.
+  const nodeEnv = process.env.NODE_ENV || env.NODE_ENV;
+  const buildMode = process.env.VITE_BUILD_MODE || env.VITE_BUILD_MODE;
+
+  // React picks its dev/prod runtime from NODE_ENV, and Vite picks esbuild's
+  // jsxDEV vs jsx from the same value, so a production build that compiles
+  // against the dev runtime crashes on load. The dev server never needs this
+  // guard. VITE_BUILD_MODE=development opts out for a production-mode build
+  // that should still use the development runtime.
+  if (production && buildMode !== "development" && nodeEnv !== "production") {
+    throw new Error(
+      "NODE_ENV must be 'production' for a production build (it is set from .env). "
+        + "Run `npm run build`, which pins it, or set NODE_ENV=production explicitly.",
+    );
+  }
 
   return {
     define: {
