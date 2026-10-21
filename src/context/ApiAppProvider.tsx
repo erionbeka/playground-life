@@ -273,10 +273,19 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
 
     setSession({ role: user.role, userId: user.id, displayName: user.name });
     setRole(user.role);
-    await refreshClinicData();
-    await refreshAudit();
-    await refreshStaff();
-    await loadCustomGames();
+
+    // The credential was accepted. A refresh that fails afterwards is a
+    // separate problem - the API status banner reports an unreachable server,
+    // and it must not turn a successful sign-in into a failed one.
+    try {
+      await refreshClinicData();
+      await refreshAudit();
+      await refreshStaff();
+      await loadCustomGames();
+    } catch {
+      // Reported by the API status banner.
+    }
+
     return true;
   }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
@@ -291,10 +300,23 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       throw error;
     }
 
-    if (user.role !== "parent") return null;
-    const familySession = await productionApi.getFamilySession();
-    const mappedChildren = familySession.children.map((entry) => mapChild(entry as Record<string, unknown>));
-    const mappedAssignments = familySession.assignments.map((entry) => mapAssignment(entry as Record<string, unknown>));
+    if (user.role !== "parent") {
+      await productionApi.logout().catch(() => undefined);
+      return null;
+    }
+
+    // The credential was accepted. A failed session fetch leaves an empty
+    // caseload rather than a failed sign-in.
+    let mappedChildren: Child[] = [];
+    let mappedAssignments: HomeworkAssignment[] = [];
+    try {
+      const familySession = await productionApi.getFamilySession();
+      mappedChildren = familySession.children.map((entry) => mapChild(entry as Record<string, unknown>));
+      mappedAssignments = familySession.assignments.map((entry) => mapAssignment(entry as Record<string, unknown>));
+    } catch {
+      // Reported by the API status banner.
+    }
+
     setChildren(mappedChildren);
     setAssignments(mappedAssignments);
     setSession({ role: user.role, userId: user.id, displayName: user.name, childId: mappedChildren[0]?.id, familyMemberId: user.id });

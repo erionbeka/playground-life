@@ -41,8 +41,28 @@ function SignInProbe() {
   return <span data-testid="status">{status}</span>;
 }
 
+function FamilySignInProbe() {
+  const { signInFamily } = useApp();
+  const [status, setStatus] = useState("idle");
+  const started = useRef(false);
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    (signInFamily("555-0101", "pass") as Promise<{ childId: string; familyMemberId: string } | null>)
+      .then((match) => setStatus(match ? "signed-in" : "signed-in-null"))
+      .catch((error) => setStatus(error instanceof ApiError ? `threw:${error.code}` : "threw:other"));
+  }, [signInFamily]);
+
+  return <span data-testid="family-status">{status}</span>;
+}
+
 function readStatus() {
   return document.querySelector('[data-testid="status"]')?.textContent ?? "";
+}
+
+function readFamilyStatus() {
+  return document.querySelector('[data-testid="family-status"]')?.textContent ?? "";
 }
 
 describe("sign-in error contract", () => {
@@ -56,6 +76,7 @@ describe("sign-in error contract", () => {
     vi.mocked(productionApi.listGoals).mockResolvedValue({ goals: [] } as never);
     vi.mocked(productionApi.listStaff).mockResolvedValue({ staff: [] } as never);
     vi.mocked(productionApi.listCustomGames).mockResolvedValue({ games: [] } as never);
+    vi.mocked(productionApi.logout).mockResolvedValue(undefined);
   });
 
   it("returns false for rejected credentials", async () => {
@@ -84,5 +105,37 @@ describe("sign-in error contract", () => {
     );
 
     await waitFor(() => expect(readStatus()).toBe("threw:network"));
+  });
+
+  it("keeps the sign-in successful when a refresh fails afterwards", async () => {
+    vi.mocked(productionApi.login).mockResolvedValue({
+      user: { role: "therapist", id: "therapist-1", name: "Dr. Maya Lane" },
+    } as never);
+    vi.mocked(productionApi.listChildren).mockRejectedValue(
+      new ApiError("Can't reach the clinic server.", { status: null, code: "network" })
+    );
+
+    render(
+      <ApiAppProvider>
+        <SignInProbe />
+      </ApiAppProvider>
+    );
+
+    await waitFor(() => expect(readStatus()).toBe("signed-in"));
+  });
+
+  it("logs out when a staff account signs in on the family form", async () => {
+    vi.mocked(productionApi.login).mockResolvedValue({
+      user: { role: "therapist", id: "therapist-1", name: "Dr. Maya Lane" },
+    } as never);
+
+    render(
+      <ApiAppProvider>
+        <FamilySignInProbe />
+      </ApiAppProvider>
+    );
+
+    await waitFor(() => expect(readFamilyStatus()).toBe("signed-in-null"));
+    expect(productionApi.logout).toHaveBeenCalled();
   });
 });
