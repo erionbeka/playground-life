@@ -13,5 +13,13 @@ const configSchema = z.object({
   COOKIE_SECURE: z.coerce.boolean().default(false),
 });
 
-export const config = configSchema.parse(process.env);
+const parsed = configSchema.parse(process.env);
+
+export const config = {
+  ...parsed,
+  /** Every origin allowed to call the API with credentials. */
+  CORS_ORIGINS: parsed.CORS_ORIGIN.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+};
 export const isProduction = config.NODE_ENV === "production";

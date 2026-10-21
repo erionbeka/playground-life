@@ -24,7 +24,7 @@ export function createApp() {
 
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(cors({ origin: config.CORS_ORIGIN, credentials: true }));
+  app.use(cors({ origin: config.CORS_ORIGINS, credentials: true }));
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
   app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: true, legacyHeaders: false }));
@@ -55,6 +55,25 @@ export function createApp() {
 }
 
 if (process.env.NODE_ENV !== "test") {
+  const { query } = await import("./db.ts");
+
+  try {
+    await query("SELECT 1");
+    console.log(`Playground Life API listening on port ${config.PORT} (database connected)`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("=".repeat(72));
+    console.error("Playground Life API cannot reach the database.");
+    console.error(`  DATABASE_URL: ${config.DATABASE_URL}`);
+    console.error(`  Error:        ${message}`);
+    console.error("");
+    console.error("Fix one of these:");
+    console.error("  - start the database:  docker compose up -d postgres");
+    console.error("  - apply migrations:    npm run db:migrate");
+    console.error("  - check DATABASE_URL and POSTGRES_PORT agree in .env");
+    console.error("=".repeat(72));
+  }
+
   createApp().listen(config.PORT, () => {
     console.log(`Playground Life API listening on port ${config.PORT}`);
   });
