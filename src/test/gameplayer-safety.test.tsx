@@ -1,9 +1,16 @@
 import { fireEvent, render, screen, act, cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AppProvider, HomeworkAssignment } from "@/context/AppContext";
+import { ApiAppProvider } from "@/context/ApiAppProvider";
+import type { HomeworkAssignment } from "@/context/AppContext";
 import { allGames } from "@/data/games";
 import GamePlayer from "@/components/game/GamePlayer";
-import { getRecentChildEvents } from "@/lib/sessionEvents";
+import { fakeApi, resetFakeApi } from "@/test/support/fakeApi";
+
+vi.mock("@/lib/productionApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/productionApi")>("@/lib/productionApi");
+  const { fakeApi } = await import("@/test/support/fakeApi");
+  return { ...actual, productionApi: fakeApi };
+});
 
 function findMagicGame() {
   const game = allGames.find((entry) => entry.engine === "magic-toys");
@@ -49,7 +56,7 @@ async function finishMagicGame() {
 describe("game player safety", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    window.localStorage.clear();
+    resetFakeApi();
   });
 
   afterEach(() => {
@@ -62,9 +69,9 @@ describe("game player safety", () => {
     const game = findMagicGame();
     const onComplete = vi.fn();
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={game.id} assignment={assignmentFor(game.id)} onComplete={onComplete} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     fireEvent.click(screen.getByText("Start"));
@@ -86,9 +93,9 @@ describe("game player safety", () => {
     const game = findMagicGame();
     const onComplete = vi.fn();
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={game.id} assignment={assignmentFor(game.id)} onComplete={onComplete} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     fireEvent.click(screen.getByText("Start"));
@@ -109,31 +116,31 @@ describe("game player safety", () => {
     fireEvent.click(screen.getByText("Exit"));
     fireEvent.click(screen.getByText("Leave now"));
     expect(onComplete).toHaveBeenCalledTimes(1);
-    expect(getRecentChildEvents("child-1", "quit_mid_game").length).toBe(1);
+    expect(fakeApi.listChildEvents("child-1", "quit_mid_game").length).toBe(1);
   });
 
   it("starting the game without interacting does not log a quit_mid_game event", () => {
     const game = findMagicGame();
     const onComplete = vi.fn();
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={game.id} assignment={assignmentFor(game.id)} onComplete={onComplete} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     fireEvent.click(screen.getByText("Start"));
     fireEvent.click(screen.getByText("Exit"));
     expect(onComplete).toHaveBeenCalledTimes(1);
-    expect(getRecentChildEvents("child-1", "quit_mid_game").length).toBe(0);
+    expect(fakeApi.listChildEvents("child-1", "quit_mid_game").length).toBe(0);
   });
 
   it("breathing break overlay opens and resumes play without quitting", async () => {
     const game = findMagicGame();
     const onComplete = vi.fn();
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={game.id} assignment={assignmentFor(game.id)} onComplete={onComplete} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     fireEvent.click(screen.getByText("Start"));
@@ -144,7 +151,7 @@ describe("game player safety", () => {
     fireEvent.click(screen.getByText("I'm ready to go back"));
     await advance(200);
     expect(onComplete).not.toHaveBeenCalled();
-    expect(getRecentChildEvents("child-1", "breathing_break").length).toBe(1);
+    expect(fakeApi.listChildEvents("child-1", "breathing_break").length).toBe(1);
 
     fireEvent.click(screen.getAllByRole("button", { name: /magic toy \d+/ })[0]);
     expect(screen.getByText(/Found 1 of \d+/)).toBeInTheDocument();
@@ -155,17 +162,17 @@ describe("game player safety", () => {
     const game = findMagicGame();
     const onComplete = vi.fn();
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={game.id} assignment={assignmentFor(game.id)} onComplete={onComplete} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     fireEvent.click(screen.getByText("Start"));
     await finishMagicGame();
-    expect(getRecentChildEvents("child-1", "celebration_closed").length).toBe(0);
+    expect(fakeApi.listChildEvents("child-1", "celebration_closed").length).toBe(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(onComplete).toHaveBeenCalledTimes(1);
-    expect(getRecentChildEvents("child-1", "celebration_closed").length).toBe(1);
+    expect(fakeApi.listChildEvents("child-1", "celebration_closed").length).toBe(1);
   });
 });

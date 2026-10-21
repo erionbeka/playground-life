@@ -1,5 +1,6 @@
 import type { AdminUser, AuditEntry, AuthSession, Child, FamilyMember, GameResult, HomeworkAssignment, TherapistUser, TherapyGoal } from "@/context/AppContext";
 import { mergeSkillProfiles } from "@/lib/skills";
+import type { PublishedGame } from "@/lib/gameAuthoring";
 
 type ProductionApi = typeof import("@/lib/productionApi").productionApi;
 
@@ -21,6 +22,7 @@ export interface FakeState {
   familyLinks: Array<FamilyMember & { childId: string }>;
   rewards: Record<string, { stars: number; stickers: string[]; plays: number }>;
   childEvents: FakeChildEvent[];
+  publishedGames: PublishedGame[];
 }
 
 /**
@@ -254,6 +256,7 @@ function createState(): FakeState {
     familyLinks: [{ ...FAMILY }],
     rewards: {},
     childEvents: [],
+    publishedGames: [],
   };
 }
 
@@ -520,7 +523,7 @@ function createFakeApi(): FakeApi {
       return buildFamilySession();
     },
     async listCustomGames() {
-      return { games: [] };
+      return { games: state.publishedGames };
     },
     async listGameDrafts() {
       return { drafts: [] };

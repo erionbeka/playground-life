@@ -1,15 +1,26 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GamePlayer from "@/components/game/GamePlayer";
-import { AppProvider, HomeworkAssignment } from "@/context/AppContext";
-import { defaultChildren } from "@/context/AppContext";
+import { ApiAppProvider } from "@/context/ApiAppProvider";
+import type { HomeworkAssignment } from "@/context/AppContext";
 import { getGameById } from "@/data/games";
+import { fakeApi, resetFakeApi, seedFakeApi } from "@/test/support/fakeApi";
 
-function makeAssignment(gameId: string): HomeworkAssignment {
+vi.mock("@/lib/productionApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/productionApi")>("@/lib/productionApi");
+  const { fakeApi } = await import("@/test/support/fakeApi");
+  return { ...actual, productionApi: fakeApi };
+});
+
+async function makeAssignment(gameId: string): Promise<HomeworkAssignment> {
+  // The clinic now lives behind the API, so the fixture comes from the same
+  // seed the fake serves instead of a hardcoded snapshot in the app.
+  const { children } = await fakeApi.listChildren();
+  const childId = String((children[0] as { id?: string } | undefined)?.id ?? "child-1");
   const game = getGameById(gameId);
-  return {
+  const assignment: HomeworkAssignment = {
     id: "plan-hw-1",
-    childId: "child-1",
+    childId,
     type: "homework",
     gameIds: [gameId],
     difficulty: "easy",
@@ -38,13 +49,19 @@ function makeAssignment(gameId: string): HomeworkAssignment {
       successMarkers: ["Engages with activity", "Communicates choices"],
     },
   };
+
+  seedFakeApi({ assignments: [assignment] });
+
+  return assignment;
 }
 
-function renderGamePlayer(gameId = "game-195") {
+async function renderGamePlayer(gameId = "game-195") {
+  const assignment = await makeAssignment(gameId);
+
   return render(
-    <AppProvider initialChildren={defaultChildren} initialAssignments={[makeAssignment(gameId)]}>
-      <GamePlayer gameId={gameId} assignment={makeAssignment(gameId)} onComplete={vi.fn()} />
-    </AppProvider>
+    <ApiAppProvider>
+      <GamePlayer gameId={gameId} assignment={assignment} onComplete={vi.fn()} />
+    </ApiAppProvider>
   );
 }
 
@@ -57,6 +74,7 @@ async function advance(ms: number) {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.spyOn(Math, "random").mockReturnValue(0);
+  resetFakeApi();
 });
 
 afterEach(() => {
@@ -66,8 +84,8 @@ afterEach(() => {
 });
 
 describe("session plan before launch", () => {
-  it("renders a 'Your plan' card with required information on start screen", () => {
-    renderGamePlayer();
+  it("renders a 'Your plan' card with required information on start screen", async () => {
+    await renderGamePlayer();
 
     // Start screen should be visible (not started)
     expect(screen.getByText("Start")).toBeTruthy();
@@ -91,10 +109,11 @@ describe("session plan before launch", () => {
     const onComplete = vi.fn();
     const onExit = vi.fn();
     const gameId = "game-195";
+    const assignment = await makeAssignment(gameId);
     render(
-      <AppProvider initialChildren={defaultChildren} initialAssignments={[makeAssignment(gameId)]}>
-        <GamePlayer gameId={gameId} assignment={makeAssignment(gameId)} onComplete={onComplete} onExit={onExit} />
-      </AppProvider>
+      <ApiAppProvider>
+        <GamePlayer gameId={gameId} assignment={assignment} onComplete={onComplete} onExit={onExit} />
+      </ApiAppProvider>
     );
 
     expect(screen.getByText("Start")).toBeTruthy();
@@ -112,10 +131,11 @@ describe("session plan before launch", () => {
   it("start button begins the game session", async () => {
     const onComplete = vi.fn();
     const gameId = "game-195";
+    const assignment = await makeAssignment(gameId);
     render(
-      <AppProvider initialChildren={defaultChildren} initialAssignments={[makeAssignment(gameId)]}>
-        <GamePlayer gameId={gameId} assignment={makeAssignment(gameId)} onComplete={onComplete} />
-      </AppProvider>
+      <ApiAppProvider>
+        <GamePlayer gameId={gameId} assignment={assignment} onComplete={onComplete} />
+      </ApiAppProvider>
     );
 
     fireEvent.click(screen.getByText("Start"));

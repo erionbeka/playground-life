@@ -1,7 +1,5 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AppContext, AppState, AuditEntry, Child, FamilyMember, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal } from "@/context/AppContext";
-import { AuthSession } from "@/lib/auth";
-import { AdminUser, TherapistUser } from "@/lib/backend";
+import { AppContext, AppState, AuditEntry, AuthSession, Child, FamilyMember, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal, AdminUser, TherapistUser } from "@/context/AppContext";
 import { productionApi } from "@/lib/productionApi";
 import { registerPublishedGames, clearCustomGames, initCustomCatalog } from "@/lib/customCatalog";
 import { PublishedGame } from "@/lib/gameAuthoring";

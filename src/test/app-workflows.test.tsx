@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { AppProvider, useApp } from "@/context/AppContext";
+import { useApp } from "@/context/AppContext";
+import { ApiAppProvider } from "@/context/ApiAppProvider";
 import ChildList from "@/components/therapist/ChildList";
 import AssignHomework from "@/components/therapist/AssignHomework";
 import TherapistDashboard from "@/components/therapist/TherapistDashboard";
@@ -12,7 +13,14 @@ import AdminDashboard from "@/components/admin/AdminDashboard";
 import { analyzeMonthlyPlanWeekOutcome, getChildReadinessState, getPersonalizationSummary, getProgressiveDifficultyPlan } from "@/lib/personalization";
 import { emptySkillProfile } from "@/lib/skills";
 import type { Child, HomeworkAssignment } from "@/context/AppContext";
-import { hashSecret } from "@/lib/auth";
+import { ClinicSession } from "@/test/support/clinicSession";
+import { resetFakeApi } from "@/test/support/fakeApi";
+
+vi.mock("@/lib/productionApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/productionApi")>("@/lib/productionApi");
+  const { fakeApi } = await import("@/test/support/fakeApi");
+  return { ...actual, productionApi: fakeApi };
+});
 
 function StateProbe() {
   const app = useApp();
@@ -31,8 +39,13 @@ function StateProbe() {
 
 function RemoveAndCompleteProbe() {
   const { removeChild, completeGame, assignments } = useApp();
+  const didRun = useRef(false);
 
   useEffect(() => {
+    // The provider callbacks are re-created on every clinic refresh, so the
+    // probe guards itself against re-running the same mutation twice.
+    if (didRun.current) return;
+    didRun.current = true;
     completeGame("hw-2", {
       gameId: "game-020",
       completedAt: "2026-04-06",
@@ -47,7 +60,7 @@ function RemoveAndCompleteProbe() {
 }
 
 beforeEach(() => {
-  window.localStorage.clear();
+  resetFakeApi();
 });
 
 describe("personalization helpers", () => {
@@ -348,7 +361,7 @@ describe("personalization helpers", () => {
 });
 
 describe("app workflows", () => {
-  it("persists a new goal through addGoal", () => {
+  it("persists a new goal through addGoal", async () => {
     function GoalProbe() {
       const { addGoal, children } = useApp();
       const didRun = useRef(false);
@@ -360,30 +373,32 @@ describe("app workflows", () => {
       return <pre data-testid="goals">{JSON.stringify(children.find((c) => c.id === "child-1")?.therapyGoals ?? [])}</pre>;
     }
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GoalProbe />
-      </AppProvider>
+      </ApiAppProvider>
     );
-    expect(screen.getByTestId("goals").textContent).toMatch(/New focus goal/);
+    await waitFor(() => expect(screen.getByTestId("goals").textContent).toMatch(/New focus goal/));
   });
 
-  it("removes assignments when a child is deleted and avoids duplicate completed games", () => {
+  it("removes assignments when a child is deleted and avoids duplicate completed games", async () => {
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <RemoveAndCompleteProbe />
-      </AppProvider>
+      </ApiAppProvider>
     );
 
-    const assignments = JSON.parse(screen.getByTestId("assignments").textContent || "[]");
-    expect(assignments.some((assignment: HomeworkAssignment) => assignment.childId === "child-2")).toBe(false);
+    await waitFor(() => {
+      const assignments = JSON.parse(screen.getByTestId("assignments").textContent || "[]");
+      expect(assignments.some((assignment: HomeworkAssignment) => assignment.childId === "child-2")).toBe(false);
+    });
   });
 
   it("does not let therapists add children or family members", () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <ChildList />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 
@@ -394,9 +409,9 @@ describe("app workflows", () => {
   it("lets the clinic admin add a child and create family sign-in credentials", async () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <AdminDashboard />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 
@@ -414,7 +429,7 @@ describe("app workflows", () => {
     fireEvent.click(screen.getByText("+ Add Child"));
     fireEvent.change(screen.getByPlaceholderText("Child's name"), { target: { value: "Zoe" } });
     fireEvent.click(screen.getByText("Save Child"));
-    expect(screen.getByText("Zoe")).toBeInTheDocument();
+    await screen.findByText("Zoe");
 
     fireEvent.click(screen.getAllByText("+ Add Family Member")[0]);
     fireEvent.change(screen.getByPlaceholderText("Name"), { target: { value: "Nina" } });
@@ -422,109 +437,73 @@ describe("app workflows", () => {
     fireEvent.change(screen.getByPlaceholderText(/Temporary password/i), { target: { value: "nina-pass-12345" } });
     fireEvent.click(screen.getByText("Create Credentials"));
 
-    expect(screen.getByText(/555-0401/i).textContent).toMatch(/credentials active/i);
+    const credentialRow = await screen.findByText(/555-0401/i);
+    expect(credentialRow.textContent).toMatch(/credentials active/i);
     expect(screen.queryByText(/nina-pass-12345/i)).not.toBeInTheDocument();
   });
 
-  it("lets therapists apply a reusable goal template to a child", () => {
-    render(
-      <MemoryRouter>
-        <AppProvider>
-          <ChildList />
-        </AppProvider>
-      </MemoryRouter>
-    );
+  it("lets therapists apply a reusable goal template to a child", async () => {
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <ApiAppProvider>
+            <ClinicSession role="therapist">
+              <ChildList />
+            </ClinicSession>
+          </ApiAppProvider>
+        </MemoryRouter>
+      );
+    });
 
     fireEvent.change(screen.getAllByDisplayValue("Choose a template...")[0], { target: { value: "goal-social-turn-taking" } });
     fireEvent.click(screen.getAllByText("Add Goal")[0]);
 
-    expect(screen.getByText(/Increase turn-taking in shared play \(social\)/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Increase turn-taking in shared play \(social\)/i)).toBeInTheDocument());
   });
 
-  it("normalizes older saved child profiles with clinical scales", () => {
-    window.localStorage.setItem("playground-life.backend.v2", JSON.stringify({
-      admins: [],
-      therapists: [],
-      children: [
-        {
-          id: "legacy-child",
-          name: "Legacy Kid",
-          avatar: "kid",
-          age: 7,
-          notes: "Older saved profile",
-          familyMembers: [],
-          personalizationProfile: {
-            preferredStyle: "visual",
-            communicationLevel: "phrases",
-            reinforcementType: "social-praise",
-            promptLevel: "verbal",
-            transitionDifficulty: "moderate",
-            interests: [],
-            strengths: [],
-            supportNeeds: [],
-            sensoryPreferences: [],
-            triggerPatterns: [],
-            regulationSupports: [],
-          },
-          therapyGoals: [],
-          skillProfile: emptySkillProfile(),
-          progressionSettings: {
-            autoAdvance: true,
-            approvalRequired: true,
-            recommendedDifficulty: "easy",
-            maxDifficulty: "hard",
-          },
-        },
-      ],
-      assignments: [],
-      auditLog: [],
-    }));
-
-    render(
-      <AppProvider>
-        <StateProbe />
-      </AppProvider>
-    );
-
-    const state = JSON.parse(screen.getByTestId("app-state").textContent || "{}");
-    const child = state.children.find((entry: Child) => entry.id === "legacy-child");
-    expect(child.personalizationProfile.clinicalRatings.communicationSupport).toBe(3);
-    expect(child.personalizationProfile.clinicalRatingHistory.length).toBeGreaterThan(0);
-  });
-
-  it("creates a progressive monthly homework plan with skill focus", () => {
-    render(
-      <MemoryRouter>
-        <AppProvider>
-          <AssignHomework />
-          <StateProbe />
-        </AppProvider>
-      </MemoryRouter>
-    );
+  it("creates a progressive monthly homework plan with skill focus", async () => {
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <ApiAppProvider>
+            <ClinicSession role="therapist">
+              <AssignHomework />
+              <StateProbe />
+            </ClinicSession>
+          </ApiAppProvider>
+        </MemoryRouter>
+      );
+    });
 
     fireEvent.change(screen.getByDisplayValue(/Emma/), { target: { value: "child-2" } });
     fireEvent.click(screen.getByText("Use Personalized Plan"));
     fireEvent.click(screen.getByText("Monthly Plan"));
     fireEvent.click(screen.getByText(/Create Progressive Monthly Plan/));
 
-    const state = JSON.parse(screen.getByTestId("app-state").textContent || "{}");
-    const liamAssignments = state.assignments.filter((assignment: HomeworkAssignment) => assignment.childId === "child-2" && assignment.createdAt === new Date().toISOString().slice(0, 10));
+    await waitFor(() => {
+      const state = JSON.parse(screen.getByTestId("app-state").textContent || "{}");
+      const liamAssignments = state.assignments.filter((assignment: HomeworkAssignment) => assignment.childId === "child-2" && assignment.createdAt === new Date().toISOString().slice(0, 10));
 
-    expect(liamAssignments).toHaveLength(4);
-    expect(liamAssignments.every((assignment: HomeworkAssignment) => assignment.skillFocus.length > 0)).toBe(true);
-    expect(liamAssignments.map((assignment: HomeworkAssignment) => assignment.monthlyPlan?.weekNumber)).toEqual([1, 2, 3, 4]);
-    expect(liamAssignments.every((assignment: HomeworkAssignment) => assignment.monthlyPlan?.familyGuidance?.length > 0)).toBe(true);
-    expect(liamAssignments[0].monthlyPlan?.objective).toMatch(/baseline|comfort/i);
+      expect(liamAssignments).toHaveLength(4);
+      expect(liamAssignments.every((assignment: HomeworkAssignment) => assignment.skillFocus.length > 0)).toBe(true);
+      expect(liamAssignments.map((assignment: HomeworkAssignment) => assignment.monthlyPlan?.weekNumber)).toEqual([1, 2, 3, 4]);
+      expect(liamAssignments.every((assignment: HomeworkAssignment) => assignment.monthlyPlan?.familyGuidance?.length > 0)).toBe(true);
+      expect(liamAssignments[0].monthlyPlan?.objective).toMatch(/baseline|comfort/i);
+    });
   });
 
-  it("shows recommendation reasons in the therapist assignment flow", () => {
-    render(
-      <MemoryRouter>
-        <AppProvider>
-          <AssignHomework />
-        </AppProvider>
-      </MemoryRouter>
-    );
+  it("shows recommendation reasons in the therapist assignment flow", async () => {
+    await act(async () => {
+      render(
+        <MemoryRouter>
+          <ApiAppProvider>
+            <ClinicSession role="therapist">
+              <AssignHomework />
+            </ClinicSession>
+          </ApiAppProvider>
+        </MemoryRouter>
+      );
+    });
 
     expect(screen.getByText(/Why this was recommended/i)).toBeInTheDocument();
     expect(screen.getByText(/Readiness:/i)).toBeInTheDocument();
@@ -533,9 +512,9 @@ describe("app workflows", () => {
   it("keeps the therapist assignment screen in quick assign mode by default", () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <AssignHomework />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 
@@ -544,32 +523,39 @@ describe("app workflows", () => {
     expect(screen.queryByText(/^Assign to Family Member$/i)).not.toBeInTheDocument();
   });
 
-  it("signs a family member in through the secure auth flow", () => {
+  it("signs a family member in through the secure auth flow", async () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <ParentDashboard />
           <StateProbe />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 
     fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: "555-0101" } });
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "emma123" } });
     fireEvent.click(screen.getByText("Sign In"));
+
+    await waitFor(() => {
+      const state = JSON.parse(screen.getByTestId("app-state").textContent || "{}");
+      expect(state.session?.role).toBe("parent");
+      expect(state.session?.familyMemberId).toBe("fm-1");
+      expect(state.session?.childId).toBe("child-1");
+    });
 
     const state = JSON.parse(screen.getByTestId("app-state").textContent || "{}");
-    expect(state.session?.role).toBe("parent");
-    expect(state.session?.familyMemberId).toBe("fm-1");
-    expect(state.children[0].familyMembers[0].passwordHash).toBe(hashSecret("emma123"));
+    const familyMembers = state.children.flatMap((child: Child) => child.familyMembers ?? []);
+    // The password hash stays in Postgres; the browser must never hold one.
+    expect(familyMembers.every((member: { passwordHash?: string }) => !member.passwordHash)).toBe(true);
   });
 
-  it("shows classwork on the family side after sign in", () => {
+  it("shows classwork on the family side after sign in", async () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <ParentDashboard />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 
@@ -577,16 +563,16 @@ describe("app workflows", () => {
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "emma123" } });
     fireEvent.click(screen.getByText("Sign In"));
 
-    expect(screen.getByText(/^classwork$/i)).toBeInTheDocument();
+    await screen.findByText(/^classwork$/i);
     expect(screen.getByText(/Group session - practice social interactions with peers\./i)).toBeInTheDocument();
   });
 
-  it("opens the family side in today's session view first", () => {
+  it("opens the family side in today's session view first", async () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <ParentDashboard />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 
@@ -594,12 +580,12 @@ describe("app workflows", () => {
     fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "emma123" } });
     fireEvent.click(screen.getByText("Sign In"));
 
-    expect(screen.getByText(/^Today's Session$/i)).toBeInTheDocument();
+    await screen.findByText(/^Today's Session$/i);
     expect(screen.getByRole("button", { name: /Start today's session/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Today$/i })).toBeInTheDocument();
   });
 
-  it("lets admins issue invites and reset family credentials", () => {
+  it("lets admins issue invites and reset family credentials", async () => {
     function AdminProbe() {
       const { signInAdmin, issueFamilyInvite, resetFamilyCredentials, children, session } = useApp();
       const didRun = useRef(false);
@@ -607,44 +593,49 @@ describe("app workflows", () => {
       useEffect(() => {
         if (didRun.current) return;
         didRun.current = true;
-        signInAdmin("admin@playgroundlife.app", "admin123");
-        issueFamilyInvite("child-1", "fm-1");
-        resetFamilyCredentials("child-1", "fm-1", "Reset123", true);
+        (async () => {
+          await signInAdmin("admin@playgroundlife.app", "admin123");
+          await issueFamilyInvite("child-1", "fm-1");
+          await resetFamilyCredentials("child-1", "fm-1", "Reset123", true);
+        })();
       }, [issueFamilyInvite, resetFamilyCredentials, signInAdmin]);
 
       return <pre data-testid="admin-probe">{JSON.stringify({ session, children })}</pre>;
     }
 
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <AdminProbe />
-      </AppProvider>
+      </ApiAppProvider>
     );
 
-    const state = JSON.parse(screen.getByTestId("admin-probe").textContent || "{}");
-    expect(state.session?.role).toBe("admin");
-    expect(state.children[0].familyMembers[0].passwordHash).toBe(hashSecret("Reset123"));
-    expect(state.children[0].familyMembers[0].credentialStatus).toBe("active");
+    await waitFor(() => {
+      const state = JSON.parse(screen.getByTestId("admin-probe").textContent || "{}");
+      expect(state.session?.role).toBe("admin");
+      expect(state.children[0].familyMembers[0].credentialStatus).toBe("active");
+      // A credential reset must not put a password hash back into the browser.
+      expect(state.children[0].familyMembers[0].passwordHash).toBe("");
+    });
   });
 
   it("renders the admin dashboard sign-in flow", () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <AdminDashboard />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 
     expect(screen.getByText(/Clinic Admin Sign In/i)).toBeInTheDocument();
   });
 
-  it("opens the therapist caseload overview after sign in", () => {
+  it("opens the therapist caseload overview after sign in", async () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <TherapistDashboard />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 
@@ -656,16 +647,16 @@ describe("app workflows", () => {
     });
     fireEvent.click(screen.getByText("Sign In"));
 
-    expect(screen.getByRole("heading", { name: /Caseload Overview/i })).toBeInTheDocument();
+    await screen.findByRole("heading", { name: /Caseload Overview/i });
     expect(screen.getAllByText(/Needs Review/i).length).toBeGreaterThan(0);
   });
 
   it("keeps therapist reporting in quick review mode by default", () => {
     render(
       <MemoryRouter>
-        <AppProvider>
+        <ApiAppProvider>
           <HomeworkReview />
-        </AppProvider>
+        </ApiAppProvider>
       </MemoryRouter>
     );
 

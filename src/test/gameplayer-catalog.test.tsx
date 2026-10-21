@@ -1,9 +1,17 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AppProvider, HomeworkAssignment } from "@/context/AppContext";
+import { ApiAppProvider } from "@/context/ApiAppProvider";
+import type { HomeworkAssignment } from "@/context/AppContext";
 import GamePlayer from "@/components/game/GamePlayer";
 import { registerCustomGames } from "@/lib/customCatalog";
 import { authoredGameToGameConfig, PublishedGame } from "@/lib/gameAuthoring";
+import { resetFakeApi } from "@/test/support/fakeApi";
+
+vi.mock("@/lib/productionApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/productionApi")>("@/lib/productionApi");
+  const { fakeApi } = await import("@/test/support/fakeApi");
+  return { ...actual, productionApi: fakeApi };
+});
 
 const CUSTOM_ID = "gameplayer-custom-1";
 
@@ -50,6 +58,7 @@ function assignmentFor(gameId: string): HomeworkAssignment {
 beforeEach(() => {
   window.localStorage.clear();
   registerCustomGames([]);
+  resetFakeApi();
 });
 
 afterEach(() => {
@@ -65,9 +74,9 @@ describe("GamePlayer custom catalog", () => {
     registerCustomGames([custom]);
 
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={custom.id} assignment={assignmentFor(custom.id)} onComplete={vi.fn()} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     expect(screen.getByText("Dino Pairs")).toBeInTheDocument();
@@ -83,9 +92,9 @@ describe("GamePlayer custom catalog", () => {
     registerCustomGames([authoredGameToGameConfig(makePublished({ id: CUSTOM_ID, title: "Dino Pairs" }))]);
 
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={CUSTOM_ID} assignment={assignmentFor(CUSTOM_ID)} onComplete={vi.fn()} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     expect(screen.getByText("Dino Pairs")).toBeInTheDocument();
