@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "tsx watch server/index.ts",
+    "dev:stack": "node scripts/dev-stack.mjs",
     "build": "cross-env NODE_ENV=production vite build",
     "build:dev": "cross-env NODE_ENV=development vite build --mode development",
     "db:migrate": "tsx server/migrate.ts",
