@@ -4,11 +4,13 @@ import path from "path";
 import fs from "fs";
 import { componentTagger } from "lovable-tagger";
 
-// The app is a single-page app, so /terms has no real file. Nginx is expected to
-// fall back to index.html, but the production host has served a 404 there, and
-// _redirects only works on Netlify/Cloudflare Pages. Emitting a real copy of the
-// shell at that path makes the link work no matter how the server is configured.
-const spaFallbackRoutes = ["terms"];
+// The app is a single-page app, so these routes have no real file. Nginx is
+// expected to fall back to index.html, but the production host has served a 404
+// there, and _redirects only works on Netlify/Cloudflare Pages. Emitting a real
+// copy of the shell at these paths makes the links work no matter how the
+// server is configured. `reset` and `accept-invite` are the targets of emailed
+// links, so a 404 there would break password reset and staff invitations.
+const spaFallbackRoutes = ["terms", "reset", "accept-invite"];
 
 const spaFallback = () => ({
   name: "spa-fallback-routes",

@@ -11,6 +11,8 @@ import BlobBackground from "@/components/BlobBackground";
 const Index = lazy(() => import("./pages/Index.tsx"));
 const RoleSelector = lazy(() => import("@/components/RoleSelector"));
 const TermsPage = lazy(() => import("./pages/Terms.tsx"));
+const AcceptInvite = lazy(() => import("./pages/AcceptInvite.tsx"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword.tsx"));
 const AdminDashboard = lazy(() => import("@/components/admin/AdminDashboard"));
 const TherapistDashboard = lazy(() => import("@/components/therapist/TherapistDashboard"));
 const ParentDashboard = lazy(() => import("@/components/parent/ParentDashboard"));
@@ -39,6 +41,8 @@ const App = () => (
                   <Route path="/" element={<Index />} />
                   <Route path="/enter" element={<RoleSelector />} />
                   <Route path="/terms" element={<TermsPage />} />
+                  <Route path="/accept-invite" element={<AcceptInvite />} />
+                  <Route path="/reset" element={<ResetPassword />} />
                   <Route path="/therapist" element={<TherapistDashboard />} />
                   <Route path="/family" element={<ParentDashboard />} />
                   <Route path="/admin" element={<AdminDashboard />} />
