@@ -54,17 +54,48 @@ export function createApp() {
   return app;
 }
 
-if (process.env.NODE_ENV !== "test") {
+const PROBE_TIMEOUT_MS = 5000;
+
+/**
+ * The database we are talking to, without its credentials: protocol, host,
+ * port and database name. The password must never reach the log stream.
+ */
+export function databaseTarget(): string {
+  try {
+    const url = new URL(config.DATABASE_URL);
+    return `${url.protocol}//${url.host}/${url.pathname.replace(/^\//, "")}`;
+  } catch {
+    return "(unparseable DATABASE_URL)";
+  }
+}
+
+/**
+ * `SELECT 1` bounded by a timeout. A wedged database must not keep the API
+ * from opening its port, so the probe gives up instead of waiting forever.
+ */
+export async function probeDatabase(timeoutMs = PROBE_TIMEOUT_MS) {
   const { query } = await import("./db.ts");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`no response within ${timeoutMs}ms`)), timeoutMs);
+  });
 
   try {
-    await query("SELECT 1");
-    console.log(`Playground Life API listening on port ${config.PORT} (database connected)`);
+    return await Promise.race([query("SELECT 1"), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+if (process.env.NODE_ENV !== "test") {
+  try {
+    await probeDatabase();
+    console.log("Playground Life database connected");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("=".repeat(72));
     console.error("Playground Life API cannot reach the database.");
-    console.error(`  DATABASE_URL: ${config.DATABASE_URL}`);
+    console.error(`  Database:     ${databaseTarget()}`);
     console.error(`  Error:        ${message}`);
     console.error("");
     console.error("Fix one of these:");
