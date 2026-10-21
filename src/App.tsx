@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ApiAppProvider } from "@/context/ApiAppProvider";
 import BlobBackground from "@/components/BlobBackground";
+import ApiStatusBanner from "@/components/ApiStatusBanner";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const RoleSelector = lazy(() => import("@/components/RoleSelector"));
@@ -25,6 +26,7 @@ const App = () => (
       <TooltipProvider>
         <div className="relative min-h-screen overflow-hidden bg-background">
           <BlobBackground />
+          <ApiStatusBanner />
           <div className="relative z-10 min-h-screen">
             <Toaster />
             <Sonner />
