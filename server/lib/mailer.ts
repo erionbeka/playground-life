@@ -15,15 +15,17 @@ interface OutboxInput {
  * To plug in SMTP directly, set MAIL_TRANSPORT=smtp and wire a transport in
  * deliverQueued() — the outbox row remains the source of truth either way.
  */
-export async function queueEmail(input: OutboxInput): Promise<void> {
-  await query(
+export async function queueEmail(input: OutboxInput): Promise<string> {
+  const result = await query<{ id: string }>(
     `INSERT INTO email_outbox (to_email, kind, subject, body)
-     VALUES ($1, $2, $3, $4)`,
+     VALUES ($1, $2, $3, $4)
+     RETURNING id`,
     [input.to, input.kind, input.subject, input.body]
   );
   if (process.env.NODE_ENV !== "production") {
-    console.info(`[outbox:${input.kind}] → ${input.to} :: ${input.subject}`);
+    console.info(`[outbox:${input.kind}] �+' ${input.to} :: ${input.subject}`);
   }
+  return result.rows[0]?.id ?? "";
 }
 
 export function appUrl(): string {

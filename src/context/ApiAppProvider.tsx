@@ -353,6 +353,10 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       await refreshStaff();
       await refreshAudit();
     },
+    inviteStaffUser: async (payload) => {
+      await productionApi.issueStaffInvitation(payload);
+      await refreshAudit();
+    },
     children,
     addChild: async (child) => {
       await productionApi.createChild({

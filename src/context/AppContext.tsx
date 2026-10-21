@@ -227,6 +227,7 @@ export interface AppState {
   signInFamily: (phoneNumber: string, password: string) => MaybePromise<{ childId: string; familyMemberId: string } | null>;
   signOut: () => MaybePromise<void>;
   addStaffUser: (user: { role: "admin" | "therapist"; name: string; email: string; clinicName: string; password: string }) => MaybePromise<void>;
+  inviteStaffUser: (payload: { email: string; role: "admin" | "therapist" }) => MaybePromise<void>;
   children: Child[];
   addChild: (child: Omit<Child, "id">) => MaybePromise<void>;
   addFamilyMember: (childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => MaybePromise<string | null>;

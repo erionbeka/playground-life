@@ -152,6 +152,13 @@ export const productionApi = {
     });
   },
 
+  issueStaffInvitation(payload: { email: string; role: "admin" | "therapist" }) {
+    return request<{ ok: boolean; delivery: "queued" }>("/api/security/invitations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   listStaff() {
     return request<{
       staff: Array<{

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db.ts";
 import { hashPassword } from "../auth.ts";
+import { requireAuth, requireRole } from "../middleware.ts";
 import { generateTotpSecret, otpauthUri, randomToken, sha256, verifyTotp } from "../lib/compliance.ts";
 import { appUrl, queueEmail } from "../lib/mailer.ts";
 import type { Request, Response } from "express";
@@ -116,7 +117,7 @@ securityRoutes.post("/mfa/disable", async (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
-securityRoutes.post("/invitations", async (req: Request, res: Response) => {
+securityRoutes.post("/invitations", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
   const admin = req.user;
   if (!admin || admin.role !== "admin") return res.status(403).json({ error: "Admins only" });
 
@@ -144,7 +145,7 @@ securityRoutes.post("/invitations", async (req: Request, res: Response) => {
     body: `Join the clinic: ${appUrl()}/accept-invite?token=${token}`,
   });
 
-  return res.status(201).json({ ok: true });
+  return res.status(201).json({ ok: true, delivery: "queued" });
 });
 
 const acceptInviteSchema = z.object({

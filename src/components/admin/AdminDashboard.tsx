@@ -18,7 +18,7 @@ const tabs: { key: Tab; label: string; emoji?: string }[] = [
 ];
 
 export default function AdminDashboard() {
-  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, addChild, addFamilyMember, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog } = useApp();
+  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, inviteStaffUser, addChild, addFamilyMember, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
   const [email, setEmail] = useState("");
@@ -28,6 +28,8 @@ export default function AdminDashboard() {
   const [staffName, setStaffName] = useState("");
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
+  const [staffInviteMode, setStaffInviteMode] = useState<"password" | "invite">("password");
+  const [staffInviteEmail, setStaffInviteEmail] = useState("");
   const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
   const [generatedInvites, setGeneratedInvites] = useState<Record<string, string>>({});
   const [showAddChild, setShowAddChild] = useState(false);
@@ -310,41 +312,96 @@ export default function AdminDashboard() {
               <h2 className="mb-4 font-display text-lg font-bold text-foreground">Add Staff Account</h2>
               <div className="space-y-3">
                 <div className="flex gap-2">
+                  <button
+                    onClick={() => setStaffInviteMode("password")}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffInviteMode === "password" ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}
+                  >
+                    Create with password
+                  </button>
+                  <button
+                    onClick={() => setStaffInviteMode("invite")}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffInviteMode === "invite" ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}
+                  >
+                    Invite by email
+                  </button>
+                </div>
+                <div className="flex gap-2">
                   <button onClick={() => setStaffRole("therapist")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffRole === "therapist" ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>Therapist</button>
                   <button onClick={() => setStaffRole("admin")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffRole === "admin" ? "bg-amber-500 text-white" : "bg-card text-foreground"}`}>Admin</button>
                 </div>
-                <input value={staffName} onChange={(event) => setStaffName(event.target.value)} placeholder="Full name" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
-                <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} placeholder="Email" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
-                <input value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Temporary password" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
-                <button
-                  onClick={async () => {
-                    if (!staffName.trim() || !staffEmail.trim() || !staffPassword.trim()) return;
-                    try {
-                      await addStaffUser({
-                        role: staffRole,
-                        name: staffName.trim(),
-                        email: staffEmail.trim(),
-                        clinicName: adminUsers[0]?.clinicName || "Playground Life Clinic",
-                        password: staffPassword,
-                      });
-                      toast.success(`Created the ${staffRole} account for ${staffName.trim()}.`);
-                      setStaffName("");
-                      setStaffEmail("");
-                      setStaffPassword("");
-                    } catch (error) {
-                      toast.error(
-                        error instanceof ApiError && error.code === "network"
-                          ? "Can't reach the clinic server. Nothing was saved."
-                          : error instanceof Error
-                            ? error.message
-                            : "Couldn't create the account. Nothing was saved."
-                      );
-                    }
-                  }}
-                  className="touch-target rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-                >
-                  Create Staff Account
-                </button>
+                {staffInviteMode === "password" ? (
+                  <>
+                    <input value={staffName} onChange={(event) => setStaffName(event.target.value)} placeholder="Full name" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
+                    <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} placeholder="Email" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
+                    <input value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Temporary password" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
+                    <button
+                      onClick={async () => {
+                        if (!staffName.trim() || !staffEmail.trim() || !staffPassword.trim()) return;
+                        try {
+                          await addStaffUser({
+                            role: staffRole,
+                            name: staffName.trim(),
+                            email: staffEmail.trim(),
+                            clinicName: adminUsers[0]?.clinicName || "Playground Life Clinic",
+                            password: staffPassword,
+                          });
+                          toast.success(`Created the ${staffRole} account for ${staffName.trim()}.`);
+                          setStaffName("");
+                          setStaffEmail("");
+                          setStaffPassword("");
+                        } catch (error) {
+                          toast.error(
+                            error instanceof ApiError && error.code === "network"
+                              ? "Can't reach the clinic server. Nothing was saved."
+                              : error instanceof Error
+                                ? error.message
+                                : "Couldn't create the account. Nothing was saved."
+                          );
+                        }
+                      }}
+                      className="touch-target rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+                    >
+                      Create Staff Account
+                    </button>
+                  </>
+                ) : null}
+                {staffInviteMode === "invite" ? (
+                  <div className="space-y-3">
+                    <input
+                      value={staffInviteEmail}
+                      onChange={(event) => setStaffInviteEmail(event.target.value)}
+                      placeholder="therapist@example.com"
+                      type="email"
+                      className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground"
+                    />
+                    <button
+                      onClick={async () => {
+                        const email = staffInviteEmail.trim();
+                        if (!email) return;
+                        try {
+                          await inviteStaffUser({ email, role: staffRole });
+                          toast.success(`Invitation queued for ${email}. They can set their own password from the email link.`);
+                          setStaffInviteEmail("");
+                        } catch (error) {
+                          toast.error(
+                            error instanceof ApiError && error.code === "network"
+                              ? "Can't reach the clinic server. The invitation was not sent."
+                              : error instanceof Error
+                                ? error.message
+                                : "Couldn't send the invitation."
+                          );
+                        }
+                      }}
+                      className="touch-target rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+                    >
+                      Send invitation
+                    </button>
+                    <p className="text-xs text-muted-foreground">
+                      The invite link expires in 7 days. The email is sent by the mail worker
+                      (<span className="font-mono">npm run mail:worker</span>).
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </div>
 
