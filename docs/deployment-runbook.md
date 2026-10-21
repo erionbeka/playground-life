@@ -1,4 +1,4 @@
-﻿# Deployment Runbook
+# Deployment Runbook
 
 ## Local Postgres Development
 
@@ -31,6 +31,13 @@ docker compose -f docker-compose.prod.yml run --rm api npm run db:seed
 ```
 
 Rotate or remove the seeded admin password immediately after first sign-in.
+
+### API upstream
+
+`deploy/nginx.conf.template` proxies `/api/` to `${API_UPSTREAM}`.
+
+- Docker Compose: `api:4000` (the default in `Dockerfile.web`).
+- Single host: set `API_UPSTREAM=127.0.0.1:4000` where nginx is started.
 
 ## Pre-Launch Checklist
 

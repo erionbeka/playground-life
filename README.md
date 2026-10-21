@@ -1,4 +1,4 @@
-﻿# Playground Life
+# Playground Life
 
 Playground Life is a clinic-ready application for assigning, playing, and reviewing structured learning activities for autistic children. It supports separate admin, therapist, and family workflows and includes a self-hosted Postgres production backend foundation.
 
@@ -32,11 +32,39 @@ Key scripts:
 - `npm test`: run frontend and backend tests.
 - `npm audit --omit=dev`: check production dependency vulnerabilities.
 
+## Running the app locally
+
+The frontend is a database-backed app. There is no demo/localStorage mode — if
+the API or the database is down, the app tells you and refuses to pretend that
+your changes were saved.
+
+```bash
+npm install
+cp .env.example .env        # then edit DATABASE_URL / POSTGRES_PORT / JWT_SECRET
+npm run dev:stack           # Postgres + migrations + seed + API on :4000
+npm run dev                 # frontend on :8080 (proxies /api to :4000)
+```
+
+The seed creates an admin account. Its password comes from
+`SEED_ADMIN_PASSWORD` in `.env` (default `admin123` — change it).
+
+To run the pieces separately:
+
+```bash
+docker compose up -d postgres
+npm run db:migrate
+npm run db:seed
+npm run dev:api
+```
+
+`GET http://localhost:4000/api/health` reports whether the database is
+reachable.
+
 ## Data Stored
 
 The Postgres schema stores clinics, admin/therapist/parent users, child profiles, family-child links, therapy goals, assignments, game results, and audit logs. Passwords are stored as Argon2id hashes. Audit logs include actor, action, entity, timestamp, IP address, user agent, and structured details.
 
-The browser `localStorage` demo state remains available for local UI demonstration and workflow tests only. Real clinic or child data should use the Postgres backend, not browser demo storage.
+There is no demo/localStorage mode. The frontend is database-backed: if the API or the database is down, the app reports it and refuses to pretend that changes were saved.
 
 ## Validation Status
 
