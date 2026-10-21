@@ -104,6 +104,15 @@ export default defineConfig(({ mode }) => {
       hmr: {
         overlay: false,
       },
+      // The frontend calls `/api/...` on its own origin so the session cookie
+      // is first-party. In dev there is no nginx in front, so Vite proxies
+      // those calls to the API process.
+      proxy: {
+        "/api": {
+          target: process.env.VITE_API_PROXY_TARGET || "http://localhost:4000",
+          changeOrigin: true,
+        },
+      },
     },
     plugins: [react(), !production && componentTagger(), production && spaFallback()].filter(Boolean),
     resolve: {

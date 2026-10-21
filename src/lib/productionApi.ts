@@ -2,7 +2,33 @@
 export type ApiDifficulty = "easy" | "medium" | "hard";
 export type ApiAssignmentType = "homework" | "classwork";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+/**
+ * Every failure the API client can produce. `network` means the request never
+ * reached the server (server down, wrong host, DNS, offline). `http` means the
+ * server answered with a non-2xx status.
+ */
+export type ApiErrorCode = "network" | "http";
+
+export class ApiError extends Error {
+  readonly status: number | null;
+  readonly code: ApiErrorCode;
+
+  constructor(message: string, options: { status: number | null; code: ApiErrorCode }) {
+    super(message);
+    this.name = "ApiError";
+    this.status = options.status;
+    this.code = options.code;
+  }
+}
+
+/**
+ * Same-origin by default: requests go to `/api/...` on the page's own origin.
+ * The Vite dev server proxies `/api` to the API process, and the production
+ * nginx proxies it to the API container, so one build works in every
+ * deployment. `VITE_API_URL` is an absolute-URL override for the Capacitor
+ * Android build, which talks to a LAN host rather than a same-origin server.
+ */
+export const apiBaseUrl = import.meta.env.VITE_API_URL || "";
 
 export interface ApiSessionUser {
   id: string;
@@ -64,18 +90,30 @@ export interface ApiGoalPayload {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${apiBaseUrl}${path}`, {
+      ...options,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    throw new ApiError("Can't reach the clinic server. Check your connection and try again.", {
+      status: null,
+      code: "network",
+    });
+  }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(typeof body.error === "string" ? body.error : `Request failed with ${response.status}`);
+    throw new ApiError(
+      typeof body.error === "string" ? body.error : `Request failed with ${response.status}`,
+      { status: response.status, code: "http" }
+    );
   }
 
   if (response.status === 204) return undefined as T;
