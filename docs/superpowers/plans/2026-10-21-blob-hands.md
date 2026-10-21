@@ -224,9 +224,9 @@ In `src/components/home/BlobCritter.tsx`, delete the current idle-arms block and
                     zIndex: 3,
                     transformOrigin: isLeft ? "right center" : "left center",
                     boxShadow: "inset 0 -3px 6px rgba(0,0,0,0.06)",
+                    rotate: armAngle,
+                    scaleX: armScale,
                   }}
-                  animate={{ rotate: armAngle, scaleX: armScale }}
-                  transition={{ type: "spring", stiffness: 90, damping: 20 }}
                 >
                   <motion.div
                     data-testid={`blob-hand-${isLeft ? "left" : "right"}`}
@@ -283,6 +283,19 @@ Three details that make this work:
   is not stretched along with it.
 - The thumb bump sits on the **inner** side of each hand, so the left and
   right hands are visibly different.
+
+The rotation and the stretch are **style** motion values, not an `animate`
+target. Handing a motion value to `animate` makes framer-motion resolve the
+keyframes by measuring the element, and its measurement table has no entry for
+transform props — the lookup throws and takes the whole render loop down with
+it. Put them in `style` and wrap them in `useSpring` to keep the springy feel:
+
+```tsx
+  const armAngleLeftSpring = useSpring(armAngleLeftFinal, { stiffness: 90, damping: 20 });
+  const armAngleRightSpring = useSpring(armAngleRightFinal, { stiffness: 90, damping: 20 });
+  const armScaleLeftSpring = useSpring(armScaleLeftFinal, { stiffness: 90, damping: 20 });
+  const armScaleRightSpring = useSpring(armScaleRightFinal, { stiffness: 90, damping: 20 });
+```
 
 - [ ] **Step 5: Rename the prop**
 
@@ -411,17 +424,19 @@ Add these motion values after `armAngleRight`:
     factor > 0.35 && y > 0 && y > Math.abs(x) * 0.6 ? 1 : 0
   );
 
-  // Which arm is nearer to the cursor.
-  const nearerArmIsLeft = useTransform(px, (x) => (x < 0 ? 1 : 0));
+  // Which side of the body the cursor is on. Each side is tracked separately
+  // so the arms swap over when the cursor crosses the centre line.
+  const cursorIsLeft = useTransform(px, (x) => (x < 0 ? 1 : 0));
+  const cursorIsRight = useTransform(px, (x) => (x > 0 ? 1 : 0));
 
   // Reach mode per arm: 0 = resting, 1 = the nearest arm reaches, 2 = both.
   const reachModeLeft = useTransform(
-    [bothHandsReach, nearerArmIsLeft],
-    ([both, nearer]: number[]) => (both ? 2 : nearer ? 1 : 0)
+    [bothHandsReach, cursorIsLeft],
+    ([both, left]: number[]) => (both ? 2 : left ? 1 : 0)
   );
   const reachModeRight = useTransform(
-    [bothHandsReach, nearerArmIsLeft],
-    ([both, nearer]: number[]) => (both ? 2 : nearer ? 1 : 0)
+    [bothHandsReach, cursorIsRight],
+    ([both, right]: number[]) => (both ? 2 : right ? 1 : 0)
   );
 
   // When the cursor is below the blob, both arms angle down and inward so

@@ -2,13 +2,13 @@ import {
   motion,
   useMotionTemplate,
   useMotionValue,
+  useMotionValueEvent,
   useSpring,
   useTime,
   useTransform,
 } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useReducedMotionMode } from "@/lib/motion";
-import type { TargetAndTransition } from "framer-motion";
 
 export type CritterShape = "cat" | "frog" | "bunny" | "bear" | "bird";
 export type CritterMood = "play" | "grow" | "communicate" | "connect" | "safe";
@@ -523,6 +523,7 @@ export default function BlobCritter({
   const [hover, setHover] = useState(false);
   const hoverRef = useRef(false);
   const nearRef = useRef(false);
+  const [reachMode, setReachMode] = useState<{ left: number; right: number }>({ left: 0, right: 0 });
 
   const radiusA = useTransform(time, (v) => 46 + Math.sin(v * 0.00055 + phase) * 7);
   const radiusB = useTransform(time, (v) => 56 + Math.cos(v * 0.00068 + phase) * 6);
@@ -560,6 +561,12 @@ export default function BlobCritter({
   const LEFT_REST_ANGLE = -45;
   const RIGHT_REST_ANGLE = 45;
 
+  const REACH_MODE_LABEL: Record<number, string> = {
+    0: "rest",
+    1: "nearest",
+    2: "both",
+  };
+
   // How far each arm stretches, as a scale factor of its rest length.
   const armScaleLeft = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
     const stretch = Math.min(Math.hypot(x - shoulderLeftX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
@@ -579,6 +586,65 @@ export default function BlobCritter({
   const armAngleRight = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
     const target = (Math.atan2(y - shoulderY, x - shoulderRightX) * 180) / Math.PI;
     return RIGHT_REST_ANGLE + (target - RIGHT_REST_ANGLE) * factor;
+  });
+
+  // A cursor in the lower half of the reach circle makes the blob grab with
+  // both hands instead of just the nearer arm.
+  const bothHandsReach = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) =>
+    factor > 0.35 && y > 0 && y > Math.abs(x) * 0.6 ? 1 : 0
+  );
+
+  // Which side of the body the cursor is on. Each side is tracked separately
+  // so the arms swap over when the cursor crosses the centre line.
+  const cursorIsLeft = useTransform(px, (x) => (x < 0 ? 1 : 0));
+  const cursorIsRight = useTransform(px, (x) => (x > 0 ? 1 : 0));
+
+  // Reach mode per arm: 0 = resting, 1 = the nearest arm reaches, 2 = both.
+  const reachModeLeft = useTransform(
+    [bothHandsReach, cursorIsLeft],
+    ([both, left]: number[]) => (both ? 2 : left ? 1 : 0)
+  );
+  const reachModeRight = useTransform(
+    [bothHandsReach, cursorIsRight],
+    ([both, right]: number[]) => (both ? 2 : right ? 1 : 0)
+  );
+
+  // When the cursor is below the blob, both arms angle down and inward so
+  // the hands converge under the body instead of both pointing straight down.
+  const armAngleLeftFinal = useTransform(
+    [armAngleLeft, bothHandsReach],
+    ([normal, both]: number[]) => normal + (-135 - normal) * both
+  );
+  const armAngleRightFinal = useTransform(
+    [armAngleRight, bothHandsReach],
+    ([normal, both]: number[]) => normal + (135 - normal) * both
+  );
+
+  // Both arms extend fully when the grab is two-handed, even if one of them
+  // is further from the cursor than the other.
+  const armScaleLeftFinal = useTransform(
+    [armScaleLeft, bothHandsReach],
+    ([scale, both]: number[]) => (both ? Math.max(scale, 0.85) : scale)
+  );
+  const armScaleRightFinal = useTransform(
+    [armScaleRight, bothHandsReach],
+    ([scale, both]: number[]) => (both ? Math.max(scale, 0.85) : scale)
+  );
+
+  // The arms are driven by their style props rather than by an `animate`
+  // target. Passing a motion value to `animate` makes framer-motion resolve
+  // the keyframes by measuring the element, which throws for transform props
+  // and takes the whole render loop down with it.
+  const armAngleLeftSpring = useSpring(armAngleLeftFinal, { stiffness: 90, damping: 20 });
+  const armAngleRightSpring = useSpring(armAngleRightFinal, { stiffness: 90, damping: 20 });
+  const armScaleLeftSpring = useSpring(armScaleLeftFinal, { stiffness: 90, damping: 20 });
+  const armScaleRightSpring = useSpring(armScaleRightFinal, { stiffness: 90, damping: 20 });
+
+  useMotionValueEvent(reachModeLeft, "change", (value) => {
+    setReachMode((current) => (current.left === value ? current : { ...current, left: value }));
+  });
+  useMotionValueEvent(reachModeRight, "change", (value) => {
+    setReachMode((current) => (current.right === value ? current : { ...current, right: value }));
   });
 
   const zeroX = useMotionValue(0);
@@ -753,13 +819,15 @@ export default function BlobCritter({
           <>
             {[-1, 1].map((side) => {
               const isLeft = side === -1;
-              const armScale = isLeft ? armScaleLeft : armScaleRight;
-              const armAngle = isLeft ? armAngleLeft : armAngleRight;
+              const armScale = isLeft ? armScaleLeftSpring : armScaleRightSpring;
+              const armAngle = isLeft ? armAngleLeftSpring : armAngleRightSpring;
+              const mode = isLeft ? reachMode.left : reachMode.right;
 
               return (
                 <motion.div
                   key={`arm-${side}`}
                   data-testid={`blob-arm-${isLeft ? "left" : "right"}`}
+                  data-reach={REACH_MODE_LABEL[mode]}
                   aria-hidden
                   style={{
                     position: "absolute",
@@ -772,9 +840,9 @@ export default function BlobCritter({
                     zIndex: 3,
                     transformOrigin: isLeft ? "right center" : "left center",
                     boxShadow: "inset 0 -3px 6px rgba(0,0,0,0.06)",
+                    rotate: armAngle,
+                    scaleX: armScale,
                   }}
-                  animate={{ rotate: armAngle, scaleX: armScale } as unknown as TargetAndTransition}
-                  transition={{ type: "spring", stiffness: 90, damping: 20 }}
                 >
                   <motion.div
                     data-testid={`blob-hand-${isLeft ? "left" : "right"}`}
