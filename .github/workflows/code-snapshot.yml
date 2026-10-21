@@ -3,6 +3,11 @@ name: Automated Code Snapshot
 on:
   push:
     branches: [main]
+  schedule:
+    # Every day at 04:00 UTC, so there is always a fresh snapshot even when
+    # nothing was pushed.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -41,6 +46,14 @@ jobs:
 
           echo "Created tag:    $TAG"
           echo "Created branch: $BRANCH"
+
+          {
+            echo "## Code snapshot created"
+            echo ""
+            echo "- **Commit:** \`${SHORT}\`"
+            echo "- **Tag:** \`${TAG}\`"
+            echo "- **Branch:** \`${BRANCH}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Prune old automatic snapshots
         env:
@@ -82,3 +95,12 @@ jobs:
               git push origin --delete "$TAG" || true
             done
           fi
+
+          {
+            echo ""
+            echo "### Retention"
+            echo ""
+            echo "- Automatic backup branches kept: $(git ls-remote --heads origin 'refs/heads/backup/auto-*' | wc -l)"
+            echo "- Snapshot tags kept: $(git ls-remote --tags origin 'refs/tags/snapshot/*' | grep -vc '\^{}')"
+            echo "- Retention limit: ${KEEP}"
+          } >> "$GITHUB_STEP_SUMMARY"

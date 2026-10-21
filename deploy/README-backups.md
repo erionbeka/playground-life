@@ -2,8 +2,8 @@
 
 There are two independent backup layers:
 
-1. **Code snapshots** — automatic, runs in GitHub Actions on every push to `main`.
-2. **Production database backups** — a script and a systemd timer you install on the server.
+1. **Code snapshots** — automatic, runs in GitHub Actions on every push to `main`, and also once a day on a schedule.
+2. **Production database backups** — a script and a systemd timer you install on the server, plus a weekly restore drill.
 
 Together these cover "both code and server data".
 
@@ -18,6 +18,11 @@ On every push to `main` it:
 - creates an annotated tag `snapshot/YYYY-MM-DD-HHMMSS-<shortsha>`;
 - creates a branch `backup/auto-YYYY-MM-DD-HHMMSS`;
 - prunes the oldest snapshots, keeping the most recent 30 (change `KEEP` in the workflow).
+
+It also runs daily at 04:00 UTC, so a snapshot always exists even when nothing
+was pushed, and it can be triggered by hand from the Actions tab
+(`workflow_dispatch`). Each run writes a summary of the tag, branch, and current
+retention counts to the job summary.
 
 No secrets or configuration are needed — it uses the built-in `GITHUB_TOKEN`.
 
@@ -109,6 +114,38 @@ The restore script refuses to touch a database whose name does not contain
 `test`, `restore`, `drill`, or `staging`, unless you set `FORCE_RESTORE=1`.
 It then verifies the required tables exist after restore.
 
+### Weekly restore drill (proves backups are recoverable)
+
+Script: `deploy/restore-drill.sh`
+Units: `deploy/playground-restore-drill.service`, `deploy/playground-restore-drill.timer`
+
+A backup you have never restored is not yet a backup. This job runs `pg_dump`,
+restores the result into `RESTORE_TEST_DATABASE_URL`, and checks that the
+required tables exist. It fails loudly if the restore does not verify.
+
+Create and point it at a throwaway restore database:
+
+```bash
+createdb playground_life_restore
+# add to /opt/playground-life/.env:
+#   RESTORE_TEST_DATABASE_URL=postgres://playground:playground@localhost:5432/playground_life_restore
+```
+
+Install and enable the timer:
+
+```bash
+sudo cp deploy/restore-drill.sh /opt/playground-life/deploy/
+sudo chmod +x /opt/playground-life/deploy/restore-drill.sh
+sudo cp deploy/playground-restore-drill.service deploy/playground-restore-drill.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now playground-restore-drill.timer
+sudo systemctl start playground-restore-drill.service   # run one now
+journalctl -u playground-restore-drill.service -n 40
+```
+
+Record the outcome of each drill in
+`docs/backup-restore-disaster-recovery-procedure.md`.
+
 The repo also ships an npm-based drill that uses the same idea:
 
 ```bash
@@ -121,7 +158,8 @@ npm run db:drill         # both, in one go
 
 ## 3. Recommended cadence
 
-- Code snapshots: every push to `main` (automatic).
+- Code snapshots: every push to `main` (automatic), plus daily at 04:00 UTC.
 - Database backups: daily via the timer; keep 30 days locally, keep more offsite.
-- Restore drill: before pilot launch, after major schema changes, and at least
-  quarterly. Record the result in `docs/backup-restore-disaster-recovery-procedure.md`.
+- Restore drill: weekly via the timer, plus before pilot launch, after major
+  schema changes, and at least quarterly. Record the result in
+  `docs/backup-restore-disaster-recovery-procedure.md`.

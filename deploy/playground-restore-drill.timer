@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Playground Life restore drill weekly
+
+[Timer]
+# Every Sunday at 04:30 UTC, after the daily backup window.
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target

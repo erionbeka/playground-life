@@ -1,0 +1,12 @@
+[Unit]
+Description=Playground Life weekly backup and restore drill
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/playground-life
+EnvironmentFile=/opt/playground-life/.env
+ExecStart=/bin/bash /opt/playground-life/deploy/restore-drill.sh
+User=playground
+Group=playground
