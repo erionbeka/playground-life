@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Difficulty } from "@/data/games";
-import { AuthSession, hashSecret, loadSession, saveSession, verifySecret } from "@/lib/auth";
-import { AdminUser, AppDataSnapshot, TherapistUser, createAuditEntry, loadAppData, saveAppData } from "@/lib/backend";
+import { hashSecret, loadSession, saveSession, verifySecret } from "@/lib/auth";
+import { createAuditEntry, loadAppData, saveAppData } from "@/lib/backend";
 import { buildSkillScoresFromResult, emptySkillProfile, mergeSkillProfiles } from "@/lib/skills";
 import { appendChildEvent } from "@/lib/sessionEvents";
 import { getRewardState, setRewardState } from "@/lib/rewards";
@@ -182,6 +182,41 @@ export interface AuditEntry {
   entityId: string;
   details: string;
   createdAt: string;
+}
+
+/** Moved here from `src/lib/auth.ts` when the localStorage demo provider was deleted. */
+export interface AuthSession {
+  role: "admin" | "therapist" | "parent";
+  userId: string;
+  displayName: string;
+  childId?: string;
+  familyMemberId?: string;
+}
+
+/** Moved here from `src/lib/backend.ts` when the localStorage demo provider was deleted. */
+export interface AdminUser {
+  id: string;
+  clinicName: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+}
+
+export interface TherapistUser {
+  id: string;
+  clinicName: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+}
+
+/** Only the test fake uses this now. */
+export interface AppDataSnapshot {
+  admins: AdminUser[];
+  therapists: TherapistUser[];
+  children: Child[];
+  assignments: HomeworkAssignment[];
+  auditLog: AuditEntry[];
 }
 
 type MaybePromise<T> = T | Promise<T>;
