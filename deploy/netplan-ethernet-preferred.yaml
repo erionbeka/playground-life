@@ -1,0 +1,50 @@
+# Netplan template: prefer Ethernet, keep Wi-Fi as fallback.
+#
+# Values below match the Playground Life production box (Ubuntu 26.04):
+#   Ethernet enp2s0   -> 10.10.10.202/24, gateway 10.10.10.254, metric 100 (preferred)
+#   Wi-Fi    wlp0s20f3 -> 10.10.9.201/24,  gateway 10.10.9.254,  metric 600 (fallback)
+#
+# Lower metric = higher priority. With a cable in, Ethernet carries traffic and
+# the Cloudflare tunnel runs over a stable link. Unplugging falls back to Wi-Fi.
+#
+# Apply with `sudo netplan try` (auto-reverts if you lose access), then
+# `sudo netplan apply`. Back up the original first.
+#
+# NOTE: the Wi-Fi password is stored in plaintext by Netplan; keep the file
+# root-owned and mode 600.
+
+network:
+  version: 2
+  ethernets:
+    enp2s0:
+      match:
+        macaddress: b4:45:06:a0:bc:77
+      set-name: enp2s0
+      dhcp4: false
+      addresses:
+        - 10.10.10.202/24
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+      routes:
+        - to: default
+          via: 10.10.10.254
+          metric: 100
+  wifis:
+    wlp0s20f3:
+      access-points:
+        Kolegji-Heimerer:
+          password: heimerer
+      dhcp4: false
+      addresses:
+        - 10.10.9.201/24
+      nameservers:
+        addresses:
+          - 1.1.1.1
+          - 8.8.8.8
+      routes:
+        - to: default
+          via: 10.10.9.254
+          metric: 600
+  renderer: networkd

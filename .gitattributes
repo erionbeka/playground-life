@@ -1,6 +1,12 @@
 # Binary artifacts
 *.pdf binary
 
+# Shell scripts and systemd units must keep LF so they run on Linux.
+*.sh text eol=lf
+deploy/*.service text eol=lf
+deploy/*.timer text eol=lf
+*.conf text eol=lf
+
 # Keep the evidence bundle byte-stable so its SHA-256 sidecar matches the
 # committed content (independent verification relies on exact bytes).
 docs/legal/evidence/*.md text eol=lf
