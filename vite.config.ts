@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
@@ -47,6 +47,12 @@ if (isProd && process.env.NODE_ENV !== "production") {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const production = mode !== "development";
+
+  // Vite does not put `.env` values into `process.env` while it evaluates this
+  // file, so the dev proxy target has to be read out of the env file directly.
+  // An empty prefix loads every variable, not only the `VITE_`-prefixed ones,
+  // which matches how this repo configures everything else.
+  const env = loadEnv(mode, process.cwd(), "");
 
   return {
     define: {
@@ -109,7 +115,7 @@ export default defineConfig(({ mode }) => {
       // those calls to the API process.
       proxy: {
         "/api": {
-          target: process.env.VITE_API_PROXY_TARGET || "http://localhost:4000",
+          target: env.VITE_API_PROXY_TARGET || "http://localhost:4000",
           changeOrigin: true,
         },
       },

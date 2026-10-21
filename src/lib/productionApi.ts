@@ -13,11 +13,19 @@ export class ApiError extends Error {
   readonly status: number | null;
   readonly code: ApiErrorCode;
 
-  constructor(message: string, options: { status: number | null; code: ApiErrorCode }) {
+  constructor(
+    message: string,
+    options: { status: number | null; code: ApiErrorCode; cause?: unknown }
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = options.status;
     this.code = options.code;
+    // `Error`'s `cause` option is ES2022 and this app targets ES2020, so the
+    // underlying failure is attached by hand instead of via `super(message, options)`.
+    if (options.cause !== undefined) {
+      (this as { cause?: unknown }).cause = options.cause;
+    }
   }
 }
 
@@ -101,10 +109,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
         ...(options.headers || {}),
       },
     });
-  } catch {
+  } catch (cause) {
     throw new ApiError("Can't reach the clinic server. Check your connection and try again.", {
       status: null,
       code: "network",
+      cause,
     });
   }
 
