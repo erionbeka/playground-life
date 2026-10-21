@@ -3,7 +3,7 @@ import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
-import { config } from "./config.ts";
+import { config, databaseTarget } from "./config.ts";
 import authRoutes from "./routes/auth.ts";
 import childrenRoutes from "./routes/children.ts";
 import familiesRoutes from "./routes/families.ts";
@@ -57,19 +57,6 @@ export function createApp() {
 const PROBE_TIMEOUT_MS = 5000;
 
 /**
- * The database we are talking to, without its credentials: protocol, host,
- * port and database name. The password must never reach the log stream.
- */
-export function databaseTarget(): string {
-  try {
-    const url = new URL(config.DATABASE_URL);
-    return `${url.protocol}//${url.host}/${url.pathname.replace(/^\//, "")}`;
-  } catch {
-    return "(unparseable DATABASE_URL)";
-  }
-}
-
-/**
  * `SELECT 1` bounded by a timeout. A wedged database must not keep the API
  * from opening its port, so the probe gives up instead of waiting forever.
  */
@@ -109,3 +96,5 @@ if (process.env.NODE_ENV !== "test") {
     console.log(`Playground Life API listening on port ${config.PORT}`);
   });
 }
+
+export { databaseTarget };

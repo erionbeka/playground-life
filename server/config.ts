@@ -23,3 +23,25 @@ export const config = {
     .filter(Boolean),
 };
 export const isProduction = config.NODE_ENV === "production";
+
+/**
+ * The database target with no credentials in it, safe to write to a log.
+ * `postgres://user:secret@host:5432/db` becomes
+ * `postgres://host:5432/db`.
+ */
+export function databaseTarget(databaseUrl: string = config.DATABASE_URL): string {
+  try {
+    const url = new URL(databaseUrl);
+    return `${url.protocol}//${url.host}/${url.pathname.replace(/^\//, "")}`;
+  } catch {
+    return "(unparseable DATABASE_URL)";
+  }
+}
+
+/**
+ * Removes any Postgres connection string from a message. `pg_dump` puts its
+ * argv into its error message, and that argv carries the password.
+ */
+export function redactDatabaseUrl(text: string): string {
+  return text.replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "postgres://[redacted]");
+}
