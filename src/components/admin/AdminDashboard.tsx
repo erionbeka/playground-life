@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { FamilyMember, useApp } from "@/context/AppContext";
 import { ApiError } from "@/lib/productionApi";
 import { emptySkillProfile } from "@/lib/skills";
+import { toast } from "@/components/ui/sonner";
 import GameApprovals from "./GameApprovals";
 
 type Tab = "overview" | "staff" | "families" | "content" | "readiness";
@@ -53,42 +54,53 @@ export default function AdminDashboard() {
     setShowAddChild(false);
   };
 
-  const saveChild = () => {
+  const saveChild = async () => {
     if (!childName.trim()) return;
     const parsedAge = Number.parseInt(childAge, 10);
-    addChild({
-      name: childName.trim(),
-      age: Number.isNaN(parsedAge) ? 0 : parsedAge,
-      avatar: childAvatar,
-      notes: childNotes,
-      diagnosis: childDiagnosis || undefined,
-      familyMembers: [],
-      personalizationProfile: {
-        preferredStyle: "mixed",
-        communicationLevel: "phrases",
-        reinforcementType: "social-praise",
-        promptLevel: "verbal",
-        transitionDifficulty: "moderate",
-        interests: [],
-        strengths: [],
-        supportNeeds: [],
-        sensoryPreferences: [],
-        triggerPatterns: [],
-        regulationSupports: [],
-        clinicalRatings: {
-          communicationSupport: 3,
-          regulationSupport: 3,
-          transitionSupport: 3,
-          promptDependence: 3,
-          reinforcementResponse: 3,
+    try {
+      await addChild({
+        name: childName.trim(),
+        age: Number.isNaN(parsedAge) ? 0 : parsedAge,
+        avatar: childAvatar,
+        notes: childNotes,
+        diagnosis: childDiagnosis || undefined,
+        familyMembers: [],
+        personalizationProfile: {
+          preferredStyle: "mixed",
+          communicationLevel: "phrases",
+          reinforcementType: "social-praise",
+          promptLevel: "verbal",
+          transitionDifficulty: "moderate",
+          interests: [],
+          strengths: [],
+          supportNeeds: [],
+          sensoryPreferences: [],
+          triggerPatterns: [],
+          regulationSupports: [],
+          clinicalRatings: {
+            communicationSupport: 3,
+            regulationSupport: 3,
+            transitionSupport: 3,
+            promptDependence: 3,
+            reinforcementResponse: 3,
+          },
+          clinicalRatingHistory: [],
         },
-        clinicalRatingHistory: [],
-      },
-      therapyGoals: [],
-      skillProfile: emptySkillProfile(),
-      progressionSettings: { autoAdvance: true, approvalRequired: true, recommendedDifficulty: "easy", maxDifficulty: "hard" },
-    });
-    resetAddChildForm();
+        therapyGoals: [],
+        skillProfile: emptySkillProfile(),
+        progressionSettings: { autoAdvance: true, approvalRequired: true, recommendedDifficulty: "easy", maxDifficulty: "hard" },
+      });
+      toast.success(`Added ${childName.trim()} to the clinic.`);
+      resetAddChildForm();
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError && error.code === "network"
+          ? "Can't reach the clinic server. Nothing was saved."
+          : error instanceof Error
+            ? error.message
+            : "Couldn't add the child. Nothing was saved."
+      );
+    }
   };
 
   const resetFamilyForm = () => {
@@ -102,15 +114,26 @@ export default function AdminDashboard() {
 
   const handleAddFamily = async (childId: string) => {
     if (!fmName.trim() || !fmPhoneNumber.trim() || fmPassword.trim().length < 12) return;
-    const inviteCode = await addFamilyMember(childId, {
-      name: fmName.trim(),
-      relationship: fmRelationship,
-      avatar: fmAvatar,
-      phoneNumber: fmPhoneNumber.trim(),
-      password: fmPassword,
-    });
-    if (inviteCode) setGeneratedInvites((current) => ({ ...current, [fmPhoneNumber.trim()]: inviteCode }));
-    resetFamilyForm();
+    try {
+      const inviteCode = await addFamilyMember(childId, {
+        name: fmName.trim(),
+        relationship: fmRelationship,
+        avatar: fmAvatar,
+        phoneNumber: fmPhoneNumber.trim(),
+        password: fmPassword,
+      });
+      if (inviteCode) setGeneratedInvites((current) => ({ ...current, [fmPhoneNumber.trim()]: inviteCode }));
+      toast.success(`Added ${fmName.trim()} to the family.`);
+      resetFamilyForm();
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError && error.code === "network"
+          ? "Can't reach the clinic server. Nothing was saved."
+          : error instanceof Error
+            ? error.message
+            : "Couldn't add the family member. Nothing was saved."
+      );
+    }
   };
 
   const familyRows = useMemo(
@@ -294,18 +317,29 @@ export default function AdminDashboard() {
                 <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} placeholder="Email" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
                 <input value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Temporary password" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!staffName.trim() || !staffEmail.trim() || !staffPassword.trim()) return;
-                    addStaffUser({
-                      role: staffRole,
-                      name: staffName.trim(),
-                      email: staffEmail.trim(),
-                      clinicName: adminUsers[0]?.clinicName || "Playground Life Clinic",
-                      password: staffPassword,
-                    });
-                    setStaffName("");
-                    setStaffEmail("");
-                    setStaffPassword("");
+                    try {
+                      await addStaffUser({
+                        role: staffRole,
+                        name: staffName.trim(),
+                        email: staffEmail.trim(),
+                        clinicName: adminUsers[0]?.clinicName || "Playground Life Clinic",
+                        password: staffPassword,
+                      });
+                      toast.success(`Created the ${staffRole} account for ${staffName.trim()}.`);
+                      setStaffName("");
+                      setStaffEmail("");
+                      setStaffPassword("");
+                    } catch (error) {
+                      toast.error(
+                        error instanceof ApiError && error.code === "network"
+                          ? "Can't reach the clinic server. Nothing was saved."
+                          : error instanceof Error
+                            ? error.message
+                            : "Couldn't create the account. Nothing was saved."
+                      );
+                    }
                   }}
                   className="touch-target rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
                 >
