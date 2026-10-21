@@ -37,7 +37,6 @@
       dockerfile: Dockerfile.web
       args:
         VITE_API_URL: ${VITE_API_URL:?set VITE_API_URL}
-        VITE_DATA_MODE: api
     depends_on:
       - api
     ports:

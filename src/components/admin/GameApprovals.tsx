@@ -29,17 +29,14 @@ const DECISION_CONFIRM_TEXT: Record<Decision, string> = {
 
 const LOAD_ERROR_TEXT = "We couldn't load game submissions. Please try again.";
 const DECIDE_ERROR_TEXT = "We couldn't save that decision. Please try again.";
-const SERVER_MODE_TEXT = "Game approvals needs the clinic server. Start the app with VITE_DATA_MODE=api to review submissions.";
 
 export default function GameApprovals() {
-  const apiMode = typeof import.meta.env.VITE_DATA_MODE === "string" && import.meta.env.VITE_DATA_MODE === "api";
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
 
   const load = async () => {
-    if (!apiMode) return;
     setLoading(true);
     setError("");
     try {
@@ -52,7 +49,7 @@ export default function GameApprovals() {
       setLoading(false);
     }
   };
-  useEffect(() => { void load(); }, [apiMode]);
+  useEffect(() => { void load(); }, []);
 
   const queue = drafts.filter((d) => d.status === "submitted");
   const changes = drafts.filter((d) => d.status === "changes_requested");
@@ -73,15 +70,6 @@ export default function GameApprovals() {
       setError(DECIDE_ERROR_TEXT);
     }
   };
-
-  if (!apiMode) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h2 className="font-display text-lg font-bold text-foreground">Game submissions</h2>
-        <p className="mt-2 text-sm text-muted-foreground">{SERVER_MODE_TEXT}</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

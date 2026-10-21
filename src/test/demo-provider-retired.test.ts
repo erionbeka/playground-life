@@ -31,4 +31,16 @@ describe("demo data provider is retired", () => {
     const app = readRepoFile("src/App.tsx");
     expect(app).not.toContain("playground-life.backend");
   });
+
+  it("no longer offers a localStorage data mode", () => {
+    const env = readRepoFile(".env.example");
+    expect(env).not.toContain("VITE_DATA_MODE");
+    expect(readRepoFile("Dockerfile.web")).not.toContain("VITE_DATA_MODE");
+    expect(readRepoFile("docker-compose.prod.yml")).not.toContain("VITE_DATA_MODE");
+  });
+
+  it("never gates features on a data mode", () => {
+    expect(readRepoFile("src/components/admin/GameApprovals.tsx")).not.toContain("VITE_DATA_MODE");
+    expect(readRepoFile("src/components/therapist/GameAuthoring.tsx")).not.toContain("VITE_DATA_MODE");
+  });
 });
