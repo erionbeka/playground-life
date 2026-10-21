@@ -1,6 +1,6 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContext, AppState, AuditEntry, AuthSession, Child, FamilyMember, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal, AdminUser, TherapistUser } from "@/context/AppContext";
-import { productionApi } from "@/lib/productionApi";
+import { ApiError, type ApiSessionUser, productionApi } from "@/lib/productionApi";
 import { registerPublishedGames, clearCustomGames, initCustomCatalog } from "@/lib/customCatalog";
 import { PublishedGame } from "@/lib/gameAuthoring";
 import { buildSkillScoresFromResult, emptySkillProfile } from "@/lib/skills";
@@ -256,41 +256,52 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
   }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
   const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
+    let user: ApiSessionUser;
     try {
-      const { user } = await productionApi.login(identifier, password);
-      if (user.role !== expectedRole) {
-        await productionApi.logout().catch(() => undefined);
-        return false;
-      }
-      setSession({ role: user.role, userId: user.id, displayName: user.name });
-      setRole(user.role);
-      await refreshClinicData();
-      await refreshAudit();
-      await refreshStaff();
-      await loadCustomGames();
-      return true;
-    } catch {
+      const response = await productionApi.login(identifier, password);
+      user = response.user;
+    } catch (error) {
+      // A rejected password is a normal outcome; an unreachable server is not.
+      if (error instanceof ApiError && error.status === 401) return false;
+      throw error;
+    }
+
+    if (user.role !== expectedRole) {
+      await productionApi.logout().catch(() => undefined);
       return false;
     }
+
+    setSession({ role: user.role, userId: user.id, displayName: user.name });
+    setRole(user.role);
+    await refreshClinicData();
+    await refreshAudit();
+    await refreshStaff();
+    await loadCustomGames();
+    return true;
   }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
   const signInFamily = useCallback(async (phoneNumber: string, password: string) => {
+    let user: ApiSessionUser;
     try {
-      const { user } = await productionApi.login(phoneNumber, password);
-      if (user.role !== "parent") return null;
-      const familySession = await productionApi.getFamilySession();
-      const mappedChildren = familySession.children.map((entry) => mapChild(entry as Record<string, unknown>));
-      const mappedAssignments = familySession.assignments.map((entry) => mapAssignment(entry as Record<string, unknown>));
-      setChildren(mappedChildren);
-      setAssignments(mappedAssignments);
-      setSession({ role: user.role, userId: user.id, displayName: user.name, childId: mappedChildren[0]?.id, familyMemberId: user.id });
-      setRole("parent");
-      if (mappedChildren[0]) setSelectedChildId(mappedChildren[0].id);
-      await loadCustomGames();
-      return mappedChildren[0] ? { childId: mappedChildren[0].id, familyMemberId: user.id } : null;
-    } catch {
-      return null;
+      const response = await productionApi.login(phoneNumber, password);
+      user = response.user;
+    } catch (error) {
+      // A rejected password is a normal outcome; an unreachable server is not.
+      if (error instanceof ApiError && error.status === 401) return null;
+      throw error;
     }
+
+    if (user.role !== "parent") return null;
+    const familySession = await productionApi.getFamilySession();
+    const mappedChildren = familySession.children.map((entry) => mapChild(entry as Record<string, unknown>));
+    const mappedAssignments = familySession.assignments.map((entry) => mapAssignment(entry as Record<string, unknown>));
+    setChildren(mappedChildren);
+    setAssignments(mappedAssignments);
+    setSession({ role: user.role, userId: user.id, displayName: user.name, childId: mappedChildren[0]?.id, familyMemberId: user.id });
+    setRole("parent");
+    if (mappedChildren[0]) setSelectedChildId(mappedChildren[0].id);
+    await loadCustomGames();
+    return mappedChildren[0] ? { childId: mappedChildren[0].id, familyMemberId: user.id } : null;
   }, [loadCustomGames]);
 
   const value = useMemo<AppState>(() => ({

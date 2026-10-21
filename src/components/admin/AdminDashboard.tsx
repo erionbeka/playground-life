@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { FamilyMember, useApp } from "@/context/AppContext";
+import { ApiError } from "@/lib/productionApi";
 import { emptySkillProfile } from "@/lib/skills";
 import GameApprovals from "./GameApprovals";
 
@@ -152,12 +153,20 @@ export default function AdminDashboard() {
               className="space-y-4"
               onSubmit={async (event) => {
                 event.preventDefault();
-                const authenticated = await signInAdmin(email, password);
-                if (!authenticated) {
-                  setError("We couldn't sign you in. Check the admin email and password.");
-                  return;
+                try {
+                  const authenticated = await signInAdmin(email, password);
+                  if (!authenticated) {
+                    setError("We couldn't sign you in. Check the admin email and password.");
+                    return;
+                  }
+                  setError("");
+                } catch (err) {
+                  setError(
+                    err instanceof ApiError && err.code === "network"
+                      ? "Can't reach the clinic server. Check your connection and try again."
+                      : "We couldn't sign you in right now. Please try again."
+                  );
                 }
-                setError("");
               }}
             >
               <div className="space-y-2">
