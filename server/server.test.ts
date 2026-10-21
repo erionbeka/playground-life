@@ -128,6 +128,36 @@ describe("production API", () => {
       .expect(403);
   });
 
+  it("lists clinic staff for admins", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [
+        { id: "user-admin", name: "Admin", email: "admin@example.com", role: "admin", credential_status: "active", last_signed_in_at: null, created_at: "2026-01-01T00:00:00Z" },
+        { id: "user-therapist", name: "New Therapist", email: "new@example.com", role: "therapist", credential_status: "active", last_signed_in_at: null, created_at: "2026-01-02T00:00:00Z" },
+      ],
+    });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get("/api/auth/staff")
+      .set("Authorization", "Bearer admin-token")
+      .expect(200);
+
+    expect(response.body.staff).toHaveLength(2);
+    expect(response.body.staff[1].email).toBe("new@example.com");
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.stringContaining("FROM users"),
+      expect.arrayContaining(["clinic-1"]),
+    );
+  });
+
+  it("blocks therapists from reading the staff roster", async () => {
+    const app = await loadApp();
+    await request(app)
+      .get("/api/auth/staff")
+      .set("Authorization", "Bearer therapist-token")
+      .expect(403);
+  });
+
   it("lets admins create clinic-scoped child records", async () => {
     queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
 

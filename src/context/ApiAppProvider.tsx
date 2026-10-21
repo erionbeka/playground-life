@@ -156,6 +156,8 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [currentAssignment, setCurrentAssignment] = useState<HomeworkAssignment | null>(null);
+  const [staffUsers, setStaffUsers] = useState<AdminUser[]>([]);
+  const [therapistStaffUsers, setTherapistStaffUsers] = useState<TherapistUser[]>([]);
 
   const refreshClinicData = useCallback(async () => {
     const [childResponse, assignmentResponse, familyResponse, goalResponse] = await Promise.all([
@@ -192,6 +194,37 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     }
   }, []);
 
+  /**
+   * Staff roster. The admin dashboard lists clinic staff, and staff accounts
+   * are created through the API, so the list has to come from the API too -
+   * otherwise a newly created therapist exists in Postgres but never shows up
+   * in the UI. Therapists cannot read the roster, so a non-admin session keeps
+   * an empty list rather than failing the request.
+   */
+  const refreshStaff = useCallback(async () => {
+    try {
+      const response = await productionApi.listStaff();
+      const admins: AdminUser[] = [];
+      const therapists: TherapistUser[] = [];
+      for (const entry of response.staff) {
+        const mapped = {
+          id: entry.id,
+          clinicName: "Clinic",
+          name: entry.name,
+          email: entry.email,
+          passwordHash: "",
+        };
+        if (entry.role === "admin") admins.push(mapped);
+        else if (entry.role === "therapist") therapists.push(mapped);
+      }
+      setStaffUsers(admins);
+      setTherapistStaffUsers(therapists);
+    } catch {
+      setStaffUsers([]);
+      setTherapistStaffUsers([]);
+    }
+  }, []);
+
   const loadCustomGames = useCallback(async () => {
     await productionApi
       .listCustomGames()
@@ -218,10 +251,11 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         setRole(user.role);
         await refreshClinicData();
         await refreshAudit();
+        await refreshStaff();
         await loadCustomGames();
       })
       .catch(() => undefined);
-  }, [loadCustomGames, refreshAudit, refreshClinicData]);
+  }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
   const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
     try {
@@ -234,12 +268,13 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       setRole(user.role);
       await refreshClinicData();
       await refreshAudit();
+      await refreshStaff();
       await loadCustomGames();
       return true;
     } catch {
       return false;
     }
-  }, [loadCustomGames, refreshAudit, refreshClinicData]);
+  }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
   const signInFamily = useCallback(async (phoneNumber: string, password: string) => {
     try {
@@ -264,8 +299,8 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     role,
     setRole,
     session,
-    adminUsers: session?.role === "admin" ? [{ id: session.userId, clinicName: "Clinic", name: session.displayName, email: "", passwordHash: "" } as AdminUser] : [],
-    therapistUsers: session?.role === "therapist" ? [{ id: session.userId, clinicName: "Clinic", name: session.displayName, email: "", passwordHash: "" } as TherapistUser] : [],
+    adminUsers: staffUsers,
+    therapistUsers: therapistStaffUsers,
     signInAdmin: (email, password) => signIn(email, password, "admin"),
     signInTherapist: (email, password) => signIn(email, password, "therapist"),
     signInFamily,
@@ -277,11 +312,14 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       setChildren([]);
       setAssignments([]);
       setAuditLog([]);
+      setStaffUsers([]);
+      setTherapistStaffUsers([]);
       setSelectedChildId(null);
       setCurrentAssignment(null);
     },
     addStaffUser: async (user) => {
       await productionApi.createStaff({ role: user.role, name: user.name, email: user.email, password: user.password });
+      await refreshStaff();
       await refreshAudit();
     },
     children,
@@ -419,7 +457,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     currentAssignment,
     setCurrentAssignment,
     auditLog,
-  }), [assignments, auditLog, children, currentAssignment, refreshAudit, refreshClinicData, role, selectedChildId, session, signIn, signInFamily]);
+  }), [assignments, auditLog, children, currentAssignment, refreshAudit, refreshClinicData, refreshStaff, role, selectedChildId, session, signIn, signInFamily, staffUsers, therapistStaffUsers]);
 
   return <AppContext.Provider value={value}>{childrenNodes}</AppContext.Provider>;
 }

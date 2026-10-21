@@ -96,4 +96,30 @@ router.post("/staff", requireAuth, requireRole("admin"), async (req, res) => {
   return res.status(201).json({ user: inserted.rows[0] });
 });
 
+/**
+ * Clinic staff roster. Without this the admin dashboard can create staff
+ * accounts but has no way to read them back, so a newly added therapist never
+ * appears in the list. Scoped to the caller's clinic; admins only, because the
+ * roster exposes staff email addresses and credential state.
+ */
+router.get("/staff", requireAuth, requireRole("admin"), async (req, res) => {
+  const rows = await query<{
+    id: string;
+    name: string;
+    email: string;
+    role: UserRole;
+    credential_status: string;
+    last_signed_in_at: string | null;
+    created_at: string;
+  }>(
+    `SELECT id, name, email, role, credential_status, last_signed_in_at, created_at
+     FROM users
+     WHERE clinic_id = $1 AND role IN ('admin', 'therapist')
+     ORDER BY created_at ASC`,
+    [req.user?.clinicId]
+  );
+
+  return res.json({ staff: rows.rows });
+});
+
 export default router;

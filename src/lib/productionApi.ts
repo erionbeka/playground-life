@@ -105,6 +105,20 @@ export const productionApi = {
     });
   },
 
+  listStaff() {
+    return request<{
+      staff: Array<{
+        id: string;
+        name: string;
+        email: string;
+        role: ApiRole;
+        credential_status: string;
+        last_signed_in_at: string | null;
+        created_at: string;
+      }>;
+    }>("/api/auth/staff");
+  },
+
   listChildren() {
     return request<{ children: unknown[] }>("/api/children");
   },
