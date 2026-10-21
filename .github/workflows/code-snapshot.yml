@@ -1,0 +1,84 @@
+name: Automated Code Snapshot
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: code-snapshot
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create dated snapshot tag and branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y-%m-%d-%H%M%S)"
+          SHORT="$(git rev-parse --short HEAD)"
+          TAG="snapshot/${STAMP}-${SHORT}"
+          BRANCH="backup/auto-${STAMP}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$TAG" -m "Automated snapshot of main at ${SHORT}"
+          git push origin "$TAG"
+          git push origin "HEAD:refs/heads/${BRANCH}"
+
+          echo "Created tag:    $TAG"
+          echo "Created branch: $BRANCH"
+
+      - name: Prune old automatic snapshots
+        env:
+          KEEP: "30"
+        run: |
+          set -euo pipefail
+          echo "Keeping the most recent ${KEEP} automatic snapshots."
+
+          mapfile -t BRANCHES < <(git ls-remote --heads origin 'refs/heads/backup/auto-*' \
+            | awk '{print $2}' | sed 's#refs/heads/##' | sort)
+
+          COUNT="${#BRANCHES[@]}"
+          echo "Found ${COUNT} automatic backup branches."
+
+          if [ "$COUNT" -le "$KEEP" ]; then
+            echo "Nothing to prune."
+            exit 0
+          fi
+
+          DELETE=$((COUNT - KEEP))
+          echo "Pruning ${DELETE} oldest automatic backup branches."
+          for ((i = 0; i < DELETE; i++)); do
+            BRANCH="${BRANCHES[$i]}"
+            echo "  deleting $BRANCH"
+            git push origin --delete "$BRANCH" || true
+          done
+
+          mapfile -t TAGS < <(git ls-remote --tags origin 'refs/tags/snapshot/*' \
+            | awk '{print $2}' | sed 's#refs/tags/##' | grep -v '\^{}' | sort)
+
+          TCOUNT="${#TAGS[@]}"
+          echo "Found ${TCOUNT} snapshot tags."
+          if [ "$TCOUNT" -gt "$KEEP" ]; then
+            TDELETE=$((TCOUNT - KEEP))
+            echo "Pruning ${TDELETE} oldest snapshot tags."
+            for ((i = 0; i < TDELETE; i++)); do
+              TAG="${TAGS[$i]}"
+              echo "  deleting $TAG"
+              git push origin --delete "$TAG" || true
+            done
+          fi

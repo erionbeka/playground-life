@@ -1,0 +1,14 @@
+[Unit]
+Description=Playground Life PostgreSQL backup
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/playground-life
+# Loads DATABASE_URL and any optional settings from the app env file.
+EnvironmentFile=/opt/playground-life/.env
+ExecStart=/bin/bash /opt/playground-life/deploy/backup-db.sh
+# Run as a dedicated user with read access to the env file, not root.
+User=playground
+Group=playground

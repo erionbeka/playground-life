@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Playground Life PostgreSQL backup daily
+
+[Timer]
+# Every day at 03:15 UTC. Adjust the time to your off-peak window.
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+# Small randomized delay avoids thundering-herd if other jobs share the host.
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target
