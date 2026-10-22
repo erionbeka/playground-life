@@ -46,7 +46,9 @@ npm run dev                 # frontend on :8080 (proxies /api to :4000)
 ```
 
 The seed creates an admin account. Its password comes from
-`SEED_ADMIN_PASSWORD` in `.env` (default `admin123` — change it).
+`SEED_ADMIN_PASSWORD` in `.env` (12 characters or more). There is no default:
+the seed refuses to run without it, because a password that ships in the
+repository is a password that stops being a secret.
 
 To run the pieces separately:
 
