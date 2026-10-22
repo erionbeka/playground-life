@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ApiAppProvider } from "@/context/ApiAppProvider";
 import BlobBackground from "@/components/BlobBackground";
 import ApiStatusBanner from "@/components/ApiStatusBanner";
+import BackButtonHandler from "@/components/BackButtonHandler";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const RoleSelector = lazy(() => import("@/components/RoleSelector"));
@@ -31,6 +32,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <BackButtonHandler />
               <Suspense
                 fallback={
                   <div className="flex min-h-screen items-center justify-center" aria-busy="true" aria-label="Loading" />
