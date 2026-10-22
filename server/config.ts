@@ -50,7 +50,7 @@ const configSchema = z.object({
    * length, but a dedicated key keeps the participant ids stable if the
    * session secret is ever rotated.
    */
-  RESEARCH_DEIDENTIFICATION_KEY: z.string().min(32).optional(),
+  RESEARCH_DEIDENTIFICATION_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(32).optional()),
 });
 
 const parsed = configSchema.parse(process.env);
