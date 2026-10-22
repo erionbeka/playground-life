@@ -260,8 +260,36 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         await refreshStaff();
         await loadCustomGames();
       })
-      .catch(() => undefined);
+      .catch(() => {
+        const path = typeof window !== "undefined" ? window.location.pathname : "/";
+        if (/^\/(therapist|family|admin)(\/|$)/.test(path)) {
+          window.location.assign("/enter");
+        }
+      });
   }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
+
+  useEffect(() => {
+    const retry = async () => {
+      const queue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
+      if (!Array.isArray(queue) || queue.length === 0) return;
+      const remaining = [];
+      for (const item of queue) {
+        try {
+          await productionApi.recordGameResult(item.assignmentId, item);
+        } catch {
+          remaining.push(item);
+        }
+      }
+      localStorage.setItem("pendingGameResults", JSON.stringify(remaining));
+      if (remaining.length === 0) {
+        await refreshClinicData().catch(() => undefined);
+        await refreshAudit().catch(() => undefined);
+      }
+    };
+    void retry();
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [refreshAudit, refreshClinicData]);
 
   const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
     let user: ApiSessionUser;
@@ -472,16 +500,28 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       await refreshAudit();
     },
     completeGame: async (assignmentId, result: Omit<GameResult, "assignmentId" | "skillScores">) => {
-      await productionApi.recordGameResult(assignmentId, {
+      const payload = {
+        assignmentId,
         gameId: result.gameId,
         durationSeconds: result.durationSeconds,
         score: result.score,
         interactions: result.interactions,
         metrics: result,
         skillScores: buildSkillScoresFromResult(result.gameId, result.score),
-      });
-      await refreshClinicData();
-      await refreshAudit();
+      };
+      try {
+        await productionApi.recordGameResult(assignmentId, payload);
+        await refreshClinicData();
+        await refreshAudit();
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "network") {
+          const queue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
+          queue.push(payload);
+          localStorage.setItem("pendingGameResults", JSON.stringify(queue));
+          return;
+        }
+        throw error;
+      }
     },
     removeGameFromAssignment: async (assignmentId, gameId) => {
       await productionApi.removeGameFromAssignment(assignmentId, gameId);
