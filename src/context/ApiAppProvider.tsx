@@ -167,8 +167,8 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
 
   const refreshClinicData = useCallback(async () => {
     const [childResponse, assignmentResponse, familyResponse, goalResponse] = await Promise.all([
-      productionApi.listChildren(),
-      productionApi.listAssignments(),
+      productionApi.listChildren().catch(() => ({ children: [] as unknown[] })),
+      productionApi.listAssignments().catch(() => ({ assignments: [] as unknown[] })),
       productionApi.listFamilyLinks().catch(() => ({ familyLinks: [] as unknown[] })),
       productionApi.listGoals().catch(() => ({ goals: [] as unknown[] })),
     ]);

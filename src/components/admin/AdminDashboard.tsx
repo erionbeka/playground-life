@@ -7,7 +7,7 @@ import { emptySkillProfile } from "@/lib/skills";
 import { toast } from "@/components/ui/sonner";
 import GameApprovals from "./GameApprovals";
 
-type Tab = "overview" | "staff" | "families" | "content" | "readiness";
+type Tab = "overview" | "staff" | "families" | "content";
 
 /**
  * A temporary password for a caregiver account.
@@ -34,7 +34,6 @@ const tabs: { key: Tab; label: string; emoji?: string }[] = [
   { key: "staff", label: "Staff" },
   { key: "families", label: "Families" },
   { key: "content", label: "Content", emoji: "🎨" },
-  { key: "readiness", label: "Readiness" },
 ];
 
 export default function AdminDashboard() {
@@ -595,30 +594,6 @@ export default function AdminDashboard() {
 
         {tab === "content" ? (
           <GameApprovals />
-        ) : null}
-
-        {tab === "readiness" ? (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl bg-muted p-4">
-              <h2 className="mb-3 font-display text-lg font-bold text-foreground">What This App Can Do Now</h2>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Role-based clinic access for admin, therapist, and family flows.</p>
-                <p>Family onboarding states, invite issuance, and credential resets.</p>
-                <p>Skill-domain progression, assignment approvals, and audit history.</p>
-                <p>Clinic-facing reports with goals, skill scores, and operational review.</p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-muted p-4">
-              <h2 className="mb-3 font-display text-lg font-bold text-foreground">Still Needed Before Production</h2>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Server-side auth, database, and encrypted storage beyond browser local state.</p>
-                <p>Real invitation delivery, password reset tokens, and MFA.</p>
-                <p>Centralized audit export, retention rules, and monitored backups.</p>
-                <p>Formal HIPAA risk analysis, policies, BAAs, and operational controls.</p>
-              </div>
-            </div>
-          </div>
         ) : null}
       </div>
     </div>
