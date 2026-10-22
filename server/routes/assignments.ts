@@ -14,7 +14,8 @@ const RESULTS_SUBQUERY = `COALESCE((
       'durationSeconds', gr.duration_seconds,
       'score', gr.score,
       'interactions', gr.interactions,
-      'skillScores', gr.skill_scores
+      'skillScores', gr.skill_scores,
+      'metrics', gr.metrics
     ) ORDER BY gr.completed_at)
     FROM game_results gr WHERE gr.assignment_id = assignments.id
   ), '[]'::json)`;

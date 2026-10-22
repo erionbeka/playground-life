@@ -433,6 +433,14 @@ function createFakeApi(): FakeApi {
           score: Number(payload.score ?? 0),
           interactions: Number(payload.interactions ?? 0),
           skillScores,
+          ...(payload.metrics
+            ? {
+                independenceRate: Number((payload.metrics as Record<string, unknown>).independenceRate) || undefined,
+                medianLatencyMs: Number((payload.metrics as Record<string, unknown>).medianLatencyMs) || undefined,
+                trace: (payload.metrics as Record<string, unknown>).trace as GameResult["trace"],
+                insights: (payload.metrics as Record<string, unknown>).insights as GameResult["insights"],
+              }
+            : {}),
         };
         assignment.results = [...assignment.results.filter((entry) => entry.gameId !== gameId), result];
         assignment.completedGames = Array.from(new Set([...assignment.completedGames, gameId]));

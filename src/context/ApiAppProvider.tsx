@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContext, AppState, AuditEntry, AuthSession, Child, FamilyMember, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal, AdminUser, TherapistUser } from "@/context/AppContext";
 import { ApiError, type ApiSessionUser, productionApi } from "@/lib/productionApi";
+import type { Insight, SessionTrace } from "@/lib/gameAnalytics";
 import { registerPublishedGames, clearCustomGames, initCustomCatalog } from "@/lib/customCatalog";
 import { PublishedGame } from "@/lib/gameAuthoring";
 import { buildSkillScoresFromResult, emptySkillProfile } from "@/lib/skills";
@@ -73,15 +74,22 @@ function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
   const rawResults = Array.isArray(row.results)
     ? (row.results as Array<Record<string, unknown>>)
     : [];
-  const results: GameResult[] = rawResults.map((entry) => ({
-    gameId: String(entry.gameId),
-    assignmentId: String(row.id),
-    completedAt: String(entry.completedAt),
-    durationSeconds: Number(entry.durationSeconds ?? 0),
-    score: Number(entry.score ?? 0),
-    interactions: Number(entry.interactions ?? 0),
-    skillScores: (entry.skillScores || {}) as GameResult["skillScores"],
-  }));
+  const results: GameResult[] = rawResults.map((entry) => {
+    const metrics = (entry.metrics || {}) as Record<string, unknown>;
+    return ({
+      gameId: String(entry.gameId),
+      assignmentId: String(row.id),
+      completedAt: String(entry.completedAt),
+      durationSeconds: Number(entry.durationSeconds ?? 0),
+      score: Number(entry.score ?? 0),
+      interactions: Number(entry.interactions ?? 0),
+      skillScores: (entry.skillScores || {}) as GameResult["skillScores"],
+      independenceRate: metrics.independenceRate ? Number(metrics.independenceRate) : undefined,
+      medianLatencyMs: metrics.medianLatencyMs ? Number(metrics.medianLatencyMs) : undefined,
+      trace: metrics.trace as SessionTrace | undefined,
+      insights: metrics.insights as Insight[] | undefined,
+    });
+  });
   const completedGames = Array.from(new Set(results.map((result) => result.gameId)));
 
   return {
