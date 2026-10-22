@@ -28,6 +28,15 @@ const CRITTERS: Record<CritterShape, CritterConfig> = {
   bird: { ear: "tuft", eyeStyle: "round", mouth: "open", bodySquash: 0.92 },
 };
 
+/**
+ * The angle to travel from one heading to another, taking the short way
+ * round the circle. Without this an arm that has to turn past 180 degrees
+ * spins the long way instead of turning towards the pointer.
+ */
+function shortestAngleDelta(from: number, to: number) {
+  return (((to - from + 180) % 360) + 360) % 360 - 180;
+}
+
 function Ears({ shape, color, size }: { shape: CritterShape; color: string; size: number }) {
   const earStyle = CRITTERS[shape].ear;
   if (earStyle === "none") return null;
@@ -545,6 +554,12 @@ export default function BlobCritter({
   const shoulderRightX = bodyWidth * 0.92;
   const shoulderY = bodyHeight * 0.55;
 
+  // The pointer is tracked from the blob's centre, while the shoulder anchors
+  // are measured from the body's top-left corner. Convert the pointer into
+  // the body's own frame so the two can be compared.
+  const pointerX = useTransform(px, (x) => x + bodyWidth / 2);
+  const pointerY = useTransform(py, (y) => y + bodyHeight / 2 + size * 0.04);
+
   // How engaged the blob is with the cursor: 0 when the cursor is far away,
   // 1 once it is inside the reach circle. Blending with this instead of a
   // boolean keeps the arms from snapping at the boundary.
@@ -567,27 +582,6 @@ export default function BlobCritter({
     2: "both",
   };
 
-  // How far each arm stretches, as a scale factor of its rest length.
-  const armScaleLeft = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
-    const stretch = Math.min(Math.hypot(x - shoulderLeftX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
-    return REST_SCALE + Math.max(0, stretch - REST_SCALE) * factor;
-  });
-  const armScaleRight = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
-    const stretch = Math.min(Math.hypot(x - shoulderRightX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
-    return REST_SCALE + Math.max(0, stretch - REST_SCALE) * factor;
-  });
-
-  // The angle each arm points in. The left arm's natural direction is local
-  // -x and the right arm's is local +x, so they need different offsets.
-  const armAngleLeft = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
-    const target = (Math.atan2(y - shoulderY, x - shoulderLeftX) * 180) / Math.PI - 180;
-    return LEFT_REST_ANGLE + (target - LEFT_REST_ANGLE) * factor;
-  });
-  const armAngleRight = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
-    const target = (Math.atan2(y - shoulderY, x - shoulderRightX) * 180) / Math.PI;
-    return RIGHT_REST_ANGLE + (target - RIGHT_REST_ANGLE) * factor;
-  });
-
   // A cursor in the lower half of the reach circle makes the blob grab with
   // both hands instead of just the nearer arm.
   const bothHandsReach = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) =>
@@ -609,15 +603,60 @@ export default function BlobCritter({
     ([both, right]: number[]) => (both ? 2 : right ? 1 : 0)
   );
 
+  // How much of the reach an arm puts into following the cursor. An arm that
+  // is not the one reaching keeps its rest pose, so it stays by the body
+  // instead of stretching across it.
+  const reachAmountLeft = useTransform(
+    [reachFactor, reachModeLeft],
+    ([factor, mode]: number[]) => (mode === 0 ? 0 : factor)
+  );
+  const reachAmountRight = useTransform(
+    [reachFactor, reachModeRight],
+    ([factor, mode]: number[]) => (mode === 0 ? 0 : factor)
+  );
+
+  // How far each arm stretches, as a scale factor of its rest length.
+  const armScaleLeft = useTransform(
+    [pointerX, pointerY, reachAmountLeft],
+    ([x, y, amount]: number[]) => {
+      const stretch = Math.min(Math.hypot(x - shoulderLeftX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
+      return REST_SCALE + Math.max(0, stretch - REST_SCALE) * amount;
+    }
+  );
+  const armScaleRight = useTransform(
+    [pointerX, pointerY, reachAmountRight],
+    ([x, y, amount]: number[]) => {
+      const stretch = Math.min(Math.hypot(x - shoulderRightX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
+      return REST_SCALE + Math.max(0, stretch - REST_SCALE) * amount;
+    }
+  );
+
+  // The angle each arm points in. The left arm's natural direction is local
+  // -x and the right arm's is local +x, so they need different offsets.
+  const armAngleLeft = useTransform(
+    [pointerX, pointerY, reachAmountLeft],
+    ([x, y, amount]: number[]) => {
+      const target = (Math.atan2(y - shoulderY, x - shoulderLeftX) * 180) / Math.PI - 180;
+      return LEFT_REST_ANGLE + shortestAngleDelta(LEFT_REST_ANGLE, target) * amount;
+    }
+  );
+  const armAngleRight = useTransform(
+    [pointerX, pointerY, reachAmountRight],
+    ([x, y, amount]: number[]) => {
+      const target = (Math.atan2(y - shoulderY, x - shoulderRightX) * 180) / Math.PI;
+      return RIGHT_REST_ANGLE + shortestAngleDelta(RIGHT_REST_ANGLE, target) * amount;
+    }
+  );
+
   // When the cursor is below the blob, both arms angle down and inward so
   // the hands converge under the body instead of both pointing straight down.
   const armAngleLeftFinal = useTransform(
     [armAngleLeft, bothHandsReach],
-    ([normal, both]: number[]) => normal + (-135 - normal) * both
+    ([normal, both]: number[]) => normal + shortestAngleDelta(normal, -135) * both
   );
   const armAngleRightFinal = useTransform(
     [armAngleRight, bothHandsReach],
-    ([normal, both]: number[]) => normal + (135 - normal) * both
+    ([normal, both]: number[]) => normal + shortestAngleDelta(normal, 135) * both
   );
 
   // Both arms extend fully when the grab is two-handed, even if one of them

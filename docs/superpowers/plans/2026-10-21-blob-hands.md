@@ -158,6 +158,12 @@ In `src/components/home/BlobCritter.tsx`:
   const shoulderRightX = bodyWidth * 0.92;
   const shoulderY = bodyHeight * 0.55;
 
+  // The pointer is tracked from the blob's centre, while the shoulder anchors
+  // are measured from the body's top-left corner. Convert the pointer into
+  // the body's own frame so the two can be compared.
+  const pointerX = useTransform(px, (x) => x + bodyWidth / 2);
+  const pointerY = useTransform(py, (y) => y + bodyHeight / 2 + size * 0.04);
+
   // How engaged the blob is with the cursor: 0 when the cursor is far away,
   // 1 once it is inside the reach circle. Blending with this instead of a
   // boolean keeps the arms from snapping at the boundary.
@@ -175,25 +181,50 @@ In `src/components/home/BlobCritter.tsx`:
   const RIGHT_REST_ANGLE = 45;
 
   // How far each arm stretches, as a scale factor of its rest length.
-  const armScaleLeft = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
-    const stretch = Math.min(Math.hypot(x - shoulderLeftX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
-    return REST_SCALE + Math.max(0, stretch - REST_SCALE) * factor;
-  });
-  const armScaleRight = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
-    const stretch = Math.min(Math.hypot(x - shoulderRightX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
-    return REST_SCALE + Math.max(0, stretch - REST_SCALE) * factor;
-  });
+  const armScaleLeft = useTransform(
+    [pointerX, pointerY, reachAmountLeft],
+    ([x, y, amount]: number[]) => {
+      const stretch = Math.min(Math.hypot(x - shoulderLeftX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
+      return REST_SCALE + Math.max(0, stretch - REST_SCALE) * amount;
+    }
+  );
+  const armScaleRight = useTransform(
+    [pointerX, pointerY, reachAmountRight],
+    ([x, y, amount]: number[]) => {
+      const stretch = Math.min(Math.hypot(x - shoulderRightX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
+      return REST_SCALE + Math.max(0, stretch - REST_SCALE) * amount;
+    }
+  );
 
   // The angle each arm points in. The left arm's natural direction is local
   // -x and the right arm's is local +x, so they need different offsets.
-  const armAngleLeft = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
-    const target = (Math.atan2(y - shoulderY, x - shoulderLeftX) * 180) / Math.PI - 180;
-    return LEFT_REST_ANGLE + (target - LEFT_REST_ANGLE) * factor;
-  });
-  const armAngleRight = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) => {
-    const target = (Math.atan2(y - shoulderY, x - shoulderRightX) * 180) / Math.PI;
-    return RIGHT_REST_ANGLE + (target - RIGHT_REST_ANGLE) * factor;
-  });
+  const armAngleLeft = useTransform(
+    [pointerX, pointerY, reachAmountLeft],
+    ([x, y, amount]: number[]) => {
+      const target = (Math.atan2(y - shoulderY, x - shoulderLeftX) * 180) / Math.PI - 180;
+      return LEFT_REST_ANGLE + shortestAngleDelta(LEFT_REST_ANGLE, target) * amount;
+    }
+  );
+  const armAngleRight = useTransform(
+    [pointerX, pointerY, reachAmountRight],
+    ([x, y, amount]: number[]) => {
+      const target = (Math.atan2(y - shoulderY, x - shoulderRightX) * 180) / Math.PI;
+      return RIGHT_REST_ANGLE + shortestAngleDelta(RIGHT_REST_ANGLE, target) * amount;
+    }
+  );
+```
+
+Add the angle helper at module scope, above the component:
+
+```tsx
+/**
+ * The angle to travel from one heading to another, taking the short way
+ * round the circle. Without this an arm that has to turn past 180 degrees
+ * spins the long way instead of turning towards the pointer.
+ */
+function shortestAngleDelta(from: number, to: number) {
+  return (((to - from + 180) % 360) + 360) % 360 - 180;
+}
 ```
 
 - [ ] **Step 4: Replace the arms and the reach arm**
@@ -439,15 +470,27 @@ Add these motion values after `armAngleRight`:
     ([both, right]: number[]) => (both ? 2 : right ? 1 : 0)
   );
 
+  // How much of the reach an arm puts into following the cursor. An arm that
+  // is not the one reaching keeps its rest pose, so it stays by the body
+  // instead of stretching across it.
+  const reachAmountLeft = useTransform(
+    [reachFactor, reachModeLeft],
+    ([factor, mode]: number[]) => (mode === 0 ? 0 : factor)
+  );
+  const reachAmountRight = useTransform(
+    [reachFactor, reachModeRight],
+    ([factor, mode]: number[]) => (mode === 0 ? 0 : factor)
+  );
+
   // When the cursor is below the blob, both arms angle down and inward so
   // the hands converge under the body instead of both pointing straight down.
   const armAngleLeftFinal = useTransform(
     [armAngleLeft, bothHandsReach],
-    ([normal, both]: number[]) => normal + (-135 - normal) * both
+    ([normal, both]: number[]) => normal + shortestAngleDelta(normal, -135) * both
   );
   const armAngleRightFinal = useTransform(
     [armAngleRight, bothHandsReach],
-    ([normal, both]: number[]) => normal + (135 - normal) * both
+    ([normal, both]: number[]) => normal + shortestAngleDelta(normal, 135) * both
   );
 
   // Both arms extend fully when the grab is two-handed, even if one of them
@@ -516,7 +559,7 @@ const REACH_MODE_LABEL: Record<number, string> = {
 - [ ] **Step 5: Run the test to verify it passes**
 
 Run: `npx vitest run src/test/blob-critter.test.tsx`
-Expected: PASS (5 tests).
+Expected: PASS (7 tests).
 
 - [ ] **Step 6: Run the full checks**
 
@@ -568,3 +611,36 @@ Expected: the blob renders without arms and does not track the pointer.
 Scroll to the "Play pals" row.
 
 Expected: the five small blobs have no arms, exactly as before.
+
+---
+
+## Notes from implementation and browser verification
+
+Three problems only showed up once the arms were measured in a real browser.
+They are fixed in the shipped code, and the snippets above match it.
+
+1. **The pointer and the shoulders were in different frames.** `px`/`py` are
+   measured from the blob's centre, but `shoulderLeftX`/`shoulderRightX`/
+   `shoulderY` are measured from the body's top-left corner. Comparing them
+   directly put the cursor roughly a body-width away from where it really
+   was, so the arms aimed beside the pointer and stretched too far.
+   `pointerX`/`pointerY` convert the pointer into the body's frame.
+
+2. **The angles blended the long way round.** The left arm's target angle is
+   `atan2(...) - 180`, which can land outside `-180..180`. Blending from the
+   rest angle to it directly made the arm spin up to 300 degrees to reach a
+   pointer that was only 70 degrees away. `shortestAngleDelta` takes the
+   short way round the circle.
+
+3. **Both arms reached at once.** The stretch is driven by the distance from
+   each shoulder to the cursor, so the arm on the *far* side stretched the
+   most and lay across the body. The reach mode already distinguishes the
+   arm that reaches from the arm that rests, so `reachAmountLeft`/
+   `reachAmountRight` now gate the arms: the arm that is not reaching keeps
+   its rest pose and stays by the body.
+
+The arm springs are driven through `style` motion values wrapped in
+`useSpring`, never through an `animate` target. Passing a motion value to
+`animate` makes framer-motion resolve the keyframes by measuring the
+element, which throws `TypeError: positionalValues[name] is not a function`
+and takes the whole render loop down with it.

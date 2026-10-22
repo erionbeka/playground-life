@@ -53,6 +53,35 @@ describe("blob critter arms", () => {
   });
 });
 
+function armRotation(testId: string) {
+  const transform = screen.getByTestId(testId).getAttribute("style") ?? "";
+  const match = /rotate\((-?\d+(?:\.\d+)?)deg\)/.exec(transform);
+  if (!match) throw new Error(`no rotate() in "${transform}"`);
+  return Number(match[1]);
+}
+
+/** Waits for the arm spring to come to rest, then returns its rotation. */
+async function settledRotation(testId: string) {
+  const startedAt = Date.now();
+  let last = Number.NaN;
+  let stable = 0;
+
+  await waitFor(
+    () => {
+      const angle = armRotation(testId);
+      // The springs take a moment to start moving, so only start looking for
+      // a settled value once they are clearly under way.
+      const underWay = Date.now() - startedAt > 1000;
+      stable = underWay && Math.abs(angle - last) < 0.3 ? stable + 1 : 0;
+      last = angle;
+      expect(stable).toBeGreaterThanOrEqual(3);
+    },
+    { timeout: 8000, interval: 100 }
+  );
+
+  return last;
+}
+
 describe("blob critter two-handed reach", () => {
   it("extends both arms when the pointer is below the blob", async () => {
     mockMatchMedia(false);
@@ -85,5 +114,47 @@ describe("blob critter two-handed reach", () => {
       expect(screen.getByTestId("blob-arm-right")).toHaveAttribute("data-reach", "nearest");
       expect(screen.getByTestId("blob-arm-left")).toHaveAttribute("data-reach", "rest");
     });
+  });
+
+  it("turns the nearer arm toward a pointer on the left", async () => {
+    mockMatchMedia(false);
+
+    render(<BlobCritter shape="cat" color="#4daace" size={210} reach />);
+
+    await act(async () => {
+      fireEvent.pointerMove(window, { clientX: -600, clientY: 21 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("blob-arm-left")).toHaveAttribute("data-reach", "nearest");
+    });
+
+    // The left arm hangs from its shoulder and points along local -x, so a
+    // rotation between -90 and 90 aims it at a pointer on the left. Any other
+    // angle means the arm swung the long way round the circle instead of
+    // turning towards the pointer.
+    const angle = await settledRotation("blob-arm-left");
+    expect(angle).toBeGreaterThan(-90);
+    expect(angle).toBeLessThan(90);
+  });
+
+  it("turns the nearer arm toward a pointer on the right", async () => {
+    mockMatchMedia(false);
+
+    render(<BlobCritter shape="cat" color="#4daace" size={210} reach />);
+
+    await act(async () => {
+      fireEvent.pointerMove(window, { clientX: 600, clientY: 21 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("blob-arm-right")).toHaveAttribute("data-reach", "nearest");
+    });
+
+    // The right arm points along local +x, so the same range aims it at a
+    // pointer on the right.
+    const angle = await settledRotation("blob-arm-right");
+    expect(angle).toBeGreaterThan(-90);
+    expect(angle).toBeLessThan(90);
   });
 });
