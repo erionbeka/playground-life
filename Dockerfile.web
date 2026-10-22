@@ -13,4 +13,7 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # the API address is a build/runtime variable instead of a baked-in address.
 ENV API_UPSTREAM=api:4000
 COPY deploy/nginx.conf.template /etc/nginx/templates/default.conf.template
+# The security headers live in their own file because nginx drops the headers
+# of an outer level as soon as a location sets one of its own.
+COPY deploy/security-headers.conf /etc/nginx/snippets/security-headers.conf
 EXPOSE 80

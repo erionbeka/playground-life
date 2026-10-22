@@ -71,6 +71,12 @@ export default defineConfig(({ mode }) => {
     build: {
       chunkSizeWarningLimit: 650,
       modulePreload: {
+        // Vite injects a modulepreload polyfill as an inline script. The
+        // deployed app sends a Content-Security-Policy, and an inline script
+        // is exactly what `script-src 'self'` blocks, so the polyfill would
+        // be the one script the browser refuses to run. Browsers that need it
+        // are older than the app's own browser support.
+        polyfill: false,
         // The homepage is where every visitor lands. These chunks are only
         // reachable from the therapist report and insight screens, but Vite
         // hoists them into the landing page's modulepreload list, charging
