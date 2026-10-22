@@ -1,4 +1,4 @@
-﻿import cookieParser from "cookie-parser";
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { type ErrorRequestHandler } from "express";
 import rateLimit from "express-rate-limit";
@@ -23,6 +23,11 @@ export function createApp() {
   const app = express();
 
   app.disable("x-powered-by");
+  // Read the client address from the proxy header when the API sits behind
+  // nginx. Without this every request looks like it comes from the proxy,
+  // which makes the rate limiter count all visitors as one caller and puts
+  // the proxy's address in the audit log.
+  app.set("trust proxy", config.TRUST_PROXY);
   app.use(helmet());
   app.use(cors({ origin: config.CORS_ORIGINS, credentials: true }));
   app.use(express.json({ limit: "1mb" }));

@@ -1,9 +1,10 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import { hashPassword, signAccessToken, verifyPassword } from "../auth.ts";
 import { config, isProduction } from "../config.ts";
 import { query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
+import { signInLimiter } from "../rateLimit.ts";
 import { writeAudit } from "../audit.ts";
 import type { UserRole } from "../types.ts";
 
@@ -39,7 +40,7 @@ function setSessionCookie(res: import("express").Response, token: string) {
   });
 }
 
-router.post("/login", async (req, res) => {
+router.post("/login", signInLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid login payload" });
 
@@ -67,7 +68,11 @@ router.post("/login", async (req, res) => {
   setSessionCookie(res, token);
   await writeAudit(req, `${user.role}_sign_in`, "auth", user.id, { method: "password" });
 
-  return res.json({ user: sessionUser, token });
+  // The session token lives in an httpOnly cookie and is never returned in
+  // the body. A token in a response body ends up in the browser's dev tools,
+  // in any JavaScript that happens to read it, and in any proxy log that
+  // records response bodies.
+  return res.json({ user: sessionUser });
 });
 
 router.post("/logout", requireAuth, async (req, res) => {

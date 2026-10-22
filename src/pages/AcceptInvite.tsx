@@ -1,17 +1,25 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 
 const API = import.meta.env.VITE_API_URL || "";
 
 export default function AcceptInvite() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const token = params.get("token") || "";
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+
+  // The invitation token is taken out of the address bar as soon as it has
+  // been read. Left in the URL it ends up in the browser history, in a
+  // bookmark, and in the Referer header of every request the page makes
+  // afterwards.
+  useEffect(() => {
+    if (token) setParams({}, { replace: true });
+  }, [token, setParams]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();

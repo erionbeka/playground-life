@@ -1,4 +1,4 @@
-﻿export type ApiRole = "admin" | "therapist" | "parent";
+export type ApiRole = "admin" | "therapist" | "parent";
 export type ApiDifficulty = "easy" | "medium" | "hard";
 export type ApiAssignmentType = "homework" | "classwork";
 
@@ -131,7 +131,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const productionApi = {
   login(identifier: string, password: string) {
-    return request<{ user: ApiSessionUser; token: string }>("/api/auth/login", {
+    // The server sets the session cookie and does not return a token in the
+    // body, so there is nothing here for a script to read.
+    return request<{ user: ApiSessionUser }>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({ identifier, password }),
     });

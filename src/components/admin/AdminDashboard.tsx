@@ -9,6 +9,26 @@ import GameApprovals from "./GameApprovals";
 
 type Tab = "overview" | "staff" | "families" | "content" | "readiness";
 
+/**
+ * A temporary password for a caregiver account.
+ *
+ * The server requires twelve characters, so the generated value has to be
+ * longer than that or the reset is rejected. The earlier version produced
+ * eleven characters at most, which meant the reset never worked.
+ */
+function generateTemporaryPassword(): string {
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const rest = `${lower}${upper}${digits}`;
+  const pick = (source: string) => source[Math.floor(Math.random() * source.length)];
+  const characters = [pick(lower), pick(upper), pick(digits)];
+  while (characters.length < 16) characters.push(pick(rest));
+  return characters
+    .sort(() => Math.random() - 0.5)
+    .join("");
+}
+
 const tabs: { key: Tab; label: string; emoji?: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "staff", label: "Staff" },
@@ -513,10 +533,18 @@ export default function AdminDashboard() {
                               Issue Invite
                             </button>
                             <button
-                              onClick={() => {
-                                const tempPassword = `Play-${Math.random().toString(36).slice(2, 8)}`;
-                                resetFamilyCredentials(child.id, familyMember.id, tempPassword, true);
-                                setGeneratedPasswords((current) => ({ ...current, [familyMember.id]: tempPassword }));
+                              onClick={async () => {
+                                const tempPassword = generateTemporaryPassword();
+                                try {
+                                  const ok = await resetFamilyCredentials(child.id, familyMember.id, tempPassword, true);
+                                  if (!ok) {
+                                    toast.error("The password could not be reset. Try again.");
+                                    return;
+                                  }
+                                  setGeneratedPasswords((current) => ({ ...current, [familyMember.id]: tempPassword }));
+                                } catch (cause) {
+                                  toast.error(cause instanceof Error ? cause.message : "The password could not be reset.");
+                                }
                               }}
                               className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
                             >
