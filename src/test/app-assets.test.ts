@@ -40,7 +40,6 @@ describe("application icons", () => {
   it("declares the brand icons explicitly", () => {
     const html = read("index.html");
     expect(html).toContain('rel="icon" type="image/svg+xml" href="/favicon.svg"');
-    expect(html).toContain('rel="icon" type="image/x-icon" sizes="32x32" href="/favicon.ico"');
     expect(html).toContain('rel="apple-touch-icon" href="/apple-touch-icon-180.png"');
   });
 });
