@@ -778,7 +778,7 @@ export default function BlobCritter({
 
   if (reducedMotion) {
     return (
-      <div ref={rootRef} className={`relative ${className}`} style={{ width: bodyWidth, height: bodyHeight + size * 0.2 }}>
+      <div ref={rootRef} className={`relative ${className}`} style={{ width: bodyWidth, height: bodyHeight + size * 0.2, userSelect: "none", WebkitUserSelect: "none", touchAction: "none" }}>
         <div style={{ position: "relative", width: bodyWidth, height: bodyHeight, marginTop: size * 0.2 }}>
           <div
             style={{
@@ -811,7 +811,7 @@ export default function BlobCritter({
     <motion.div
       ref={rootRef}
       className={`relative ${className}`}
-      style={{ width: bodyWidth, height: bodyHeight + size * 0.28 }}
+      style={{ width: bodyWidth, height: bodyHeight + size * 0.28, userSelect: "none", WebkitUserSelect: "none", touchAction: "none" }}
       animate={
         hover
           ? { y: [0, -size * 0.008, size * 0.004, -size * 0.006, 0] }
@@ -872,8 +872,8 @@ export default function BlobCritter({
                     position: "absolute",
                     left: isLeft ? shoulderLeftX - size * 0.4 : shoulderRightX,
                     top: shoulderY,
-                    width: size * 0.4,
-                    height: size * 0.13,
+width: size * 0.4,
+height: size * 0.19,
                     borderRadius: 99,
                     background: color,
                     zIndex: 3,
@@ -892,8 +892,8 @@ export default function BlobCritter({
                       right: isLeft ? undefined : -size * 0.055,
                       top: "50%",
                       transform: "translateY(-50%)",
-                      width: size * 0.16,
-                      height: size * 0.15,
+width: size * 0.20,
+height: size * 0.19,
                       borderRadius: "48% 48% 52% 52% / 44% 44% 56% 56%",
                       background: color,
                       boxShadow: "inset 0 -3px 5px rgba(0,0,0,0.06)",
