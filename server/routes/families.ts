@@ -78,7 +78,7 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
       to: parsed.data.email,
       kind: "invite",
       subject: "Your Playground Life family access",
-      body: `You can sign in with phone ${parsed.data.phoneNumber} and temporary password ${parsed.data.temporaryPassword}. Invite code: ${inviteCode}. Sign in at ${appUrl()}.`,
+      body: `You can sign in with phone ${parsed.data.phoneNumber} and temporary password ${parsed.data.temporaryPassword}. Invite code: ${inviteCode}. Sign in at ${appUrl()}.\n\nMund të hyni me telefonin ${parsed.data.phoneNumber} dhe fjalëkalimin e përkohshëm ${parsed.data.temporaryPassword}. Kodi i ftesës: ${inviteCode}. Hyni në ${appUrl()}.`,
     });
   }
 
@@ -112,7 +112,7 @@ router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async 
       to: caregiver.email,
       kind: "reset",
       subject: "Your Playground Life password was reset",
-      body: `Your temporary password is ${parsed.data.temporaryPassword}. Sign in at ${appUrl()} with phone ${caregiver.phone_number}.`,
+      body: `Your temporary password is ${parsed.data.temporaryPassword}. Sign in at ${appUrl()} with phone ${caregiver.phone_number}.\n\nFjalëkalimi juaj i përkohshëm është ${parsed.data.temporaryPassword}. Hyni në ${appUrl()} me telefonin ${caregiver.phone_number}.`,
     });
   }
 

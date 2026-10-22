@@ -43,8 +43,8 @@ securityRoutes.post("/reset-request", resetRequestLimiter, async (req: Request, 
     await queueEmail({
       to: parsed.data.email,
       kind: "reset",
-      subject: "Reset your Playground Life password",
-      body: `Reset link (valid 60 minutes): ${appUrl()}/reset?token=${token}`,
+      subject: "Reset your Playground Life password / Rivendosni fjalëkalimin",
+      body: `Reset link (valid 60 minutes): ${appUrl()}/reset?token=${token}\n\nLinku për rivendosje (i vlefshëm 60 minuta): ${appUrl()}/reset?token=${token}`,
     });
   }
 
@@ -142,12 +142,12 @@ securityRoutes.post("/invitations", requireAuth, requireRole("admin"), async (re
      VALUES ($1, $2, $3, $4, $5, now() + interval '7 days')`,
     [clinicId, parsed.data.email, parsed.data.role, sha256(token), admin.id]
   );
-  await queueEmail({
-    to: parsed.data.email,
-    kind: "invite",
-    subject: "You're invited to Playground Life",
-    body: `Join the clinic: ${appUrl()}/accept-invite?token=${token}`,
-  });
+    await queueEmail({
+      to: parsed.data.email,
+      kind: "invite",
+      subject: "You're invited to Playground Life / Jeni të ftuar në Playground Life",
+      body: `You're invited to join the clinic. Accept your invitation here (valid 7 days): ${appUrl()}/accept-invite?token=${token}\n\nJeni të ftuar të bashkoheni me klinikën. Pranoni ftesën këtu (e vlefshme 7 ditë): ${appUrl()}/accept-invite?token=${token}`,
+    });
 
   return res.status(201).json({ ok: true, delivery: "queued" });
 });
