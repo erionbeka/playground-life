@@ -2,7 +2,6 @@ import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import fs from "fs";
-import { componentTagger } from "lovable-tagger";
 
 // The app is a single-page app, so these routes have no real file. Nginx is
 // expected to fall back to index.html, but the production host has served a 404
@@ -131,7 +130,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [react(), !production && componentTagger(), production && spaFallback()].filter(Boolean),
+    plugins: [react(), production && spaFallback()].filter(Boolean),
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
