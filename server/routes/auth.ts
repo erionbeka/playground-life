@@ -32,10 +32,11 @@ const createStaffSchema = z.object({
 });
 
 function setSessionCookie(res: import("express").Response, token: string) {
+  const secure = isProduction || config.COOKIE_SECURE;
   res.cookie("access_token", token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: isProduction || config.COOKIE_SECURE,
+    sameSite: secure ? "none" : "lax",
+    secure,
     maxAge: 8 * 60 * 60 * 1000,
   });
 }

@@ -112,3 +112,10 @@
     }
   }
 }
+
+/* Android/Capacitor safe areas */
+body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; } }
+
+/* Touch targets for tablet/phone */
+button, [role='button'] { min-height: 44px; }

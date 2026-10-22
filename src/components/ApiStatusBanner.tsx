@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, WifiOff, X } from "lucide-react";
 import { apiBaseUrl } from "@/lib/productionApi";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 type ApiState = "unknown" | "ok" | "down";
 
@@ -14,6 +15,7 @@ const POLL_INTERVAL_MS = 30_000;
 export default function ApiStatusBanner() {
   const [state, setState] = useState<ApiState>("unknown");
   const [dismissed, setDismissed] = useState(false);
+  const online = useNetworkStatus();
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +38,28 @@ export default function ApiStatusBanner() {
     };
   }, []);
 
-  if (state !== "down" || dismissed) return null;
+  if (dismissed) return null;
+  if (!online) {
+    return (
+      <div
+        data-testid="api-status-banner"
+        role="status"
+        className="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-semibold text-white shadow-lg"
+      >
+        <WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <span>You are offline. Changes will not be saved until you reconnect.</span>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          aria-label="Dismiss warning"
+          className="rounded-full p-1 hover:bg-white/20"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+  if (state !== "down") return null;
 
   return (
     <div
