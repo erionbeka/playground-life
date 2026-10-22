@@ -23,8 +23,10 @@ export async function queueEmail(input: OutboxInput): Promise<string> {
     [input.to, input.kind, input.subject, input.body]
   );
   if (process.env.NODE_ENV !== "production") {
-    console.info(`[outbox:${input.kind}] �+' ${input.to} :: ${input.subject}`);
+    console.info(`[outbox:${input.kind}] -> ${input.to} :: ${input.subject}`);
   }
+  // Attempt immediate delivery so the user does not wait for the cron/interval.
+  void deliverQueued().catch(() => undefined);
   return result.rows[0]?.id ?? "";
 }
 
