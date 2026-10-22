@@ -47,6 +47,8 @@ export default function AdminDashboard() {
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotMsg, setForgotMsg] = useState("");
+  const [releaseNotes, setReleaseNotes] = useState(() => localStorage.getItem("releaseNotes") || "");
+  const [savedNotes, setSavedNotes] = useState(() => localStorage.getItem("releaseNotes") || "");
   const [staffRole, setStaffRole] = useState<"admin" | "therapist">("therapist");
   const [staffName, setStaffName] = useState("");
   const [staffEmail, setStaffEmail] = useState("");
@@ -640,24 +642,50 @@ export default function AdminDashboard() {
         ) : null}
 
         {tab === "platforms" ? (
-          <div className="space-y-4">
-            <h2 className="font-display text-lg font-bold text-foreground">Platform management</h2>
+          <div className="space-y-6">
+            <h2 className="font-display text-lg font-bold text-foreground">Release management</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded-2xl bg-muted p-4">
                 <p className="font-semibold text-foreground">Web</p>
-                <p className="text-sm text-muted-foreground">Version 0.0.0 · SPA served from nginx</p>
+                <p className="text-sm text-muted-foreground">v0.0.0 · SPA on nginx</p>
                 <p className="text-xs text-muted-foreground mt-2">Build: npm run build</p>
+                <a href="https://playground-life.com" target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-primary underline">Open web</a>
               </div>
               <div className="rounded-2xl bg-muted p-4">
                 <p className="font-semibold text-foreground">Android</p>
-                <p className="text-sm text-muted-foreground">v1.0 · appId com.playgroundlife.app · minSdk 24</p>
+                <p className="text-sm text-muted-foreground">v1.0 · com.playgroundlife.app · minSdk 24</p>
                 <p className="text-xs text-muted-foreground mt-2">Build: npm run build:android + gradlew</p>
+                <a href="https://github.com/erionbeka/playground-life/releases/tag/v1.0-android" target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-primary underline">Download APK</a>
               </div>
               <div className="rounded-2xl bg-muted p-4">
                 <p className="font-semibold text-foreground">iOS</p>
-                <p className="text-sm text-muted-foreground">Not yet configured</p>
+                <p className="text-sm text-muted-foreground">Not configured</p>
                 <p className="text-xs text-muted-foreground mt-2">Add @capacitor/ios + Xcode</p>
               </div>
+            </div>
+            <div className="rounded-2xl border border-border bg-card/60 p-4">
+              <h3 className="mb-2 font-semibold text-foreground">Release notes</h3>
+              <textarea
+                value={releaseNotes}
+                onChange={(e) => setReleaseNotes(e.target.value)}
+                rows={6}
+                className="w-full rounded-xl border border-border bg-background/85 px-4 py-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="What changed in this release..."
+              />
+              <button
+                type="button"
+                onClick={() => { localStorage.setItem("releaseNotes", releaseNotes); setSavedNotes(releaseNotes); }}
+                className="touch-target mt-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Save notes
+              </button>
+              {savedNotes ? <p className="mt-2 text-xs text-muted-foreground">Saved {savedNotes.length} chars.</p> : null}
+            </div>
+            <div className="rounded-2xl border border-border bg-card/60 p-4">
+              <h3 className="mb-2 font-semibold text-foreground">Build commands</h3>
+              <pre className="overflow-x-auto rounded-xl bg-muted p-3 text-xs text-foreground">npm run build:android
+cd android && ./gradlew assembleRelease
+# output: android/app/build/outputs/apk/release/app-release.apk</pre>
             </div>
           </div>
         ) : null}
