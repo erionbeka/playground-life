@@ -83,6 +83,8 @@ if (process.env.NODE_ENV !== "test") {
   try {
     await probeDatabase();
     console.log("Playground Life database connected");
+    const { runMigrations } = await import("./migration.ts");
+    await runMigrations();
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("=".repeat(72));
@@ -99,6 +101,17 @@ if (process.env.NODE_ENV !== "test") {
 
   createApp().listen(config.PORT, () => {
     console.log(`Playground Life API listening on port ${config.PORT}`);
+    // Autonomous mail delivery: process the outbox every 5 minutes so the
+    // separate mail worker is not required.
+    setInterval(() => {
+      import("./lib/mailer.ts")
+        .then((m) => m.deliverQueued())
+        .catch((e) => console.error("mail delivery error:", e));
+    }, 5 * 60 * 1000);
+    // run once at startup
+    import("./lib/mailer.ts")
+      .then((m) => m.deliverQueued())
+      .catch((e) => console.error("mail delivery error:", e));
   });
 }
 
