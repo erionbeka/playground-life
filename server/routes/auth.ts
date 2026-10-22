@@ -78,7 +78,13 @@ router.post("/login", signInLimiter, async (req, res) => {
 
 router.post("/logout", requireAuth, async (req, res) => {
   await writeAudit(req, "sign_out", "auth", req.user?.id ?? "unknown");
-  res.clearCookie("access_token");
+  const secure = isProduction || config.COOKIE_SECURE;
+  res.clearCookie("access_token", {
+    httpOnly: true,
+    sameSite: secure ? "none" : "lax",
+    secure,
+    path: "/",
+  });
   return res.status(204).send();
 });
 

@@ -7,7 +7,7 @@ import { emptySkillProfile } from "@/lib/skills";
 import { toast } from "@/components/ui/sonner";
 import GameApprovals from "./GameApprovals";
 
-type Tab = "overview" | "staff" | "families" | "content";
+type Tab = "overview" | "staff" | "families" | "content" | "platforms";
 
 /**
  * A temporary password for a caregiver account.
@@ -34,6 +34,7 @@ const tabs: { key: Tab; label: string; emoji?: string }[] = [
   { key: "staff", label: "Staff" },
   { key: "families", label: "Families" },
   { key: "content", label: "Content", emoji: "🎨" },
+  { key: "platforms", label: "Platforms", emoji: "📱" },
 ];
 
 export default function AdminDashboard() {
@@ -43,6 +44,9 @@ export default function AdminDashboard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotMsg, setForgotMsg] = useState("");
   const [staffRole, setStaffRole] = useState<"admin" | "therapist">("therapist");
   const [staffName, setStaffName] = useState("");
   const [staffEmail, setStaffEmail] = useState("");
@@ -240,11 +244,50 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
-              <button type="submit" className="touch-target w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold text-white shadow-[0_16px_40px_rgba(194,120,27,0.28)] transition hover:brightness-105">
-                Sign In
-              </button>
-            </form>
+               {error ? <p className="text-sm text-destructive">{error}</p> : null}
+               <button type="submit" className="touch-target w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold text-white shadow-[0_16px_40px_rgba(194,120,27,0.28)] transition hover:brightness-105">
+                 Sign In
+               </button>
+             </form>
+             <div className="mt-4 text-center">
+               <button type="button" onClick={() => setShowForgot((v) => !v)} className="text-sm text-muted-foreground underline hover:text-foreground">
+                 Forgot password?
+               </button>
+               {showForgot ? (
+                 <form
+                   className="mt-3 space-y-2"
+                   onSubmit={async (e) => {
+                     e.preventDefault();
+                     setForgotMsg("");
+                     try {
+                       const API = import.meta.env.VITE_API_URL || "";
+                       const res = await fetch(`${API}/api/security/reset-request`, {
+                         method: "POST",
+                         headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify({ email: forgotEmail }),
+                       });
+                       const body = await res.json().catch(() => ({}));
+                       setForgotMsg(body.message || (res.ok ? "If that account exists, a reset email has been queued." : "Request failed."));
+                     } catch {
+                       setForgotMsg("Can't reach the clinic server.");
+                     }
+                   }}
+                 >
+                   <input
+                     type="email"
+                     required
+                     value={forgotEmail}
+                     onChange={(e) => setForgotEmail(e.target.value)}
+                     placeholder="Admin email"
+                     className="h-11 w-full rounded-xl border border-border bg-background/85 px-4 text-base text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                   />
+                   <button type="submit" className="touch-target w-full rounded-xl bg-primary px-4 py-2 font-semibold text-primary-foreground">
+                     Send reset link
+                   </button>
+                   {forgotMsg ? <p className="text-sm text-muted-foreground">{forgotMsg}</p> : null}
+                 </form>
+               ) : null}
+             </div>
           </motion.div>
         </div>
       </div>
@@ -594,6 +637,29 @@ export default function AdminDashboard() {
 
         {tab === "content" ? (
           <GameApprovals />
+        ) : null}
+
+        {tab === "platforms" ? (
+          <div className="space-y-4">
+            <h2 className="font-display text-lg font-bold text-foreground">Platform management</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-2xl bg-muted p-4">
+                <p className="font-semibold text-foreground">Web</p>
+                <p className="text-sm text-muted-foreground">Version 0.0.0 · SPA served from nginx</p>
+                <p className="text-xs text-muted-foreground mt-2">Build: npm run build</p>
+              </div>
+              <div className="rounded-2xl bg-muted p-4">
+                <p className="font-semibold text-foreground">Android</p>
+                <p className="text-sm text-muted-foreground">v1.0 · appId com.playgroundlife.app · minSdk 24</p>
+                <p className="text-xs text-muted-foreground mt-2">Build: npm run build:android + gradlew</p>
+              </div>
+              <div className="rounded-2xl bg-muted p-4">
+                <p className="font-semibold text-foreground">iOS</p>
+                <p className="text-sm text-muted-foreground">Not yet configured</p>
+                <p className="text-xs text-muted-foreground mt-2">Add @capacitor/ios + Xcode</p>
+              </div>
+            </div>
+          </div>
         ) : null}
       </div>
     </div>

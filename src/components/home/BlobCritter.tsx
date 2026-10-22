@@ -894,7 +894,7 @@ height: size * 0.19,
                       transform: "translateY(-50%)",
 width: size * 0.20,
 height: size * 0.19,
-                      borderRadius: "48% 48% 52% 52% / 44% 44% 56% 56%",
+                      borderRadius: "50%",
                       background: color,
                       boxShadow: "inset 0 -3px 5px rgba(0,0,0,0.06)",
                     }}
