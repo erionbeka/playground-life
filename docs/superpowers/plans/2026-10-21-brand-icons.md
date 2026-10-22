@@ -543,3 +543,48 @@ Open the browser's install prompt (or "Add to home screen" on mobile).
 
 Expected: the offered icon is the Playground Life blob face, not the Lovable
 heart.
+
+---
+
+## Notes from the implementation
+
+The plan shipped, with three deviations that the code and the tests now
+describe.
+
+**The renderer reads `public/favicon.svg` instead of repeating its numbers.**
+The plan's script hardcodes the mark, which is a second copy of the SVG that
+has to be kept in step by hand. That copy had already drifted: the SVG's
+mouth curves upwards while the plan's renderer draws a smile. The shipped
+generator parses the SVG (rect, linear gradient, circles, one path) and
+throws on anything it does not understand, so a changed mark fails loudly
+instead of rendering blank.
+
+**`public/favicon.svg` had an upside-down mouth.** The path
+`M18 44c2-7 8-11 14-11s12 4 14 11` rises to y=33 in the middle and ends at
+y=44, which draws an arch — a frown. The blob in the app bulges its mouth
+downwards (`borderRadius: "0 0 50% 50%"` with `borderTop: none` in
+`src/components/home/BlobCritter.tsx`), and this plan describes the mark as
+carrying a "white smile arc". The SVG is now
+`M20 37c1.6 5.6 6.2 9.5 12 9.5s10.4-3.9 12-9.5`, which dips in the middle.
+
+**The maskable variant had its scaling inverted.** The plan maps the output
+point into the face with `0.5 + (u - 0.5) * 0.64`, which is the forward
+mapping, so the face is drawn 1.5625× *larger* — the opposite of the
+comment. The correct mapping is `0.5 + (u - 0.5) / 0.64`, which draws the
+face at 64% and keeps it inside the platform's safe circle. The safe-zone
+test catches the difference (0.968 of the half-width against a limit of 0.8).
+
+**The Capacitor web assets are build output.** `android/.gitignore` ignores
+`app/src/main/assets/public`, so those files are produced by
+`npx cap copy android` from `dist/`. A test comparing them would fail on a
+fresh clone, where the directory does not exist. The guard therefore sits on
+the committed icons in `public/`: they have to be byte-identical to what the
+generator draws from the brand SVG.
+
+**How the result was checked.** The generated PNG was compared against
+Chromium's own rasterisation of the same SVG: the mean difference is 0.30 of
+255 per channel, the pixels that differ by more than 8 are all on the edges
+of the shapes, and the structure was confirmed numerically — two eye blobs at
+u=0.344 and u=0.656, v=0.375, and one mouth arc whose lowest point is at the
+horizontal centre. Both the frown and the inverted maskable scaling were
+confirmed to make the tests fail.
