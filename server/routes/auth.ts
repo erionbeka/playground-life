@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { hashPassword, signAccessToken, verifyPassword } from "../auth.ts";
 import { config, isProduction } from "../config.ts";
@@ -135,14 +136,15 @@ router.post("/staff", requireAuth, requireRole("admin"), async (req, res) => {
  * appears in the list. Scoped to the caller's clinic; admins only, because the
  * roster exposes staff email addresses and credential state.
  */
-const staffResetSchema = z.object({ password: z.string().min(8) });
+const staffResetSchema = z.object({ password: z.string().min(8).optional() });
 const staffStatusSchema = z.object({ status: z.enum(["active", "suspended"]) });
 
 router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = staffResetSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Password (8+ chars) required" });
+  if (!parsed.success) return res.status(400).json({ error: "Invalid reset payload" });
   const id = String(req.params.id);
-  const passwordHash = await hashPassword(parsed.data.password);
+  const password = parsed.data.password || `Tmp-${randomBytes(4).toString("hex")}`;
+  const passwordHash = await hashPassword(password);
   const updated = await query<{ id: string; email: string | null; name: string }>(
     `UPDATE users SET password_hash = $1, credential_status = 'active', updated_at = now()
      WHERE id = $2 AND clinic_id = $3 AND role IN ('admin','therapist')
@@ -156,11 +158,11 @@ router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), asyn
       to: staff.email,
       kind: "reset",
       subject: "Your Playground Life password was reset",
-      body: `Your password was reset. New password: ${parsed.data.password}. Sign in at ${appUrl()}.\n\nFjalëkalimi juaj u rivendos. Fjalëkalimi i ri: ${parsed.data.password}. Hyni në ${appUrl()}.`,
+      body: `Your password was reset. New password: ${password}. Sign in at ${appUrl()}.\n\nFjalëkalimi juaj u rivendos. Fjalëkalimi i ri: ${password}. Hyni në ${appUrl()}.`,
     });
   }
   await writeAudit(req, "staff_password_reset", "staff", id, {});
-  return res.json({ userId: id, emailed: !!staff.email });
+  return res.json({ userId: id, emailed: !!staff.email, temporaryPassword: password });
 });
 
 router.patch("/staff/:id/status", requireAuth, requireRole("admin"), async (req, res) => {
