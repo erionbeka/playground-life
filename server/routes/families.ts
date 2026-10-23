@@ -86,7 +86,7 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
     relationship: parsed.data.relationship,
   });
 
-  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id });
+  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id, emailed: !!parsed.data.email });
 });
 
 router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async (req, res) => {

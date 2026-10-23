@@ -254,7 +254,7 @@ describe("production API", () => {
       })
       .expect(201);
 
-    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1" });
+    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1", emailed: false });
     expect(writeAuditMock).toHaveBeenCalledWith(
       expect.anything(),
       "caregiver_created",
