@@ -93,6 +93,26 @@ router.get("/me", requireAuth, (req, res) => {
   return res.json({ user: req.user });
 });
 
+const clinicNameSchema = z.object({ name: z.string().min(2).max(80) });
+
+router.get("/clinic", requireAuth, requireRole("admin"), async (req, res) => {
+  const rows = await query<{ id: string; name: string }>("SELECT id, name FROM clinics WHERE id = $1 LIMIT 1", [req.user?.clinicId]);
+  if (!rows.rows[0]) return res.status(404).json({ error: "Clinic not found" });
+  return res.json({ clinic: rows.rows[0] });
+});
+
+router.patch("/clinic", requireAuth, requireRole("admin"), async (req, res) => {
+  const parsed = clinicNameSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid clinic name" });
+  const updated = await query<{ id: string; name: string }>(
+    `UPDATE clinics SET name = $1, updated_at = now() WHERE id = $2 RETURNING id, name`,
+    [parsed.data.name, req.user?.clinicId]
+  );
+  if (!updated.rows[0]) return res.status(404).json({ error: "Clinic not found" });
+  await writeAudit(req, "clinic_renamed", "clinic", updated.rows[0].id, { name: parsed.data.name });
+  return res.json({ clinic: updated.rows[0] });
+});
+
 router.post("/staff", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = createStaffSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid staff payload" });

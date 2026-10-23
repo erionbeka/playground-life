@@ -65,12 +65,11 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
     [req.user?.clinicId, parsed.data.name, parsed.data.email ?? null, parsed.data.phoneNumber, passwordHash]
   );
 
-  const inviteCode = generateInviteCode();
   const link = await query<{ id: string }>(
-    `INSERT INTO family_child_links (clinic_id, child_id, user_id, relationship, invited_at, invite_code_hash)
-     VALUES ($1, $2, $3, $4, now(), $5)
+    `INSERT INTO family_child_links (clinic_id, child_id, user_id, relationship, invited_at)
+     VALUES ($1, $2, $3, $4, now())
      RETURNING id`,
-    [req.user?.clinicId, parsed.data.childId, user.rows[0].id, parsed.data.relationship, hashInviteCode(inviteCode)]
+    [req.user?.clinicId, parsed.data.childId, user.rows[0].id, parsed.data.relationship]
   );
 
   if (parsed.data.email) {
@@ -78,7 +77,7 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
       to: parsed.data.email,
       kind: "invite",
       subject: "Your Playground Life family access",
-      body: `You can sign in with phone ${parsed.data.phoneNumber} and temporary password ${parsed.data.temporaryPassword}. Invite code: ${inviteCode}. Sign in at ${appUrl()}.\n\nMund të hyni me telefonin ${parsed.data.phoneNumber} dhe fjalëkalimin e përkohshëm ${parsed.data.temporaryPassword}. Kodi i ftesës: ${inviteCode}. Hyni në ${appUrl()}.`,
+      body: `You can sign in with phone ${parsed.data.phoneNumber} and temporary password ${parsed.data.temporaryPassword}. Sign in at ${appUrl()}.\n\nMund të hyni me telefonin ${parsed.data.phoneNumber} dhe fjalëkalimin e përkohshëm ${parsed.data.temporaryPassword}. Hyni në ${appUrl()}.`,
     });
   }
 
@@ -87,7 +86,7 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
     relationship: parsed.data.relationship,
   });
 
-  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id, inviteCode });
+  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id });
 });
 
 router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async (req, res) => {

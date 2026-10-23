@@ -254,7 +254,7 @@ describe("production API", () => {
       })
       .expect(201);
 
-    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1", inviteCode: expect.any(String) });
+    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1" });
     expect(writeAuditMock).toHaveBeenCalledWith(
       expect.anything(),
       "caregiver_created",
