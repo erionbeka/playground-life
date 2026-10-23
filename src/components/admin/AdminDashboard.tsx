@@ -490,6 +490,40 @@ export default function AdminDashboard() {
                     <div key={user.id} className="rounded-xl border border-border bg-card p-3">
                       <p className="font-semibold text-foreground">{user.name}</p>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
+                      {session?.isSuperadmin ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const API = import.meta.env.VITE_API_URL || "";
+                              const token = localStorage.getItem("accessToken");
+                              const res = await fetch(`${API}/api/auth/staff/${user.id}/reset-password`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                                body: JSON.stringify({}),
+                              });
+                              const data = await res.json();
+                              if (res.ok) toast.success(`New password: ${data.temporaryPassword ?? "(emailed)"}`);
+                              else toast.error(data.error || "Failed");
+                            }}
+                            className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                          >
+                            Reset password
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const API = import.meta.env.VITE_API_URL || "";
+                              const token = localStorage.getItem("accessToken");
+                              const res = await fetch(`${API}/api/auth/staff/${user.id}`, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                              if (res.ok) toast.success("Deleted"); else toast.error("Failed");
+                            }}
+                            className="touch-target rounded-lg bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-600"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>

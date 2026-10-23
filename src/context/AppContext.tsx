@@ -186,6 +186,7 @@ export interface AuthSession {
   displayName: string;
   childId?: string;
   familyMemberId?: string;
+  isSuperadmin?: boolean;
 }
 
 /** Moved here from `src/lib/backend.ts` when the localStorage demo provider was deleted. */

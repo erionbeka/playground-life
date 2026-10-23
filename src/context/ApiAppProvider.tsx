@@ -309,7 +309,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       return false;
     }
 
-    setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name });
+    setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name, isSuperadmin: user.role === "superadmin" });
     setRole(resolvedRole as AppState["role"]);
 
     // The credential was accepted. A refresh that fails afterwards is a
