@@ -220,7 +220,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
           email: entry.email,
           passwordHash: "",
         };
-        if (entry.role === "admin") admins.push(mapped);
+        if (entry.role === "admin" || entry.role === "superadmin") admins.push(mapped);
         else if (entry.role === "therapist") therapists.push(mapped);
       }
       setStaffUsers(admins);
@@ -250,11 +250,12 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     const isProtected = /^\/(therapist|family|admin)(\/|$)/.test(path);
     if (!isProtected) return;
 
-    productionApi.me()
+     productionApi.me()
       .then(async ({ user }) => {
-        const nextSession: AuthSession = { role: user.role, userId: user.id, displayName: user.name };
+        const resolvedRole = user.role === "superadmin" ? "admin" : user.role;
+        const nextSession: AuthSession = { role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name };
         setSession(nextSession);
-        setRole(user.role);
+        setRole(resolvedRole as AppState["role"]);
         await refreshClinicData();
         await refreshAudit();
         await refreshStaff();
@@ -294,21 +295,22 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
   const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
     let user: ApiSessionUser;
     try {
-      const response = await productionApi.login(identifier, password);
-      user = response.user;
-    } catch (error) {
-      // A rejected password is a normal outcome; an unreachable server is not.
-      if (error instanceof ApiError && error.status === 401) return false;
-      throw error;
-    }
+    const response = await productionApi.login(identifier, password);
+    user = response.user;
+  } catch (error) {
+    // A rejected password is a normal outcome; an unreachable server is not.
+    if (error instanceof ApiError && error.status === 401) return false;
+    throw error;
+  }
 
-    if (user.role !== expectedRole) {
+    const resolvedRole = user.role === "superadmin" ? "admin" : user.role;
+    if (resolvedRole !== expectedRole) {
       await productionApi.logout().catch(() => undefined);
       return false;
     }
 
-    setSession({ role: user.role, userId: user.id, displayName: user.name });
-    setRole(user.role);
+    setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name });
+    setRole(resolvedRole as AppState["role"]);
 
     // The credential was accepted. A refresh that fails afterwards is a
     // separate problem - the API status banner reports an unreachable server,

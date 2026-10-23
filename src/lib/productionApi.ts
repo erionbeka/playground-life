@@ -1,4 +1,4 @@
-export type ApiRole = "admin" | "therapist" | "parent";
+export type ApiRole = "superadmin" | "admin" | "therapist" | "parent";
 export type ApiDifficulty = "easy" | "medium" | "hard";
 export type ApiAssignmentType = "homework" | "classwork";
 
