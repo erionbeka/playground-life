@@ -4,6 +4,7 @@ import { hashPassword, signAccessToken, verifyPassword } from "../auth.ts";
 import { config, isProduction } from "../config.ts";
 import { query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
+import { appUrl, queueEmail } from "../lib/mailer.ts";
 import { signInLimiter } from "../rateLimit.ts";
 import { writeAudit } from "../audit.ts";
 import type { UserRole } from "../types.ts";
@@ -114,6 +115,61 @@ router.post("/staff", requireAuth, requireRole("admin"), async (req, res) => {
  * appears in the list. Scoped to the caller's clinic; admins only, because the
  * roster exposes staff email addresses and credential state.
  */
+const staffResetSchema = z.object({ password: z.string().min(8) });
+const staffStatusSchema = z.object({ status: z.enum(["active", "suspended"]) });
+
+router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
+  const parsed = staffResetSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Password (8+ chars) required" });
+  const id = String(req.params.id);
+  const passwordHash = await hashPassword(parsed.data.password);
+  const updated = await query<{ id: string; email: string | null; name: string }>(
+    `UPDATE users SET password_hash = $1, credential_status = 'active', updated_at = now()
+     WHERE id = $2 AND clinic_id = $3 AND role IN ('admin','therapist')
+     RETURNING id, email, name`,
+    [passwordHash, id, req.user?.clinicId]
+  );
+  if (!updated.rows[0]) return res.status(404).json({ error: "Staff member not found" });
+  const staff = updated.rows[0];
+  if (staff.email) {
+    await queueEmail({
+      to: staff.email,
+      kind: "reset",
+      subject: "Your Playground Life password was reset",
+      body: `Your password was reset. New password: ${parsed.data.password}. Sign in at ${appUrl()}.\n\nFjalëkalimi juaj u rivendos. Fjalëkalimi i ri: ${parsed.data.password}. Hyni në ${appUrl()}.`,
+    });
+  }
+  await writeAudit(req, "staff_password_reset", "staff", id, {});
+  return res.json({ userId: id, emailed: !!staff.email });
+});
+
+router.patch("/staff/:id/status", requireAuth, requireRole("admin"), async (req, res) => {
+  const parsed = staffStatusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid status" });
+  const id = String(req.params.id);
+  const updated = await query<{ id: string }>(
+    `UPDATE users SET credential_status = $1, updated_at = now()
+     WHERE id = $2 AND clinic_id = $3 AND role IN ('admin','therapist')
+     RETURNING id`,
+    [parsed.data.status, id, req.user?.clinicId]
+  );
+  if (!updated.rows[0]) return res.status(404).json({ error: "Staff member not found" });
+  await writeAudit(req, `staff_${parsed.data.status}`, "staff", id, {});
+  return res.json({ userId: id, status: parsed.data.status });
+});
+
+router.delete("/staff/:id", requireAuth, requireRole("admin"), async (req, res) => {
+  const id = String(req.params.id);
+  if (id === req.user?.id) return res.status(400).json({ error: "Cannot delete your own account" });
+  const deleted = await query<{ id: string }>(
+    `DELETE FROM users WHERE id = $1 AND clinic_id = $2 AND role IN ('admin','therapist') RETURNING id`,
+    [id, req.user?.clinicId]
+  );
+  if (!deleted.rows[0]) return res.status(404).json({ error: "Staff member not found" });
+  await writeAudit(req, "staff_deleted", "staff", id, {});
+  return res.json({ ok: true });
+});
+
 router.get("/staff", requireAuth, requireRole("admin"), async (req, res) => {
   const rows = await query<{
     id: string;

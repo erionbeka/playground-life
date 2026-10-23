@@ -11,6 +11,7 @@ import assignmentRoutes from "./routes/assignments.ts";
 import auditRoutes from "./routes/audit.ts";
 import gameRoutes from "./routes/games.ts";
 import goalsRoutes from "./routes/goals.ts";
+import sessionsRoutes from "./routes/sessions.ts";
 import familySessionRoutes from "./routes/familySession.ts";
 import { securityRoutes } from "./routes/security.ts";
 import { adminComplianceRoutes } from "./routes/admin-compliance.ts";
@@ -43,6 +44,7 @@ export function createApp() {
   app.use("/api/audit", auditRoutes);
   app.use("/api/games", gameRoutes);
   app.use("/api/goals", goalsRoutes);
+  app.use("/api/sessions", sessionsRoutes);
   app.use("/api/family", familySessionRoutes);
   app.use("/api/security", securityRoutes);
   app.use("/api/admin/compliance", adminComplianceRoutes);
