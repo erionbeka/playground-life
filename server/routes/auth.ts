@@ -27,7 +27,7 @@ const loginSchema = z.object({
 });
 
 const createStaffSchema = z.object({
-  role: z.enum(["superadmin", "admin", "therapist"]),
+  role: z.enum(["admin", "therapist"]),
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(1),
@@ -117,8 +117,6 @@ router.patch("/clinic", requireAuth, requireRole("admin"), async (req, res) => {
 router.post("/staff", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = createStaffSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid staff payload" });
-  if (parsed.data.role === "superadmin" && req.user?.role !== "superadmin") return res.status(403).json({ error: "Only superadmin can create superadmin" });
-
   const passwordHash = await hashPassword(parsed.data.password);
   const inserted = await query<{ id: string; name: string; email: string; role: UserRole }>(
     `INSERT INTO users (clinic_id, role, name, email, password_hash)
@@ -146,8 +144,6 @@ router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), asyn
   const id = String(req.params.id);
   const target = await query<{ role: string }>(`SELECT role FROM users WHERE id = $1 AND clinic_id = $2`, [id, req.user?.clinicId]);
   if (!target.rows[0]) return res.status(404).json({ error: "Staff member not found" });
-  if (target.rows[0].role === "admin" && req.user?.role !== "superadmin") return res.status(403).json({ error: "Only superadmin can reset admin passwords" });
-  if (target.rows[0].role === "superadmin") return res.status(403).json({ error: "Cannot reset superadmin password" });
   const password = parsed.data.password || `Tmp-${randomBytes(4).toString("hex")}`;
   const passwordHash = await hashPassword(password);
   const updated = await query<{ id: string; email: string | null; name: string }>(
@@ -190,8 +186,6 @@ router.delete("/staff/:id", requireAuth, requireRole("admin"), async (req, res) 
   if (id === req.user?.id) return res.status(400).json({ error: "Cannot delete your own account" });
   const target = await query<{ role: string }>(`SELECT role FROM users WHERE id = $1 AND clinic_id = $2`, [id, req.user?.clinicId]);
   if (!target.rows[0]) return res.status(404).json({ error: "Staff member not found" });
-  if (target.rows[0].role === "admin" && req.user?.role !== "superadmin") return res.status(403).json({ error: "Only superadmin can remove admins" });
-  if (target.rows[0].role === "superadmin") return res.status(403).json({ error: "Cannot remove superadmin" });
   const deleted = await query<{ id: string }>(
     `DELETE FROM users WHERE id = $1 AND clinic_id = $2 AND role IN ('admin','therapist') RETURNING id`,
     [id, req.user?.clinicId]
