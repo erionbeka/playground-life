@@ -142,11 +142,13 @@ securityRoutes.post("/invitations", requireAuth, requireRole("admin"), async (re
      VALUES ($1, $2, $3, $4, $5, now() + interval '7 days')`,
     [clinicId, parsed.data.email, parsed.data.role, sha256(token), admin.id]
   );
+    const clinicNameRows = await query<{ name: string }>("SELECT name FROM clinics WHERE id = $1 LIMIT 1", [clinicId]);
+    const clinicName = clinicNameRows.rows[0]?.name || "Playground Life";
     await queueEmail({
       to: parsed.data.email,
       kind: "invite",
-      subject: "You're invited to Playground Life / Jeni të ftuar në Playground Life",
-      body: `You're invited to join the clinic. Accept your invitation here (valid 7 days): ${appUrl()}/accept-invite?token=${token}\n\nJeni të ftuar të bashkoheni me klinikën. Pranoni ftesën këtu (e vlefshme 7 ditë): ${appUrl()}/accept-invite?token=${token}`,
+      subject: `You're invited to ${clinicName} / Jeni të ftuar në ${clinicName}`,
+      body: `You're invited to join ${clinicName}. Accept your invitation here (valid 7 days): ${appUrl()}/accept-invite?token=${token}\n\nJeni të ftuar të bashkoheni me ${clinicName}. Pranoni ftesën këtu (e vlefshme 7 ditë): ${appUrl()}/accept-invite?token=${token}`,
     });
 
   return res.status(201).json({ ok: true, delivery: "queued" });
