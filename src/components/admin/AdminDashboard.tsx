@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { FamilyMember, useApp } from "@/context/AppContext";
@@ -7,7 +7,7 @@ import { emptySkillProfile } from "@/lib/skills";
 import { toast } from "@/components/ui/sonner";
 import GameApprovals from "./GameApprovals";
 
-type Tab = "overview" | "staff" | "families" | "content" | "platforms";
+type Tab = "overview" | "staff" | "families" | "content" | "platforms" | "settings" | "activity";
 
 /**
  * A temporary password for a caregiver account.
@@ -35,6 +35,8 @@ const tabs: { key: Tab; label: string; emoji?: string }[] = [
   { key: "families", label: "Families" },
   { key: "content", label: "Content", emoji: "🎨" },
   { key: "platforms", label: "Platforms", emoji: "📱" },
+  { key: "settings", label: "Settings", emoji: "⚙️" },
+  { key: "activity", label: "Therapist activity", emoji: "👁️" },
 ];
 
 export default function AdminDashboard() {
@@ -48,6 +50,8 @@ export default function AdminDashboard() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotMsg, setForgotMsg] = useState("");
   const [releaseNotes, setReleaseNotes] = useState(() => localStorage.getItem("releaseNotes") || "");
+  const [clinicName, setClinicName] = useState("");
+  const [clinicMsg, setClinicMsg] = useState("");
   const [savedNotes, setSavedNotes] = useState(() => localStorage.getItem("releaseNotes") || "");
   const [staffRole, setStaffRole] = useState<"admin" | "therapist">("therapist");
   const [staffName, setStaffName] = useState("");
@@ -58,6 +62,15 @@ export default function AdminDashboard() {
   const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
   const [generatedInvites, setGeneratedInvites] = useState<Record<string, string>>({});
   const [showAddChild, setShowAddChild] = useState(false);
+
+  useEffect(() => {
+    const API = import.meta.env.VITE_API_URL || "";
+    const token = localStorage.getItem("accessToken");
+    fetch(`${API}/api/auth/clinic`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => r.json())
+      .then((d) => { if (d?.clinic?.name) setClinicName(d.clinic.name); })
+      .catch(() => {});
+  }, []);
   const [childName, setChildName] = useState("");
   const [childAvatar, setChildAvatar] = useState("🧒");
   const [childAge, setChildAge] = useState("6");
@@ -686,6 +699,57 @@ export default function AdminDashboard() {
               <pre className="overflow-x-auto rounded-xl bg-muted p-3 text-xs text-foreground">npm run build:android
 cd android && ./gradlew assembleRelease
 # output: android/app/build/outputs/apk/release/app-release.apk</pre>
+            </div>
+          </div>
+        ) : null}
+        {tab === "activity" ? (
+          <div className="space-y-4">
+            <h2 className="font-display text-lg font-bold text-foreground">Therapist activity</h2>
+            <div className="space-y-2">
+              {auditLog.filter((e) => e.actorRole === "therapist").length === 0 ? (
+                <p className="text-sm text-muted-foreground">No therapist activity yet.</p>
+              ) : (
+                auditLog.filter((e) => e.actorRole === "therapist").map((entry) => (
+                  <div key={entry.id} className="rounded-xl border border-border bg-card/60 p-3 text-sm">
+                    <p className="font-semibold text-foreground">{entry.action}</p>
+                    <p className="text-xs text-muted-foreground">{entry.entityType} · {new Date(entry.createdAt).toLocaleString()}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : null}
+        {tab === "settings" ? (
+          <div className="space-y-4">
+            <h2 className="font-display text-lg font-bold text-foreground">Clinic settings</h2>
+            <div className="rounded-2xl border border-border bg-card/60 p-4">
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-foreground">Clinic name</span>
+                <input
+                  value={clinicName}
+                  onChange={(e) => setClinicName(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={async () => {
+                  const API = import.meta.env.VITE_API_URL || "";
+                  const token = localStorage.getItem("accessToken");
+                  const res = await fetch(`${API}/api/auth/clinic`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                    body: JSON.stringify({ name: clinicName }),
+                  });
+                  const data = await res.json();
+                  if (res.ok) setClinicMsg(`Saved: ${data.clinic?.name}`);
+                  else setClinicMsg(data.error || "Failed");
+                }}
+                className="touch-target mt-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Save name
+              </button>
+              {clinicMsg ? <p className="mt-2 text-xs text-muted-foreground">{clinicMsg}</p> : null}
             </div>
           </div>
         ) : null}

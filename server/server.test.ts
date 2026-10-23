@@ -254,7 +254,7 @@ describe("production API", () => {
       })
       .expect(201);
 
-    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1", emailed: false });
+    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1", emailed: false, temporaryPassword: expect.any(String) });
     expect(writeAuditMock).toHaveBeenCalledWith(
       expect.anything(),
       "caregiver_created",
@@ -444,7 +444,7 @@ describe("production API", () => {
       .expect(200);
 
     expect(response.body.auditLog).toHaveLength(1);
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("WHERE clinic_id = $1"), ["clinic-1"]);
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("WHERE clinic_id = $1"), ["clinic-1", null]);
   });
 
   it("removes a game from an assignment", async () => {

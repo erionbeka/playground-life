@@ -23,7 +23,7 @@ const caregiverSchema = z.object({
   relationship: z.string().min(2),
   phoneNumber: z.string().min(7),
   email: z.string().email().optional(),
-  temporaryPassword: z.string().min(8),
+  temporaryPassword: z.string().min(8).optional(),
 });
 
 const resetSchema = z.object({
@@ -57,7 +57,8 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = caregiverSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid caregiver payload" });
 
-  const passwordHash = await hashPassword(parsed.data.temporaryPassword);
+  const temporaryPassword = parsed.data.temporaryPassword || `Tmp-${randomBytes(4).toString("hex")}`;
+  const passwordHash = await hashPassword(temporaryPassword);
   const user = await query<{ id: string }>(
     `INSERT INTO users (clinic_id, role, name, email, phone_number, password_hash, credential_status)
      VALUES ($1, 'parent', $2, $3, $4, $5, 'active')
@@ -77,7 +78,7 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
       to: parsed.data.email,
       kind: "invite",
       subject: "Your Playground Life family access",
-      body: `You can sign in with phone ${parsed.data.phoneNumber} and temporary password ${parsed.data.temporaryPassword}. Sign in at ${appUrl()}.\n\nMund të hyni me telefonin ${parsed.data.phoneNumber} dhe fjalëkalimin e përkohshëm ${parsed.data.temporaryPassword}. Hyni në ${appUrl()}.`,
+      body: `You can sign in with phone ${parsed.data.phoneNumber} and temporary password ${temporaryPassword}. Sign in at ${appUrl()}.\n\nMund të hyni me telefonin ${parsed.data.phoneNumber} dhe fjalëkalimin e përkohshëm ${temporaryPassword}. Hyni në ${appUrl()}.`,
     });
   }
 
@@ -86,7 +87,7 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
     relationship: parsed.data.relationship,
   });
 
-  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id, emailed: !!parsed.data.email });
+  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id, emailed: !!parsed.data.email, temporaryPassword });
 });
 
 router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
