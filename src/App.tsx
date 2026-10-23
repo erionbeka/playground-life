@@ -4,9 +4,10 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AppProvider } from "@/context/AppContext";
 import { ApiAppProvider } from "@/context/ApiAppProvider";
 import BlobBackground from "@/components/BlobBackground";
+import ApiStatusBanner from "@/components/ApiStatusBanner";
+import BackButtonHandler from "@/components/BackButtonHandler";
 
 const Index = lazy(() => import("./pages/Index.tsx"));
 const RoleSelector = lazy(() => import("@/components/RoleSelector"));
@@ -20,18 +21,18 @@ const NotFound = lazy(() => import("./pages/NotFound.tsx"));
 
 const queryClient = new QueryClient();
 
-const DataProvider = import.meta.env.VITE_DATA_MODE === "api" ? ApiAppProvider : AppProvider;
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <DataProvider>
+    <ApiAppProvider>
       <TooltipProvider>
         <div className="relative min-h-screen overflow-hidden bg-background">
           <BlobBackground />
+          <ApiStatusBanner />
           <div className="relative z-10 min-h-screen">
             <Toaster />
             <Sonner />
             <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <BackButtonHandler />
               <Suspense
                 fallback={
                   <div className="flex min-h-screen items-center justify-center" aria-busy="true" aria-label="Loading" />
@@ -53,7 +54,7 @@ const App = () => (
           </div>
         </div>
       </TooltipProvider>
-    </DataProvider>
+    </ApiAppProvider>
   </QueryClientProvider>
 );
 

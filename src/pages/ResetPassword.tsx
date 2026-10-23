@@ -1,17 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:4000";
+const API = import.meta.env.VITE_API_URL || "";
 
 export default function ResetPassword() {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const token = params.get("token") || "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+
+  // The token is taken out of the address bar as soon as it has been read.
+  // Left in the URL it ends up in the browser history, in a bookmark, and in
+  // the Referer header of every request the page makes afterwards.
+  useEffect(() => {
+    if (token) setParams({}, { replace: true });
+  }, [token, setParams]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();

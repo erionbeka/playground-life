@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db.ts";
 import { hashPassword } from "../auth.ts";
+import { requireAuth, requireRole } from "../middleware.ts";
+import { invitationAcceptLimiter, resetConfirmLimiter, resetRequestLimiter } from "../rateLimit.ts";
 import { generateTotpSecret, otpauthUri, randomToken, sha256, verifyTotp } from "../lib/compliance.ts";
 import { appUrl, queueEmail } from "../lib/mailer.ts";
 import type { Request, Response } from "express";
@@ -16,10 +18,13 @@ declare module "express-serve-static-core" {
 export const securityRoutes = Router();
 
 const resetRequestSchema = z.object({ email: z.string().email() });
-const resetConfirmSchema = z.object({ token: z.string().min(20), password: z.string().min(10) });
+// Twelve characters, the same rule every other password in the app follows.
+// A weaker rule on the reset path would let anyone who can reach a reset
+// form choose a password weaker than the sign-up form allows.
+const resetConfirmSchema = z.object({ token: z.string().min(20), password: z.string().min(8) });
 const mfaTokenSchema = z.object({ token: z.string().length(6) });
 
-securityRoutes.post("/reset-request", async (req: Request, res: Response) => {
+securityRoutes.post("/reset-request", resetRequestLimiter, async (req: Request, res: Response) => {
   const parsed = resetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "A valid email is required" });
 
@@ -38,15 +43,15 @@ securityRoutes.post("/reset-request", async (req: Request, res: Response) => {
     await queueEmail({
       to: parsed.data.email,
       kind: "reset",
-      subject: "Reset your Playground Life password",
-      body: `Reset link (valid 60 minutes): ${appUrl()}/reset?token=${token}`,
+      subject: "Reset your Playground Life password / Rivendosni fjalëkalimin",
+      body: `Reset link (valid 60 minutes): ${appUrl()}/reset?token=${token}\n\nLinku për rivendosje (i vlefshëm 60 minuta): ${appUrl()}/reset?token=${token}`,
     });
   }
 
   return res.json({ ok: true, message: "If that account exists, a reset email has been queued." });
 });
 
-securityRoutes.post("/reset-confirm", async (req: Request, res: Response) => {
+securityRoutes.post("/reset-confirm", resetConfirmLimiter, async (req: Request, res: Response) => {
   const parsed = resetConfirmSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid reset payload" });
 
@@ -116,7 +121,7 @@ securityRoutes.post("/mfa/disable", async (req: Request, res: Response) => {
   return res.json({ ok: true });
 });
 
-securityRoutes.post("/invitations", async (req: Request, res: Response) => {
+securityRoutes.post("/invitations", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
   const admin = req.user;
   if (!admin || admin.role !== "admin") return res.status(403).json({ error: "Admins only" });
 
@@ -137,25 +142,27 @@ securityRoutes.post("/invitations", async (req: Request, res: Response) => {
      VALUES ($1, $2, $3, $4, $5, now() + interval '7 days')`,
     [clinicId, parsed.data.email, parsed.data.role, sha256(token), admin.id]
   );
-  await queueEmail({
-    to: parsed.data.email,
-    kind: "invite",
-    subject: "You're invited to Playground Life",
-    body: `Join the clinic: ${appUrl()}/accept-invite?token=${token}`,
-  });
+    const clinicNameRows = await query<{ name: string }>("SELECT name FROM clinics WHERE id = $1 LIMIT 1", [clinicId]);
+    const clinicName = clinicNameRows.rows[0]?.name || "Playground Life";
+    await queueEmail({
+      to: parsed.data.email,
+      kind: "invite",
+      subject: `You're invited to ${clinicName} / Jeni të ftuar në ${clinicName}`,
+      body: `You're invited to join ${clinicName}. Accept your invitation here (valid 7 days): ${appUrl()}/accept-invite?token=${token}\n\nJeni të ftuar të bashkoheni me ${clinicName}. Pranoni ftesën këtu (e vlefshme 7 ditë): ${appUrl()}/accept-invite?token=${token}`,
+    });
 
-  return res.status(201).json({ ok: true });
+  return res.status(201).json({ ok: true, delivery: "queued" });
 });
 
 const acceptInviteSchema = z.object({
   token: z.string().min(20),
   name: z.string().min(2),
-  password: z.string().min(12),
+  password: z.string().min(8),
 });
 
-securityRoutes.post("/invitations/accept", async (req: Request, res: Response) => {
+securityRoutes.post("/invitations/accept", invitationAcceptLimiter, async (req: Request, res: Response) => {
   const parsed = acceptInviteSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Name (2+ chars) and password (12+ chars) required" });
+  if (!parsed.success) return res.status(400).json({ error: "Name (2+ chars) and password (8+ chars) required" });
 
   const rows = await query<{ id: string; clinic_id: string; email: string; role: UserRole }>(
     `SELECT id, clinic_id, email, role FROM staff_invitations

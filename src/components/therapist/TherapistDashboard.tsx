@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
+import { ApiError } from "@/lib/productionApi";
 import CaseloadOverview from "./CaseloadOverview";
 import ChildList from "./ChildList";
 import AssignHomework from "./AssignHomework";
@@ -52,12 +53,20 @@ export default function TherapistDashboard() {
               className="space-y-4"
               onSubmit={async (event) => {
                 event.preventDefault();
-                const authenticated = await signInTherapist(email, password);
-                if (!authenticated) {
-                  setError("We couldn't sign you in. Check the clinic email and password.");
-                  return;
+                try {
+                  const authenticated = await signInTherapist(email, password);
+                  if (!authenticated) {
+                    setError("We couldn't sign you in. Check the clinic email and password.");
+                    return;
+                  }
+                  setError("");
+                } catch (err) {
+                  setError(
+                    err instanceof ApiError && err.code === "network"
+                      ? "Can't reach the clinic server. Check your connection and try again."
+                      : "We couldn't sign you in right now. Please try again."
+                  );
                 }
-                setError("");
               }}
             >
               <div className="space-y-2">

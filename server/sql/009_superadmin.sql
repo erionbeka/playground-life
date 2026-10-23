@@ -1,0 +1,2 @@
+-- Add superadmin role
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'superadmin';

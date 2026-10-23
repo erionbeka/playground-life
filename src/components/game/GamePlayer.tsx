@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import type { GameCompletionMetrics } from "./gameCompletion";
 import { useApp, HomeworkAssignment } from "@/context/AppContext";
 import { getCatalogGameById, useCatalog } from "@/lib/customCatalog";
 import { AnimatePresence, motion } from "framer-motion";
@@ -172,7 +173,7 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   }, [celebrationVisible, playCelebrationSound]);
 
   const handleGameComplete = useCallback(
-    async (score: number, socialScore?: number) => {
+    async (score: number, socialScore?: number, metrics?: GameCompletionMetrics) => {
       const durationSeconds = Math.round((Date.now() - startTime) / 1000);
       try {
         await completeGame(assignment.id, {
@@ -182,6 +183,21 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
           score,
           interactions,
           socialScore,
+          ...(metrics
+            ? {
+                trials: metrics.trials,
+                correctTrials: metrics.correctTrials,
+                errors: metrics.errors,
+                accuracy: metrics.accuracy,
+                promptsNeeded: metrics.promptsNeeded,
+                attemptsBySkill: metrics.attemptsBySkill,
+                observations: metrics.observations,
+                independenceRate: metrics.independenceRate,
+                medianLatencyMs: metrics.medianLatencyMs,
+                trace: metrics.trace,
+                insights: metrics.insights,
+              }
+            : {}),
         });
         const current = await getChildRewards(assignment.childId);
         const { next } = applyResultToRewardState(

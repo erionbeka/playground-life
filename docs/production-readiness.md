@@ -1,4 +1,4 @@
-﻿# Production Readiness Plan
+# Production Readiness Plan
 
 Playground Life now has a Postgres-backed production API foundation in addition to the existing React application. This document distinguishes between what is implemented, what is validated, and what must still be completed before handling real clinic or child data.
 
@@ -27,7 +27,17 @@ npm run dev:api
 npm run dev
 ```
 
-The API expects `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGIN`, and cookie settings in `.env`. The frontend API client uses `VITE_API_URL` and defaults to `http://localhost:4000`.
+The API expects `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGIN`, and cookie settings in `.env`. The frontend is same-origin and calls `/api/...`; `VITE_API_URL` is only an absolute-URL override for the Capacitor Android build.
+
+### Data mode
+
+The app has exactly one data provider: the HTTP API backed by PostgreSQL.
+`VITE_DATA_MODE` no longer exists. The API base URL is same-origin
+(`/api/...`); `VITE_API_URL` is only an absolute-URL override for the
+Capacitor Android build.
+
+A failed write is never silent. Mutations surface a toast, and a banner
+appears whenever `/api/health` reports that the API or the database is down.
 
 ## Data Stored in Postgres
 

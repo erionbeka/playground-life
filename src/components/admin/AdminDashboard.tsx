@@ -1,34 +1,76 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { FamilyMember, useApp } from "@/context/AppContext";
+import { ApiError } from "@/lib/productionApi";
 import { emptySkillProfile } from "@/lib/skills";
+import { toast } from "@/components/ui/sonner";
 import GameApprovals from "./GameApprovals";
 
-type Tab = "overview" | "staff" | "families" | "content" | "readiness";
+type Tab = "overview" | "staff" | "families" | "content" | "platforms" | "settings" | "activity";
+
+/**
+ * A temporary password for a caregiver account.
+ *
+ * The server requires twelve characters, so the generated value has to be
+ * longer than that or the reset is rejected. The earlier version produced
+ * eleven characters at most, which meant the reset never worked.
+ */
+function generateTemporaryPassword(): string {
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const rest = `${lower}${upper}${digits}`;
+  const pick = (source: string) => source[Math.floor(Math.random() * source.length)];
+  const characters = [pick(lower), pick(upper), pick(digits)];
+  while (characters.length < 16) characters.push(pick(rest));
+  return characters
+    .sort(() => Math.random() - 0.5)
+    .join("");
+}
 
 const tabs: { key: Tab; label: string; emoji?: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "staff", label: "Staff" },
   { key: "families", label: "Families" },
   { key: "content", label: "Content", emoji: "🎨" },
-  { key: "readiness", label: "Readiness" },
+  { key: "platforms", label: "Platforms", emoji: "📱" },
+  { key: "settings", label: "Settings", emoji: "⚙️" },
+  { key: "activity", label: "Therapist activity", emoji: "👁️" },
 ];
 
 export default function AdminDashboard() {
-  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, addChild, addFamilyMember, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog } = useApp();
+  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, inviteStaffUser, addChild, addFamilyMember, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotMsg, setForgotMsg] = useState("");
+  const [releaseNotes, setReleaseNotes] = useState(() => localStorage.getItem("releaseNotes") || "");
+  const [clinicName, setClinicName] = useState("");
+  const [clinicMsg, setClinicMsg] = useState("");
+  const [savedNotes, setSavedNotes] = useState(() => localStorage.getItem("releaseNotes") || "");
   const [staffRole, setStaffRole] = useState<"admin" | "therapist">("therapist");
   const [staffName, setStaffName] = useState("");
   const [staffEmail, setStaffEmail] = useState("");
   const [staffPassword, setStaffPassword] = useState("");
+  const [staffInviteMode, setStaffInviteMode] = useState<"password" | "invite">("password");
+  const [staffInviteEmail, setStaffInviteEmail] = useState("");
   const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
   const [generatedInvites, setGeneratedInvites] = useState<Record<string, string>>({});
   const [showAddChild, setShowAddChild] = useState(false);
+
+  useEffect(() => {
+    const API = import.meta.env.VITE_API_URL || "";
+    const token = localStorage.getItem("accessToken");
+    fetch(`${API}/api/auth/clinic`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then((r) => r.json())
+      .then((d) => { if (d?.clinic?.name) setClinicName(d.clinic.name); })
+      .catch(() => {});
+  }, []);
   const [childName, setChildName] = useState("");
   const [childAvatar, setChildAvatar] = useState("🧒");
   const [childAge, setChildAge] = useState("6");
@@ -52,42 +94,53 @@ export default function AdminDashboard() {
     setShowAddChild(false);
   };
 
-  const saveChild = () => {
+  const saveChild = async () => {
     if (!childName.trim()) return;
     const parsedAge = Number.parseInt(childAge, 10);
-    addChild({
-      name: childName.trim(),
-      age: Number.isNaN(parsedAge) ? 0 : parsedAge,
-      avatar: childAvatar,
-      notes: childNotes,
-      diagnosis: childDiagnosis || undefined,
-      familyMembers: [],
-      personalizationProfile: {
-        preferredStyle: "mixed",
-        communicationLevel: "phrases",
-        reinforcementType: "social-praise",
-        promptLevel: "verbal",
-        transitionDifficulty: "moderate",
-        interests: [],
-        strengths: [],
-        supportNeeds: [],
-        sensoryPreferences: [],
-        triggerPatterns: [],
-        regulationSupports: [],
-        clinicalRatings: {
-          communicationSupport: 3,
-          regulationSupport: 3,
-          transitionSupport: 3,
-          promptDependence: 3,
-          reinforcementResponse: 3,
+    try {
+      await addChild({
+        name: childName.trim(),
+        age: Number.isNaN(parsedAge) ? 0 : parsedAge,
+        avatar: childAvatar,
+        notes: childNotes,
+        diagnosis: childDiagnosis || undefined,
+        familyMembers: [],
+        personalizationProfile: {
+          preferredStyle: "mixed",
+          communicationLevel: "phrases",
+          reinforcementType: "social-praise",
+          promptLevel: "verbal",
+          transitionDifficulty: "moderate",
+          interests: [],
+          strengths: [],
+          supportNeeds: [],
+          sensoryPreferences: [],
+          triggerPatterns: [],
+          regulationSupports: [],
+          clinicalRatings: {
+            communicationSupport: 3,
+            regulationSupport: 3,
+            transitionSupport: 3,
+            promptDependence: 3,
+            reinforcementResponse: 3,
+          },
+          clinicalRatingHistory: [],
         },
-        clinicalRatingHistory: [],
-      },
-      therapyGoals: [],
-      skillProfile: emptySkillProfile(),
-      progressionSettings: { autoAdvance: true, approvalRequired: true, recommendedDifficulty: "easy", maxDifficulty: "hard" },
-    });
-    resetAddChildForm();
+        therapyGoals: [],
+        skillProfile: emptySkillProfile(),
+        progressionSettings: { autoAdvance: true, approvalRequired: true, recommendedDifficulty: "easy", maxDifficulty: "hard" },
+      });
+      toast.success(`Added ${childName.trim()} to the clinic.`);
+      resetAddChildForm();
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError && error.code === "network"
+          ? "Can't reach the clinic server. Nothing was saved."
+          : error instanceof Error
+            ? error.message
+            : "Couldn't add the child. Nothing was saved."
+      );
+    }
   };
 
   const resetFamilyForm = () => {
@@ -101,15 +154,26 @@ export default function AdminDashboard() {
 
   const handleAddFamily = async (childId: string) => {
     if (!fmName.trim() || !fmPhoneNumber.trim() || fmPassword.trim().length < 12) return;
-    const inviteCode = await addFamilyMember(childId, {
-      name: fmName.trim(),
-      relationship: fmRelationship,
-      avatar: fmAvatar,
-      phoneNumber: fmPhoneNumber.trim(),
-      password: fmPassword,
-    });
-    if (inviteCode) setGeneratedInvites((current) => ({ ...current, [fmPhoneNumber.trim()]: inviteCode }));
-    resetFamilyForm();
+    try {
+      const inviteCode = await addFamilyMember(childId, {
+        name: fmName.trim(),
+        relationship: fmRelationship,
+        avatar: fmAvatar,
+        phoneNumber: fmPhoneNumber.trim(),
+        password: fmPassword,
+      });
+      if (inviteCode) setGeneratedInvites((current) => ({ ...current, [fmPhoneNumber.trim()]: inviteCode }));
+      toast.success(`Added ${fmName.trim()} to the family.`);
+      resetFamilyForm();
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError && error.code === "network"
+          ? "Can't reach the clinic server. Nothing was saved."
+          : error instanceof Error
+            ? error.message
+            : "Couldn't add the family member. Nothing was saved."
+      );
+    }
   };
 
   const familyRows = useMemo(
@@ -152,12 +216,20 @@ export default function AdminDashboard() {
               className="space-y-4"
               onSubmit={async (event) => {
                 event.preventDefault();
-                const authenticated = await signInAdmin(email, password);
-                if (!authenticated) {
-                  setError("We couldn't sign you in. Check the admin email and password.");
-                  return;
+                try {
+                  const authenticated = await signInAdmin(email, password);
+                  if (!authenticated) {
+                    setError("We couldn't sign you in. Check the admin email and password.");
+                    return;
+                  }
+                  setError("");
+                } catch (err) {
+                  setError(
+                    err instanceof ApiError && err.code === "network"
+                      ? "Can't reach the clinic server. Check your connection and try again."
+                      : "We couldn't sign you in right now. Please try again."
+                  );
                 }
-                setError("");
               }}
             >
               <div className="space-y-2">
@@ -187,11 +259,50 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              {error ? <p className="text-sm text-destructive">{error}</p> : null}
-              <button type="submit" className="touch-target w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold text-white shadow-[0_16px_40px_rgba(194,120,27,0.28)] transition hover:brightness-105">
-                Sign In
-              </button>
-            </form>
+               {error ? <p className="text-sm text-destructive">{error}</p> : null}
+               <button type="submit" className="touch-target w-full rounded-xl bg-amber-500 px-4 py-3 font-semibold text-white shadow-[0_16px_40px_rgba(194,120,27,0.28)] transition hover:brightness-105">
+                 Sign In
+               </button>
+             </form>
+             <div className="mt-4 text-center">
+               <button type="button" onClick={() => setShowForgot((v) => !v)} className="text-sm text-muted-foreground underline hover:text-foreground">
+                 Forgot password?
+               </button>
+               {showForgot ? (
+                 <form
+                   className="mt-3 space-y-2"
+                   onSubmit={async (e) => {
+                     e.preventDefault();
+                     setForgotMsg("");
+                     try {
+                       const API = import.meta.env.VITE_API_URL || "";
+                       const res = await fetch(`${API}/api/security/reset-request`, {
+                         method: "POST",
+                         headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify({ email: forgotEmail }),
+                       });
+                       const body = await res.json().catch(() => ({}));
+                       setForgotMsg(body.message || (res.ok ? "If that account exists, a reset email has been queued." : "Request failed."));
+                     } catch {
+                       setForgotMsg("Can't reach the clinic server.");
+                     }
+                   }}
+                 >
+                   <input
+                     type="email"
+                     required
+                     value={forgotEmail}
+                     onChange={(e) => setForgotEmail(e.target.value)}
+                     placeholder="Admin email"
+                     className="h-11 w-full rounded-xl border border-border bg-background/85 px-4 text-base text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                   />
+                   <button type="submit" className="touch-target w-full rounded-xl bg-primary px-4 py-2 font-semibold text-primary-foreground">
+                     Send reset link
+                   </button>
+                   {forgotMsg ? <p className="text-sm text-muted-foreground">{forgotMsg}</p> : null}
+                 </form>
+               ) : null}
+             </div>
           </motion.div>
         </div>
       </div>
@@ -278,30 +389,96 @@ export default function AdminDashboard() {
               <h2 className="mb-4 font-display text-lg font-bold text-foreground">Add Staff Account</h2>
               <div className="space-y-3">
                 <div className="flex gap-2">
+                  <button
+                    onClick={() => setStaffInviteMode("password")}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffInviteMode === "password" ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}
+                  >
+                    Create with password
+                  </button>
+                  <button
+                    onClick={() => setStaffInviteMode("invite")}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffInviteMode === "invite" ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}
+                  >
+                    Invite by email
+                  </button>
+                </div>
+                <div className="flex gap-2">
                   <button onClick={() => setStaffRole("therapist")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffRole === "therapist" ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>Therapist</button>
                   <button onClick={() => setStaffRole("admin")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffRole === "admin" ? "bg-amber-500 text-white" : "bg-card text-foreground"}`}>Admin</button>
                 </div>
-                <input value={staffName} onChange={(event) => setStaffName(event.target.value)} placeholder="Full name" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
-                <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} placeholder="Email" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
-                <input value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Temporary password" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
-                <button
-                  onClick={() => {
-                    if (!staffName.trim() || !staffEmail.trim() || !staffPassword.trim()) return;
-                    addStaffUser({
-                      role: staffRole,
-                      name: staffName.trim(),
-                      email: staffEmail.trim(),
-                      clinicName: adminUsers[0]?.clinicName || "Playground Life Clinic",
-                      password: staffPassword,
-                    });
-                    setStaffName("");
-                    setStaffEmail("");
-                    setStaffPassword("");
-                  }}
-                  className="touch-target rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
-                >
-                  Create Staff Account
-                </button>
+                {staffInviteMode === "password" ? (
+                  <>
+                    <input value={staffName} onChange={(event) => setStaffName(event.target.value)} placeholder="Full name" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
+                    <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} placeholder="Email" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
+                    <input value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Temporary password" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
+                    <button
+                      onClick={async () => {
+                        if (!staffName.trim() || !staffEmail.trim() || !staffPassword.trim()) return;
+                        try {
+                          await addStaffUser({
+                            role: staffRole,
+                            name: staffName.trim(),
+                            email: staffEmail.trim(),
+                            clinicName: adminUsers[0]?.clinicName || "Playground Life Clinic",
+                            password: staffPassword,
+                          });
+                          toast.success(`Created the ${staffRole} account for ${staffName.trim()}.`);
+                          setStaffName("");
+                          setStaffEmail("");
+                          setStaffPassword("");
+                        } catch (error) {
+                          toast.error(
+                            error instanceof ApiError && error.code === "network"
+                              ? "Can't reach the clinic server. Nothing was saved."
+                              : error instanceof Error
+                                ? error.message
+                                : "Couldn't create the account. Nothing was saved."
+                          );
+                        }
+                      }}
+                      className="touch-target rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+                    >
+                      Create Staff Account
+                    </button>
+                  </>
+                ) : null}
+                {staffInviteMode === "invite" ? (
+                  <div className="space-y-3">
+                    <input
+                      value={staffInviteEmail}
+                      onChange={(event) => setStaffInviteEmail(event.target.value)}
+                      placeholder="therapist@example.com"
+                      type="email"
+                      className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground"
+                    />
+                    <button
+                      onClick={async () => {
+                        const email = staffInviteEmail.trim();
+                        if (!email) return;
+                        try {
+                          await inviteStaffUser({ email, role: staffRole });
+                          toast.success(`Invitation queued for ${email}. They can set their own password from the email link.`);
+                          setStaffInviteEmail("");
+                        } catch (error) {
+                          toast.error(
+                            error instanceof ApiError && error.code === "network"
+                              ? "Can't reach the clinic server. The invitation was not sent."
+                              : error instanceof Error
+                                ? error.message
+                                : "Couldn't send the invitation."
+                          );
+                        }
+                      }}
+                      className="touch-target rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground"
+                    >
+                      Send invitation
+                    </button>
+                    <p className="text-xs text-muted-foreground">
+                      The invite link expires in 7 days. The email is sent by the mail worker
+                      (<span className="font-mono">npm run mail:worker</span>).
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -325,6 +502,54 @@ export default function AdminDashboard() {
                     <div key={user.id} className="rounded-xl border border-border bg-card p-3">
                       <p className="font-semibold text-foreground">{user.name}</p>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const API = import.meta.env.VITE_API_URL || "";
+                            const token = localStorage.getItem("accessToken");
+                            const res = await fetch(`${API}/api/auth/staff/${user.id}/reset-password`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                              body: JSON.stringify({}),
+                            });
+                            const data = await res.json();
+                            if (res.ok) toast.success(`New password: ${data.temporaryPassword ?? "(emailed)"}`);
+                            else toast.error(data.error || "Failed");
+                          }}
+                          className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                        >
+                          Reset password
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const API = import.meta.env.VITE_API_URL || "";
+                            const token = localStorage.getItem("accessToken");
+                            const res = await fetch(`${API}/api/auth/staff/${user.id}/status`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                              body: JSON.stringify({ status: "suspended" }),
+                            });
+                            if (res.ok) toast.success("Suspended"); else toast.error("Failed");
+                          }}
+                          className="touch-target rounded-lg bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600"
+                        >
+                          Suspend
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const API = import.meta.env.VITE_API_URL || "";
+                            const token = localStorage.getItem("accessToken");
+                            const res = await fetch(`${API}/api/auth/staff/${user.id}`, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                            if (res.ok) toast.success("Deleted"); else toast.error("Failed");
+                          }}
+                          className="touch-target rounded-lg bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-600"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -413,10 +638,18 @@ export default function AdminDashboard() {
                               Issue Invite
                             </button>
                             <button
-                              onClick={() => {
-                                const tempPassword = `Play-${Math.random().toString(36).slice(2, 8)}`;
-                                resetFamilyCredentials(child.id, familyMember.id, tempPassword, true);
-                                setGeneratedPasswords((current) => ({ ...current, [familyMember.id]: tempPassword }));
+                              onClick={async () => {
+                                const tempPassword = generateTemporaryPassword();
+                                try {
+                                  const ok = await resetFamilyCredentials(child.id, familyMember.id, tempPassword, true);
+                                  if (!ok) {
+                                    toast.error("The password could not be reset. Try again.");
+                                    return;
+                                  }
+                                  setGeneratedPasswords((current) => ({ ...current, [familyMember.id]: tempPassword }));
+                                } catch (cause) {
+                                  toast.error(cause instanceof Error ? cause.message : "The password could not be reset.");
+                                }
                               }}
                               className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground"
                             >
@@ -469,26 +702,102 @@ export default function AdminDashboard() {
           <GameApprovals />
         ) : null}
 
-        {tab === "readiness" ? (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl bg-muted p-4">
-              <h2 className="mb-3 font-display text-lg font-bold text-foreground">What This App Can Do Now</h2>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Role-based clinic access for admin, therapist, and family flows.</p>
-                <p>Family onboarding states, invite issuance, and credential resets.</p>
-                <p>Skill-domain progression, assignment approvals, and audit history.</p>
-                <p>Clinic-facing reports with goals, skill scores, and operational review.</p>
+        {tab === "platforms" ? (
+          <div className="space-y-6">
+            <h2 className="font-display text-lg font-bold text-foreground">Release management</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-2xl bg-muted p-4">
+                <p className="font-semibold text-foreground">Web</p>
+                <p className="text-sm text-muted-foreground">v0.0.0 · SPA on nginx</p>
+                <p className="text-xs text-muted-foreground mt-2">Build: npm run build</p>
+                <a href="https://playground-life.com" target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-primary underline">Open web</a>
+              </div>
+              <div className="rounded-2xl bg-muted p-4">
+                <p className="font-semibold text-foreground">Android</p>
+                <p className="text-sm text-muted-foreground">v1.0 · com.playgroundlife.app · minSdk 24</p>
+                <p className="text-xs text-muted-foreground mt-2">Build: npm run build:android + gradlew</p>
+                <a href="https://github.com/erionbeka/playground-life/releases/tag/v1.0-android" target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-primary underline">Download APK</a>
+              </div>
+              <div className="rounded-2xl bg-muted p-4">
+                <p className="font-semibold text-foreground">iOS</p>
+                <p className="text-sm text-muted-foreground">Not configured</p>
+                <p className="text-xs text-muted-foreground mt-2">Add @capacitor/ios + Xcode</p>
               </div>
             </div>
-
-            <div className="rounded-2xl bg-muted p-4">
-              <h2 className="mb-3 font-display text-lg font-bold text-foreground">Still Needed Before Production</h2>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Server-side auth, database, and encrypted storage beyond browser local state.</p>
-                <p>Real invitation delivery, password reset tokens, and MFA.</p>
-                <p>Centralized audit export, retention rules, and monitored backups.</p>
-                <p>Formal HIPAA risk analysis, policies, BAAs, and operational controls.</p>
-              </div>
+            <div className="rounded-2xl border border-border bg-card/60 p-4">
+              <h3 className="mb-2 font-semibold text-foreground">Release notes</h3>
+              <textarea
+                value={releaseNotes}
+                onChange={(e) => setReleaseNotes(e.target.value)}
+                rows={6}
+                className="w-full rounded-xl border border-border bg-background/85 px-4 py-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                placeholder="What changed in this release..."
+              />
+              <button
+                type="button"
+                onClick={() => { localStorage.setItem("releaseNotes", releaseNotes); setSavedNotes(releaseNotes); }}
+                className="touch-target mt-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Save notes
+              </button>
+              {savedNotes ? <p className="mt-2 text-xs text-muted-foreground">Saved {savedNotes.length} chars.</p> : null}
+            </div>
+            <div className="rounded-2xl border border-border bg-card/60 p-4">
+              <h3 className="mb-2 font-semibold text-foreground">Build commands</h3>
+              <pre className="overflow-x-auto rounded-xl bg-muted p-3 text-xs text-foreground">npm run build:android
+cd android && ./gradlew assembleRelease
+# output: android/app/build/outputs/apk/release/app-release.apk</pre>
+            </div>
+          </div>
+        ) : null}
+        {tab === "activity" ? (
+          <div className="space-y-4">
+            <h2 className="font-display text-lg font-bold text-foreground">Therapist activity</h2>
+            <div className="space-y-2">
+              {auditLog.filter((e) => e.actorRole === "therapist").length === 0 ? (
+                <p className="text-sm text-muted-foreground">No therapist activity yet.</p>
+              ) : (
+                auditLog.filter((e) => e.actorRole === "therapist").map((entry) => (
+                  <div key={entry.id} className="rounded-xl border border-border bg-card/60 p-3 text-sm">
+                    <p className="font-semibold text-foreground">{entry.action}</p>
+                    <p className="text-xs text-muted-foreground">{entry.entityType} · {new Date(entry.createdAt).toLocaleString()}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : null}
+        {tab === "settings" ? (
+          <div className="space-y-4">
+            <h2 className="font-display text-lg font-bold text-foreground">Clinic settings</h2>
+            <div className="rounded-2xl border border-border bg-card/60 p-4">
+              <label className="block">
+                <span className="mb-1 block text-sm font-semibold text-foreground">Clinic name</span>
+                <input
+                  value={clinicName}
+                  onChange={(e) => setClinicName(e.target.value)}
+                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
+                />
+              </label>
+              <button
+                type="button"
+                onClick={async () => {
+                  const API = import.meta.env.VITE_API_URL || "";
+                  const token = localStorage.getItem("accessToken");
+                  const res = await fetch(`${API}/api/auth/clinic`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                    body: JSON.stringify({ name: clinicName }),
+                  });
+                  const data = await res.json();
+                  if (res.ok) setClinicMsg(`Saved: ${data.clinic?.name}`);
+                  else setClinicMsg(data.error || "Failed");
+                }}
+                className="touch-target mt-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+              >
+                Save name
+              </button>
+              {clinicMsg ? <p className="mt-2 text-xs text-muted-foreground">{clinicMsg}</p> : null}
             </div>
           </div>
         ) : null}

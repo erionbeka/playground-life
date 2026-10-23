@@ -1,9 +1,16 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AppProvider, HomeworkAssignment } from "@/context/AppContext";
+import { ApiAppProvider } from "@/context/ApiAppProvider";
+import type { HomeworkAssignment } from "@/context/AppContext";
 import { allGames } from "@/data/games";
 import GamePlayer from "@/components/game/GamePlayer";
-import { getRecentChildEvents } from "@/lib/sessionEvents";
+import { fakeApi, resetFakeApi } from "@/test/support/fakeApi";
+
+vi.mock("@/lib/productionApi", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/productionApi")>("@/lib/productionApi");
+  const { fakeApi } = await import("@/test/support/fakeApi");
+  return { ...actual, productionApi: fakeApi };
+});
 
 const game = allGames.find((entry) => entry.engine === "matching") ?? allGames[0];
 
@@ -30,16 +37,16 @@ function assignmentFor(gameId: string): HomeworkAssignment {
 
 afterEach(() => {
   cleanup();
-  window.localStorage.clear();
+  resetFakeApi();
   vi.restoreAllMocks();
 });
 
 describe("game player AAC bar", () => {
   it("keeps the communication bar available during play", () => {
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={game.id} assignment={assignmentFor(game.id)} onComplete={vi.fn()} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     fireEvent.click(screen.getByText("Start"));
@@ -52,15 +59,15 @@ describe("game player AAC bar", () => {
 
   it("logs AAC word usage to the child event stream", () => {
     render(
-      <AppProvider>
+      <ApiAppProvider>
         <GamePlayer gameId={game.id} assignment={assignmentFor(game.id)} onComplete={vi.fn()} />
-      </AppProvider>,
+      </ApiAppProvider>,
     );
 
     fireEvent.click(screen.getByText("Start"));
     fireEvent.click(screen.getByRole("button", { name: "more" }));
 
-    const events = getRecentChildEvents("child-aac", "aac_word");
+    const events = fakeApi.listChildEvents("child-aac", "aac_word");
     expect(events.length).toBe(1);
     expect(events[0].detail).toBe("more");
   });

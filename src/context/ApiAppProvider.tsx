@@ -1,8 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { AppContext, AppState, AuditEntry, Child, FamilyMember, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal } from "@/context/AppContext";
-import { AuthSession } from "@/lib/auth";
-import { AdminUser, TherapistUser } from "@/lib/backend";
-import { productionApi } from "@/lib/productionApi";
+import { AppContext, AppState, AuditEntry, AuthSession, Child, FamilyMember, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal, AdminUser, TherapistUser } from "@/context/AppContext";
+import { ApiError, type ApiSessionUser, productionApi } from "@/lib/productionApi";
+import type { Insight, SessionTrace } from "@/lib/gameAnalytics";
 import { registerPublishedGames, clearCustomGames, initCustomCatalog } from "@/lib/customCatalog";
 import { PublishedGame } from "@/lib/gameAuthoring";
 import { buildSkillScoresFromResult, emptySkillProfile } from "@/lib/skills";
@@ -75,15 +74,22 @@ function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
   const rawResults = Array.isArray(row.results)
     ? (row.results as Array<Record<string, unknown>>)
     : [];
-  const results: GameResult[] = rawResults.map((entry) => ({
-    gameId: String(entry.gameId),
-    assignmentId: String(row.id),
-    completedAt: String(entry.completedAt),
-    durationSeconds: Number(entry.durationSeconds ?? 0),
-    score: Number(entry.score ?? 0),
-    interactions: Number(entry.interactions ?? 0),
-    skillScores: (entry.skillScores || {}) as GameResult["skillScores"],
-  }));
+  const results: GameResult[] = rawResults.map((entry) => {
+    const metrics = (entry.metrics || {}) as Record<string, unknown>;
+    return ({
+      gameId: String(entry.gameId),
+      assignmentId: String(row.id),
+      completedAt: String(entry.completedAt),
+      durationSeconds: Number(entry.durationSeconds ?? 0),
+      score: Number(entry.score ?? 0),
+      interactions: Number(entry.interactions ?? 0),
+      skillScores: (entry.skillScores || {}) as GameResult["skillScores"],
+      independenceRate: metrics.independenceRate ? Number(metrics.independenceRate) : undefined,
+      medianLatencyMs: metrics.medianLatencyMs ? Number(metrics.medianLatencyMs) : undefined,
+      trace: metrics.trace as SessionTrace | undefined,
+      insights: metrics.insights as Insight[] | undefined,
+    });
+  });
   const completedGames = Array.from(new Set(results.map((result) => result.gameId)));
 
   return {
@@ -161,8 +167,8 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
 
   const refreshClinicData = useCallback(async () => {
     const [childResponse, assignmentResponse, familyResponse, goalResponse] = await Promise.all([
-      productionApi.listChildren(),
-      productionApi.listAssignments(),
+      productionApi.listChildren().catch(() => ({ children: [] as unknown[] })),
+      productionApi.listAssignments().catch(() => ({ assignments: [] as unknown[] })),
       productionApi.listFamilyLinks().catch(() => ({ familyLinks: [] as unknown[] })),
       productionApi.listGoals().catch(() => ({ goals: [] as unknown[] })),
     ]);
@@ -214,7 +220,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
           email: entry.email,
           passwordHash: "",
         };
-        if (entry.role === "admin") admins.push(mapped);
+        if (entry.role === "admin" || entry.role === "superadmin") admins.push(mapped);
         else if (entry.role === "therapist") therapists.push(mapped);
       }
       setStaffUsers(admins);
@@ -244,55 +250,118 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     const isProtected = /^\/(therapist|family|admin)(\/|$)/.test(path);
     if (!isProtected) return;
 
-    productionApi.me()
+     productionApi.me()
       .then(async ({ user }) => {
-        const nextSession: AuthSession = { role: user.role, userId: user.id, displayName: user.name };
+        const resolvedRole = user.role === "superadmin" ? "admin" : user.role;
+        const nextSession: AuthSession = { role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name };
         setSession(nextSession);
-        setRole(user.role);
+        setRole(resolvedRole as AppState["role"]);
         await refreshClinicData();
         await refreshAudit();
         await refreshStaff();
         await loadCustomGames();
       })
-      .catch(() => undefined);
+      .catch(() => {
+        const path = typeof window !== "undefined" ? window.location.pathname : "/";
+        if (/^\/(therapist|family|admin)(\/|$)/.test(path)) {
+          window.location.assign("/enter");
+        }
+      });
   }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
-  const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
-    try {
-      const { user } = await productionApi.login(identifier, password);
-      if (user.role !== expectedRole) {
-        await productionApi.logout().catch(() => undefined);
-        return false;
+  useEffect(() => {
+    const retry = async () => {
+      const queue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
+      if (!Array.isArray(queue) || queue.length === 0) return;
+      const remaining = [];
+      for (const item of queue) {
+        try {
+          await productionApi.recordGameResult(item.assignmentId, item);
+        } catch {
+          remaining.push(item);
+        }
       }
-      setSession({ role: user.role, userId: user.id, displayName: user.name });
-      setRole(user.role);
+      localStorage.setItem("pendingGameResults", JSON.stringify(remaining));
+      if (remaining.length === 0) {
+        await refreshClinicData().catch(() => undefined);
+        await refreshAudit().catch(() => undefined);
+      }
+    };
+    void retry();
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [refreshAudit, refreshClinicData]);
+
+  const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
+    let user: ApiSessionUser;
+    try {
+    const response = await productionApi.login(identifier, password);
+    user = response.user;
+  } catch (error) {
+    // A rejected password is a normal outcome; an unreachable server is not.
+    if (error instanceof ApiError && error.status === 401) return false;
+    throw error;
+  }
+
+    const resolvedRole = user.role === "superadmin" ? "admin" : user.role;
+    if (resolvedRole !== expectedRole) {
+      await productionApi.logout().catch(() => undefined);
+      return false;
+    }
+
+    setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name });
+    setRole(resolvedRole as AppState["role"]);
+
+    // The credential was accepted. A refresh that fails afterwards is a
+    // separate problem - the API status banner reports an unreachable server,
+    // and it must not turn a successful sign-in into a failed one.
+    try {
       await refreshClinicData();
       await refreshAudit();
       await refreshStaff();
       await loadCustomGames();
-      return true;
     } catch {
-      return false;
+      // Reported by the API status banner.
     }
+
+    return true;
   }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
   const signInFamily = useCallback(async (phoneNumber: string, password: string) => {
+    let user: ApiSessionUser;
     try {
-      const { user } = await productionApi.login(phoneNumber, password);
-      if (user.role !== "parent") return null;
-      const familySession = await productionApi.getFamilySession();
-      const mappedChildren = familySession.children.map((entry) => mapChild(entry as Record<string, unknown>));
-      const mappedAssignments = familySession.assignments.map((entry) => mapAssignment(entry as Record<string, unknown>));
-      setChildren(mappedChildren);
-      setAssignments(mappedAssignments);
-      setSession({ role: user.role, userId: user.id, displayName: user.name, childId: mappedChildren[0]?.id, familyMemberId: user.id });
-      setRole("parent");
-      if (mappedChildren[0]) setSelectedChildId(mappedChildren[0].id);
-      await loadCustomGames();
-      return mappedChildren[0] ? { childId: mappedChildren[0].id, familyMemberId: user.id } : null;
-    } catch {
+      const response = await productionApi.login(phoneNumber, password);
+      user = response.user;
+    } catch (error) {
+      // A rejected password is a normal outcome; an unreachable server is not.
+      if (error instanceof ApiError && error.status === 401) return null;
+      throw error;
+    }
+
+    if (user.role !== "parent") {
+      await productionApi.logout().catch(() => undefined);
       return null;
     }
+
+    // The credential was accepted. A failed session fetch leaves an empty
+    // caseload rather than a failed sign-in.
+    let mappedChildren: Child[] = [];
+    let mappedAssignments: HomeworkAssignment[] = [];
+    try {
+      const familySession = await productionApi.getFamilySession();
+      mappedChildren = familySession.children.map((entry) => mapChild(entry as Record<string, unknown>));
+      mappedAssignments = familySession.assignments.map((entry) => mapAssignment(entry as Record<string, unknown>));
+    } catch {
+      // Reported by the API status banner.
+    }
+
+    setChildren(mappedChildren);
+    setAssignments(mappedAssignments);
+    setSession({ role: user.role, userId: user.id, displayName: user.name, childId: mappedChildren[0]?.id, familyMemberId: user.id });
+    setRole("parent");
+    if (mappedChildren[0]) setSelectedChildId(mappedChildren[0].id);
+    await loadCustomGames();
+    return mappedChildren[0] ? { childId: mappedChildren[0].id, familyMemberId: user.id } : null;
   }, [loadCustomGames]);
 
   const value = useMemo<AppState>(() => ({
@@ -320,6 +389,10 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     addStaffUser: async (user) => {
       await productionApi.createStaff({ role: user.role, name: user.name, email: user.email, password: user.password });
       await refreshStaff();
+      await refreshAudit();
+    },
+    inviteStaffUser: async (payload) => {
+      await productionApi.issueStaffInvitation(payload);
       await refreshAudit();
     },
     children,
@@ -429,16 +502,28 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       await refreshAudit();
     },
     completeGame: async (assignmentId, result: Omit<GameResult, "assignmentId" | "skillScores">) => {
-      await productionApi.recordGameResult(assignmentId, {
+      const payload = {
+        assignmentId,
         gameId: result.gameId,
         durationSeconds: result.durationSeconds,
         score: result.score,
         interactions: result.interactions,
         metrics: result,
         skillScores: buildSkillScoresFromResult(result.gameId, result.score),
-      });
-      await refreshClinicData();
-      await refreshAudit();
+      };
+      try {
+        await productionApi.recordGameResult(assignmentId, payload);
+        await refreshClinicData();
+        await refreshAudit();
+      } catch (error) {
+        if (error instanceof ApiError && error.code === "network") {
+          const queue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
+          queue.push(payload);
+          localStorage.setItem("pendingGameResults", JSON.stringify(queue));
+          return;
+        }
+        throw error;
+      }
     },
     removeGameFromAssignment: async (assignmentId, gameId) => {
       await productionApi.removeGameFromAssignment(assignmentId, gameId);

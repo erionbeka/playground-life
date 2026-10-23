@@ -5,6 +5,7 @@ import path from "node:path";
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db.ts";
+import { databaseTarget, redactDatabaseUrl } from "../config.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 import type { Request, Response } from "express";
 
@@ -133,21 +134,40 @@ adminComplianceRoutes.post("/backup/run", async (_req: Request, res: Response) =
   );
   const runId = inserted.rows[0].id;
 
-  execFile("pg_dump", [process.env.DATABASE_URL || ""], { maxBuffer: 1024 * 1024 * 512 }, async (error, stdout) => {
-    if (error) {
-      await query("UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2", [
-        error.message,
-        runId,
-      ]);
-      return;
+  const databaseUrl = process.env.DATABASE_URL || "";
+  const password = (() => {
+    try {
+      return decodeURIComponent(new URL(databaseUrl).password);
+    } catch {
+      return "";
     }
-    const checksum = createHash("sha256").update(stdout).digest("hex");
-    await stat(file).catch(() => undefined);
-    await query(
-      `UPDATE backup_runs SET finished_at = now(), status = 'success', size_bytes = $1, checksum = $2 WHERE id = $3`,
-      [Buffer.byteLength(stdout), checksum, runId]
-    );
-  });
+  })();
+
+  execFile(
+    "pg_dump",
+    [databaseTarget(databaseUrl)],
+    {
+      maxBuffer: 1024 * 1024 * 512,
+      // The password travels in the environment, not in the argument list,
+      // where any process on the host could read it.
+      env: { ...process.env, PGPASSWORD: password },
+    },
+    async (error, stdout) => {
+      if (error) {
+        await query(
+          "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
+          [redactDatabaseUrl(error.message), runId]
+        );
+        return;
+      }
+      const checksum = createHash("sha256").update(stdout).digest("hex");
+      await stat(file).catch(() => undefined);
+      await query(
+        `UPDATE backup_runs SET finished_at = now(), status = 'success', size_bytes = $1, checksum = $2 WHERE id = $3`,
+        [Buffer.byteLength(stdout), checksum, runId]
+      );
+    }
+  );
 
   return res.status(202).json({ ok: true, runId });
 });

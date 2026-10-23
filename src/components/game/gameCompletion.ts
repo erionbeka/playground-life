@@ -1,22 +1,7 @@
-import type { EventRecord, Insight, SessionTrace } from "@/lib/gameAnalytics";
-import { summarizeTrace } from "@/lib/gameAnalytics";
+import type { GameCompletionMetrics } from "@/lib/gameMetrics";
 
-export interface GameCompletionMetrics {
-  completedSuccessfully: boolean;
-  trials: number;
-  correctTrials: number;
-  errors: number;
-  accuracy: number;
-  promptsNeeded?: number;
-  masteryThreshold?: number;
-  attemptsBySkill?: Record<string, number>;
-  observations?: string[];
-  trace?: SessionTrace;
-  insights?: Insight[];
-  independenceRate?: number;
-  medianLatencyMs?: number;
-  sessionEvents?: EventRecord[];
-}
+export type { GameCompletionMetrics };
+export { withTrace } from "@/lib/gameMetrics";
 
 export function calculateAccuracy(correctTrials: number, trials: number) {
   if (trials <= 0) return 0;
@@ -58,25 +43,4 @@ export function masteryForSupport(
 ): number {
   const key = (level as SupportLevelKey) || "moderate";
   return overrides?.[key] ?? BASE_MASTERY[key];
-}
-
-export function withTrace<T extends GameCompletionMetrics>(recorder: { trace: () => SessionTrace } | null, metrics: T): T {
-  if (!recorder) return metrics;
-  const trace = recorder.trace();
-  const summary = summarizeTraceSafe(trace);
-  return {
-    ...metrics,
-    trace,
-    insights: summary.insights,
-    independenceRate: summary.independenceRate,
-    medianLatencyMs: summary.medianLatencyMs,
-  };
-}
-
-function summarizeTraceSafe(trace: SessionTrace) {
-  try {
-    return summarizeTrace(trace);
-  } catch {
-    return { independenceRate: undefined, medianLatencyMs: undefined, insights: [] as Insight[] };
-  }
 }

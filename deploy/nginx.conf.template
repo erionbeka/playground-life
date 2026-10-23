@@ -1,8 +1,17 @@
-﻿server {
+﻿# Rendered by the nginx image's envsubst template step. API_UPSTREAM is the
+# address of the API process:
+#   compose        -> api:4000        (the api service on the compose network)
+#   single host    -> 127.0.0.1:4000 (the API running on the same machine)
+server {
   listen 80;
   server_name _;
   root /var/www/html;
   index index.html;
+
+  # The security headers for the responses that do not set a header of their
+  # own. Every location below includes the same file, because nginx replaces
+  # the outer headers instead of adding to them.
+  include /etc/nginx/snippets/security-headers.conf;
 
   # Compress text responses. Without this the landing page ships ~470 KB of raw
   # JS instead of ~130 KB. `gzip_vary` matters behind Cloudflare so the edge
@@ -35,6 +44,7 @@
   location ~* ^/(assets|imgs)/.+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|png|svg|jpe?g|webp)$ {
     expires 1y;
     add_header Cache-Control "public, max-age=31536000, immutable" always;
+    include /etc/nginx/snippets/security-headers.conf;
     access_log off;
     try_files $uri =404;
   }
@@ -43,16 +53,18 @@
   # visitors a document that points at asset hashes the edge no longer has.
   location = /index.html {
     add_header Cache-Control "no-cache, must-revalidate" always;
+    include /etc/nginx/snippets/security-headers.conf;
     try_files $uri =404;
   }
 
   location / {
     add_header Cache-Control "no-cache, must-revalidate" always;
+    include /etc/nginx/snippets/security-headers.conf;
     try_files $uri $uri/ /index.html;
   }
 
   location /api/ {
-    proxy_pass http://127.0.0.1:4000;
+    proxy_pass http://${API_UPSTREAM};
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -62,11 +74,19 @@
 
   location = /sw.js {
     add_header Cache-Control "no-cache, must-revalidate" always;
+    include /etc/nginx/snippets/security-headers.conf;
+    try_files $uri =404;
+  }
+
+  location = /register-sw.js {
+    add_header Cache-Control "no-cache, must-revalidate" always;
+    include /etc/nginx/snippets/security-headers.conf;
     try_files $uri =404;
   }
 
   location /health {
     return 200 'ok';
     add_header Content-Type text/plain;
+    include /etc/nginx/snippets/security-headers.conf;
   }
 }

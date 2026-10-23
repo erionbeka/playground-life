@@ -20,6 +20,34 @@ function databaseName(connectionString: string) {
   return url.pathname.replace(/^\//, "");
 }
 
+/**
+ * Splits the password out of a connection string.
+ *
+ * The password used to be handed to `pg_dump` as part of the connection
+ * string in the argument list. An argument list is visible to every process
+ * on the machine, and `pg_dump` puts its own arguments into its error
+ * messages, so the database password ended up in the logs. The password now
+ * travels in the `PGPASSWORD` environment variable and the argument only
+ * carries the address.
+ */
+function splitCredentials(connectionString: string) {
+  const url = new URL(connectionString);
+  const password = decodeURIComponent(url.password);
+  url.password = "";
+  return { url: url.toString(), password };
+}
+
+/**
+ * Quotes an argument for the shell.
+ *
+ * On Windows the child is started through `cmd.exe`, which reads `&`, `|`,
+ * `>` and spaces as syntax. A connection string can contain all of them.
+ */
+function quoteArgument(value: string) {
+  if (process.platform !== "win32") return value;
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
 function assertRestoreTargetIsSafe(connectionString: string) {
   const name = databaseName(connectionString).toLowerCase();
   if (!/(test|restore|drill|staging)/.test(name)) {
@@ -27,9 +55,14 @@ function assertRestoreTargetIsSafe(connectionString: string) {
   }
 }
 
-function run(command: string, args: string[]) {
+function run(command: string, args: string[], env: NodeJS.ProcessEnv = process.env) {
   return new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "inherit", shell: process.platform === "win32" });
+    const useShell = process.platform === "win32";
+    const child = spawn(useShell ? quoteArgument(command) : command, useShell ? args.map(quoteArgument) : args, {
+      stdio: "inherit",
+      shell: useShell,
+      env,
+    });
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code === 0) resolve();
@@ -59,15 +92,25 @@ async function verifyRestoredDatabase(connectionString: string) {
 
 async function createBackup() {
   const databaseUrl = requireEnv("DATABASE_URL");
+  const { url: safeUrl, password } = splitCredentials(databaseUrl);
   await mkdir(path.dirname(backupFile), { recursive: true });
-  await run("pg_dump", ["--format=custom", "--no-owner", "--no-acl", "--file", backupFile, databaseUrl]);
+  await run(
+    "pg_dump",
+    ["--format=custom", "--no-owner", "--no-acl", "--file", backupFile, safeUrl],
+    { ...process.env, PGPASSWORD: password },
+  );
   console.log(`Backup created: ${backupFile}`);
 }
 
 async function restoreAndVerify() {
   const restoreUrl = requireEnv("RESTORE_TEST_DATABASE_URL");
   assertRestoreTargetIsSafe(restoreUrl);
-  await run("pg_restore", ["--clean", "--if-exists", "--no-owner", "--no-acl", "--dbname", restoreUrl, backupFile]);
+  const { url: safeUrl, password } = splitCredentials(restoreUrl);
+  await run(
+    "pg_restore",
+    ["--clean", "--if-exists", "--no-owner", "--no-acl", "--dbname", safeUrl, backupFile],
+    { ...process.env, PGPASSWORD: password },
+  );
   await verifyRestoredDatabase(restoreUrl);
   console.log(`Restore test verified against ${databaseName(restoreUrl)}`);
 }

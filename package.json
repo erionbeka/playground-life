@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "vite",
     "dev:api": "tsx watch server/index.ts",
+    "dev:stack": "node scripts/dev-stack.mjs",
     "build": "cross-env NODE_ENV=production vite build",
+    "build:android": "cross-env NODE_ENV=production vite build && npx cap sync android",
     "build:dev": "cross-env NODE_ENV=development vite build --mode development",
     "db:migrate": "tsx server/migrate.ts",
     "db:seed": "tsx server/seed.ts",
@@ -28,7 +30,12 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",
+    "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.5.3",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -67,8 +74,8 @@
     "date-fns": "^3.6.0",
     "dotenv": "^17.4.2",
     "embla-carousel-react": "^8.6.0",
-    "express": "^5.2.1",
-    "express-rate-limit": "^8.5.1",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
     "framer-motion": "^11.0.0",
     "helmet": "^8.1.0",
     "input-otp": "^1.4.2",
@@ -83,20 +90,20 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.61.1",
     "react-resizable-panels": "^2.1.9",
-    "react-router-dom": "^6.30.1",
+    "react-router-dom": "^7.18.4",
     "recharts": "^2.15.4",
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7",
+    "tsx": "^4.23.15",
     "uuid": "^14.0.0",
     "vaul": "^0.9.9",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.3",
-    "@eslint/js": "^9.32.0",
+    "@eslint/js": "^9.35.5",
     "@playwright/test": "^1.57.0",
-    "@tailwindcss/typography": "^0.5.16",
+    "@tailwindcss/typography": "^0.5.20",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
     "@types/cookie-parser": "^1.4.10",
@@ -110,21 +117,29 @@
     "@types/react-dom": "^18.3.7",
     "@types/supertest": "^7.2.0",
     "@vitejs/plugin-react-swc": "^3.11.0",
-    "autoprefixer": "^10.4.21",
+    "autoprefixer": "^10.6.1",
     "cross-env": "^7.0.3",
-    "eslint": "^9.32.0",
+    "eslint": "^9.35.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
-    "lovable-tagger": "^1.1.13",
-    "postcss": "^8.5.6",
-    "supertest": "^7.2.2",
+    "postcss": "^8.5.31",
+    "supertest": "^7.3.1",
     "tailwindcss": "^3.4.17",
-    "tsx": "^4.21.0",
+    "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.38.0",
-    "vite": "^5.4.19",
-    "vitest": "^3.2.4"
+    "typescript-eslint": "^8.72.0",
+    "vite": "^6.4.5",
+    "vitest": "^4.1.12"
+  },
+  "overrides": {
+    "postcss-selector-parser": "^7.1.7",
+    "xcode": {
+      "uuid": "^11.1.1"
+    },
+    "tsx": {
+      "esbuild": "^0.28.2"
+    }
   }
 }

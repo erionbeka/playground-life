@@ -24,20 +24,12 @@
     <meta name="twitter:description" content="Homework and classwork games for social learning and family play." />
     <meta name="twitter:image" content="/favicon.svg" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="alternate icon" href="/favicon.ico" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      rel="preload"
-      as="style"
-      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap"
-    />
-    <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Quicksand:wght@400;500;600;700&display=swap"
-      media="print"
-      onload="this.media='all'"
     />
     <noscript>
       <link
@@ -50,12 +42,12 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", function () {
-          navigator.serviceWorker.register("/sw.js").catch(function () {});
-        });
-      }
-    </script>
+    <!--
+      The service worker is registered from its own file rather than an inline
+      script. The deployed app sends a Content-Security-Policy that allows
+      scripts from the app's own origin only, and an inline script is what
+      that policy blocks.
+    -->
+    <script src="/register-sw.js" defer></script>
   </body>
 </html>

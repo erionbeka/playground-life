@@ -15,11 +15,24 @@ export const healthRoutes = Router();
  * so uptime monitors and the deploy checklist can tell "process up" apart from
  * "process up but can't serve".
  */
+const HEALTH_PROBE_TIMEOUT_MS = 5000;
+
+/**
+ * Bounded so a database that accepts the connection but never answers cannot
+ * hang the health route — an orchestrator needs a verdict, not a hang.
+ */
+async function probeDatabase() {
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`no response within ${HEALTH_PROBE_TIMEOUT_MS}ms`)), HEALTH_PROBE_TIMEOUT_MS);
+  });
+  return Promise.race([query("SELECT 1"), timeout]);
+}
+
 healthRoutes.get("/health", async (_req: Request, res: Response) => {
   const startedAt = process.uptime();
   let database: "ok" | "error" = "ok";
   try {
-    await query("SELECT 1");
+    await probeDatabase();
   } catch {
     database = "error";
   }
