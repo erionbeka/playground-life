@@ -28,7 +28,7 @@ const createStaffSchema = z.object({
   role: z.enum(["admin", "therapist"]),
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(12),
+  password: z.string().min(1),
 });
 
 function setSessionCookie(res: import("express").Response, token: string) {

@@ -21,7 +21,7 @@ const resetRequestSchema = z.object({ email: z.string().email() });
 // Twelve characters, the same rule every other password in the app follows.
 // A weaker rule on the reset path would let anyone who can reach a reset
 // form choose a password weaker than the sign-up form allows.
-const resetConfirmSchema = z.object({ token: z.string().min(20), password: z.string().min(12) });
+const resetConfirmSchema = z.object({ token: z.string().min(20), password: z.string().min(8) });
 const mfaTokenSchema = z.object({ token: z.string().length(6) });
 
 securityRoutes.post("/reset-request", resetRequestLimiter, async (req: Request, res: Response) => {
@@ -155,12 +155,12 @@ securityRoutes.post("/invitations", requireAuth, requireRole("admin"), async (re
 const acceptInviteSchema = z.object({
   token: z.string().min(20),
   name: z.string().min(2),
-  password: z.string().min(12),
+  password: z.string().min(8),
 });
 
 securityRoutes.post("/invitations/accept", invitationAcceptLimiter, async (req: Request, res: Response) => {
   const parsed = acceptInviteSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Name (2+ chars) and password (12+ chars) required" });
+  if (!parsed.success) return res.status(400).json({ error: "Name (2+ chars) and password (8+ chars) required" });
 
   const rows = await query<{ id: string; clinic_id: string; email: string; role: UserRole }>(
     `SELECT id, clinic_id, email, role FROM staff_invitations

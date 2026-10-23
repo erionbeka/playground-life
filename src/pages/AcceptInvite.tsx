@@ -7,7 +7,7 @@ const API = import.meta.env.VITE_API_URL || "";
 export default function AcceptInvite() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = params.get("token") || "";
+  const [token, setToken] = useState(params.get("token") || "");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
@@ -57,8 +57,8 @@ export default function AcceptInvite() {
                 className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none" />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-semibold text-foreground">Password (12+ characters)</span>
-              <input type="password" required minLength={12} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
+<span className="mb-1 block text-sm font-semibold text-foreground">Password (8+ characters)</span>
+<input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
                 className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none" />
             </label>
             {status === "error" ? <p className="text-sm text-destructive">{message}</p> : null}

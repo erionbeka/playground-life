@@ -23,11 +23,11 @@ const caregiverSchema = z.object({
   relationship: z.string().min(2),
   phoneNumber: z.string().min(7),
   email: z.string().email().optional(),
-  temporaryPassword: z.string().min(12),
+  temporaryPassword: z.string().min(8),
 });
 
 const resetSchema = z.object({
-  temporaryPassword: z.string().min(12),
+  temporaryPassword: z.string().min(8),
   credentialStatus: z.enum(["active", "pending"]).default("active"),
 });
 
