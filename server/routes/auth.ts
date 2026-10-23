@@ -63,13 +63,13 @@ router.post("/login", signInLimiter, async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
-  await query("UPDATE users SET last_signed_in_at = now(), updated_at = now() WHERE id = $1", [user.id]);
+  try { await query("UPDATE users SET last_signed_in_at = now(), updated_at = now() WHERE id = $1", [user.id]); } catch { /* non-fatal */ }
 
   const sessionUser = { id: user.id, clinicId: user.clinic_id, role: user.role, name: user.name };
   req.user = sessionUser;
   const token = signAccessToken(sessionUser);
   setSessionCookie(res, token);
-  await writeAudit(req, `${user.role}_sign_in`, "auth", user.id, { method: "password" });
+  try { await writeAudit(req, `${user.role}_sign_in`, "auth", user.id, { method: "password" }); } catch { /* non-fatal */ }
 
   // The session token lives in an httpOnly cookie and is never returned in
   // the body. A token in a response body ends up in the browser's dev tools,
