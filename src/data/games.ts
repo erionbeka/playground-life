@@ -1,4 +1,4 @@
-import { archiveInfoFor } from "./gameArchive";
+import { archiveInfoFor } from "./gameArchive.js";
 
 export type GameCategory =
   | "playground"
