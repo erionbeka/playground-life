@@ -7,8 +7,8 @@ import { allGames, Difficulty, GameConfig } from "@/data/games";
  * literature. They are deliberately NOT the item wording, task codes, or
  * scoring criteria of any published assessment instrument. The crosswalk exists
  * so that outside clinicians can independently relate PLAYGROUND activities to
- * established frameworks (for example by administering ABLLS-R, ESCS, or CSBS
- * separately) without PLAYGROUND reproducing anyone else's instrument.
+ * established frameworks (for example by administering ABLLS-R or an AAC
+ * assessment separately) without PLAYGROUND reproducing anyone else's instrument.
  */
 export const DEVELOPMENTAL_DOMAINS = [
   "receptive language",
@@ -34,9 +34,7 @@ export type DevelopmentalDomain = (typeof DEVELOPMENTAL_DOMAINS)[number];
 
 export const EXTERNAL_FRAMEWORKS = [
   "ABLLS-R-compatible",
-  "ESCS-compatible",
-  "CSBS-compatible",
-  "Vineland-compatible",
+  "AAC-compatible",
 ] as const;
 
 export type ExternalFramework = (typeof EXTERNAL_FRAMEWORKS)[number];
@@ -112,6 +110,10 @@ export const PLAYGROUND_WORLD_BY_ENGINE: Record<string, string> = {
   "magic-toys": "Play Together",
   listen: "Listen & Do",
   "sound-memory": "Listen & Do",
+  echoic: "Copy Me",
+  intraverbal: "Tell Me",
+  "sentence-builder": "Tell Me",
+  comment: "Tell Me",
   sandbox: "Play Together",
   slide: "Play Together",
   bench: "Play Together",
@@ -167,7 +169,7 @@ const ENGINE_PROFILE: Record<string, Profile> = {
   recognition: {
     domains: ["receptive language", "expressive language", "visual discrimination"],
     construct: "Receptive and expressive identification of objects, actions and people",
-    external: { framework: "ABLLS-R-compatible", domain: "receptive language" },
+    external: { framework: "AAC-compatible", domain: "symbol recognition" },
     parentPrompt: "Point to things around the room and name them together.",
     clinicianMetric: "Independent correct identifications across trials.",
     prerequisiteSkill: "Responding to familiar objects, pictures, or people when named",
@@ -177,14 +179,14 @@ const ENGINE_PROFILE: Record<string, Profile> = {
   "situation-feelings": {
     domains: ["expressive language", "emotional regulation", "social reciprocity"],
     construct: "Understand and name feelings within social situations",
-    external: { framework: "CSBS-compatible", domain: "emotional regulation" },
+    external: { framework: "ABLLS-R-compatible", domain: "emotional regulation" },
     parentPrompt: "Name feelings during story time and in real moments through the day.",
     clinicianMetric: "Independent feeling labels in context.",
   },
   "face-builder": {
     domains: ["expressive language", "emotional regulation", "social reciprocity"],
     construct: "Recognise and build facial expressions for emotions",
-    external: { framework: "CSBS-compatible", domain: "emotional regulation" },
+    external: { framework: "ABLLS-R-compatible", domain: "emotional regulation" },
     parentPrompt: "Make faces together and name the feeling each face shows.",
     clinicianMetric: "Independent correct expression matching.",
   },
@@ -253,7 +255,7 @@ const ENGINE_PROFILE: Record<string, Profile> = {
   social: {
     domains: ["social reciprocity", "symbolic/social play", "emotional regulation"],
     construct: "Social reciprocity, turn-taking and cooperative choices",
-    external: { framework: "CSBS-compatible", domain: "social reciprocity" },
+    external: { framework: "ABLLS-R-compatible", domain: "social reciprocity" },
     parentPrompt: "Take turns in a short cooperative game and narrate my turn, your turn.",
     clinicianMetric: "Independent turn-taking and prosocial choices.",
     prerequisiteSkill: "Tolerating a partner joining a preferred activity",
@@ -263,7 +265,7 @@ const ENGINE_PROFILE: Record<string, Profile> = {
   "choice-request": {
     domains: ["functional communication", "expressive language", "receptive language"],
     construct: "Functional requesting and choice-making",
-    external: { framework: "ABLLS-R-compatible", domain: "functional communication" },
+    external: { framework: "AAC-compatible", domain: "functional communication" },
     parentPrompt: "Offer two choices of a preferred item and accept any way your child asks.",
     clinicianMetric: "Independent functional communication attempts.",
     prerequisiteSkill: "Showing interest in or reaching toward a preferred item",
@@ -273,28 +275,28 @@ const ENGINE_PROFILE: Record<string, Profile> = {
   regulation: {
     domains: ["emotional regulation", "adaptive/self-care"],
     construct: "Choose and use a calming or regulation strategy",
-    external: { framework: "Vineland-compatible", domain: "emotional regulation" },
+    external: { framework: "ABLLS-R-compatible", domain: "emotional regulation" },
     parentPrompt: "Practise the chosen calm-down plan at home before it is needed.",
     clinicianMetric: "Independent regulation strategy selection.",
   },
   regulate: {
     domains: ["emotional regulation", "adaptive/self-care"],
     construct: "Choose and use a calming or regulation strategy",
-    external: { framework: "Vineland-compatible", domain: "emotional regulation" },
+    external: { framework: "ABLLS-R-compatible", domain: "emotional regulation" },
     parentPrompt: "Practise the chosen calm-down plan at home before it is needed.",
     clinicianMetric: "Independent regulation strategy selection.",
   },
   flexible: {
     domains: ["problem solving", "emotional regulation"],
     construct: "Solve problems flexibly when a plan changes",
-    external: { framework: "Vineland-compatible", domain: "problem solving" },
+    external: { framework: "ABLLS-R-compatible", domain: "problem solving" },
     parentPrompt: "Change one small step in a familiar game and model a new plan.",
     clinicianMetric: "Independent flexible responses.",
   },
   "magic-toys": {
     domains: ["joint attention", "problem solving", "symbolic/social play"],
     construct: "Explore cause and effect and share attention to discoveries",
-    external: { framework: "CSBS-compatible", domain: "joint attention" },
+    external: { framework: "ABLLS-R-compatible", domain: "joint attention" },
     parentPrompt: "Explore a cause-and-effect toy together and share surprises.",
     clinicianMetric: "Independent exploration and shared attention.",
     prerequisiteSkill: "Attending to a partner and to a toy's effect together",
@@ -314,12 +316,52 @@ const ENGINE_PROFILE: Record<string, Profile> = {
   "sound-memory": {
     domains: ["imitation", "joint attention"],
     construct: "Hold sounds in memory and imitate them",
-    external: { framework: "CSBS-compatible", domain: "imitation" },
+    external: { framework: "ABLLS-R-compatible", domain: "imitation" },
     parentPrompt: "Copy sounds and rhythms back and forth together.",
     clinicianMetric: "Independent correct repeats.",
     prerequisiteSkill: "Attending to a sound or action presented by a partner",
     progressionCriterion: "Imitates target sounds or rhythms independently across two sessions.",
     communicationMode: ["touch", "switch/scanning", "dwell", "gesture/pointing", "vocal/verbal"],
+  },
+  intraverbal: {
+    domains: ["expressive language", "sequencing", "joint attention"],
+    construct: "Complete familiar phrases and answer playful fill-in prompts",
+    external: { framework: "ABLLS-R-compatible", domain: "expressive language" },
+    parentPrompt: "Pause in a familiar song or phrase and let your child fill in the last word.",
+    clinicianMetric: "Independent phrase completions across prompts.",
+    prerequisiteSkill: "Echoing or attempting familiar words and sounds",
+    progressionCriterion: "Completes familiar phrases independently across two sessions.",
+    communicationMode: ["touch", "switch/scanning", "dwell", "symbol selection", "gesture/pointing", "vocal/verbal"],
+  },
+  "sentence-builder": {
+    domains: ["expressive language", "sequencing", "functional communication"],
+    construct: "Build a short sentence strip with symbols or words",
+    external: { framework: "AAC-compatible", domain: "expressive language" },
+    parentPrompt: "Build a short sentence together about something your child wants or sees.",
+    clinicianMetric: "Independent sentence-strip construction.",
+    prerequisiteSkill: "Selecting a symbol or word from a small field",
+    progressionCriterion: "Builds a short sentence strip independently across two sessions.",
+    communicationMode: ["touch", "switch/scanning", "dwell", "symbol selection", "gesture/pointing", "vocal/verbal"],
+  },
+  comment: {
+    domains: ["functional communication", "joint attention", "social reciprocity"],
+    construct: "Share a comment about a shared scene",
+    external: { framework: "AAC-compatible", domain: "functional communication" },
+    parentPrompt: "Notice something together and model a comment, accepting any response.",
+    clinicianMetric: "Independent commenting attempts during shared attention.",
+    prerequisiteSkill: "Sharing attention to an object or picture with a partner",
+    progressionCriterion: "Shares comments during shared attention across two sessions.",
+    communicationMode: ["touch", "switch/scanning", "dwell", "symbol selection", "gesture/pointing", "vocal/verbal"],
+  },
+  echoic: {
+    domains: ["imitation", "expressive language", "joint attention"],
+    construct: "Imitate sounds, words, or short phrases",
+    external: { framework: "ABLLS-R-compatible", domain: "imitation" },
+    parentPrompt: "Make a fun sound or word and take turns copying each other.",
+    clinicianMetric: "Adult-confirmed vocal imitation attempts.",
+    prerequisiteSkill: "Attending to a partner's voice and face",
+    progressionCriterion: "Imitates sounds or words across two sessions with adult confirmation.",
+    communicationMode: ["vocal/verbal", "gesture/pointing", "touch"],
   },
 };
 
@@ -327,21 +369,21 @@ const CATEGORY_PROFILE: Record<string, Profile> = {
   "daily-living": {
     domains: ["adaptive/self-care", "sequencing", "receptive instructions"],
     construct: "Carry out everyday routines in order",
-    external: { framework: "Vineland-compatible", domain: "adaptive/self-care" },
+    external: { framework: "ABLLS-R-compatible", domain: "adaptive/self-care" },
     parentPrompt: "Rehearse the same routine at home and let your child lead a step.",
     clinicianMetric: "Independent routine steps completed.",
   },
   emotions: {
     domains: ["emotional regulation", "expressive language"],
     construct: "Notice and name feelings",
-    external: { framework: "CSBS-compatible", domain: "emotional regulation" },
+    external: { framework: "ABLLS-R-compatible", domain: "emotional regulation" },
     parentPrompt: "Name feelings as they come up during the day.",
     clinicianMetric: "Independent feeling labels.",
   },
   language: {
     domains: ["expressive language", "functional communication"],
     construct: "Use words, symbols, or gestures to communicate",
-    external: { framework: "ABLLS-R-compatible", domain: "expressive language" },
+    external: { framework: "AAC-compatible", domain: "expressive communication" },
     parentPrompt: "Model the word or symbol and accept any communication attempt.",
     clinicianMetric: "Independent functional communication attempts.",
   },
@@ -362,7 +404,7 @@ const CATEGORY_PROFILE: Record<string, Profile> = {
   playground: {
     domains: ["symbolic/social play", "social reciprocity"],
     construct: "Play together and take turns",
-    external: { framework: "CSBS-compatible", domain: "symbolic/social play" },
+    external: { framework: "ABLLS-R-compatible", domain: "symbolic/social play" },
     parentPrompt: "Play a short cooperative game and take turns.",
     clinicianMetric: "Independent turn-taking during play.",
   },
@@ -371,7 +413,7 @@ const CATEGORY_PROFILE: Record<string, Profile> = {
 const DEFAULT_PROFILE: Profile = {
   domains: ["joint attention"],
   construct: "Share attention and participate in guided play",
-  external: { framework: "CSBS-compatible", domain: "joint attention" },
+  external: { framework: "ABLLS-R-compatible", domain: "joint attention" },
   parentPrompt: "Play alongside your child and follow their lead.",
   clinicianMetric: "Participation and shared attention.",
 };

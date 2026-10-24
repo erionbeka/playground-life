@@ -29,11 +29,7 @@ function tappedGame(): GameEntry {
 }
 
 function tracedGame(): GameEntry {
-  const game = allGames.find(
-    (entry) =>
-      entry.engine === "tapping" &&
-      (themeOf(entry) === "heart trace" || themeOf(entry) === "trace lines")
-  );
+  const game = allGames.find((entry) => entry.engine === "tracing");
   if (!game) throw new Error("no tracing game found");
   return game;
 }

@@ -1,4 +1,4 @@
-import { Difficulty, GameConfig, allGames } from "@/data/games";
+import { Difficulty, GameConfig, activeGames } from "@/data/games";
 import { getGameSkillDomains } from "@/lib/skills";
 import { getLatestMood } from "@/lib/mood";
 import { weakestDomains } from "@/lib/childModel";
@@ -66,7 +66,7 @@ export function buildSessionPlan(
   let baseDifficulty: Difficulty = "easy";
   if (cruising && !dysregulated) baseDifficulty = "medium";
 
-  const scored = allGames
+  const scored = activeGames
     .map((game) => {
       const plays = playCounts.get(game.id) || 0;
       const domains = getGameSkillDomains(game.id);
