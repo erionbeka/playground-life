@@ -1,3 +1,4 @@
+import PasswordInput from "@/components/ui/PasswordInput";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -89,9 +90,8 @@ export default function TherapistDashboard() {
                 <label htmlFor="therapist-password" className="block text-sm font-semibold text-foreground">
                   Password
                 </label>
-                <input
+                <PasswordInput
                   id="therapist-password"
-                  type="password"
                   value={password}
                   onChange={(event) => {
                     setPassword(event.target.value);

@@ -3,308 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>PLAYGROUND LIFE - Loading...</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#fdf8f4" />
+  <title>Playground Life</title>
   <style>
-    body {
-      font-family: 'Nunito', sans-serif;
-      user-select: none;
-      -webkit-user-select: none;
-      touch-action: manipulation;
+    html, body {
+      margin: 0;
+      width: 100%;
+      min-height: 100%;
+      background: #fdf8f4;
     }
-
-    .font-heading {
-      font-family: 'Fredoka', sans-serif;
-    }
-
-    /* Floating bobbing animation for icon */
-    @keyframes float {
-      0%, 100% {
-        transform: translateY(0px) rotate(0deg);
-      }
-      50% {
-        transform: translateY(-10px) rotate(1deg);
-      }
-    }
-
-    .animate-float {
-      animation: float 3.5s ease-in-out infinite;
-    }
-
-    /* Ear wiggle animation */
-    @keyframes earWiggleLeft {
-      0%, 100% { transform: rotate(0deg); }
-      25% { transform: rotate(-6deg); }
-      75% { transform: rotate(3deg); }
-    }
-
-    @keyframes earWiggleRight {
-      0%, 100% { transform: rotate(0deg); }
-      25% { transform: rotate(6deg); }
-      75% { transform: rotate(-3deg); }
-    }
-
-    .ear-left {
-      transform-origin: bottom right;
-      animation: earWiggleLeft 4s ease-in-out infinite;
-    }
-
-    .ear-right {
-      transform-origin: bottom left;
-      animation: earWiggleRight 4s ease-in-out infinite;
-    }
-
-    /* Character blinking */
-    @keyframes blink {
-      0%, 94%, 98%, 100% {
-        transform: scaleY(1);
-      }
-      96% {
-        transform: scaleY(0.1);
-      }
-    }
-
-    .eye {
-      transform-origin: center;
-      animation: blink 4s infinite;
-    }
-
-    /* Character bounce squeeze click effect */
-    @keyframes squeeze {
-      0% { transform: scale(1); }
-      30% { transform: scale(0.82, 1.18); }
-      50% { transform: scale(1.15, 0.85); }
-      75% { transform: scale(0.95, 1.05); }
-      100% { transform: scale(1); }
-    }
-
-    .squeeze-active {
-      animation: squeeze 0.5s ease-out;
-    }
-
-    /* Spinner rotation */
-    @keyframes spinCustom {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    .spinner-ring {
-      animation: spinCustom 1.2s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
-    }
-
-    /* Particle burst effect */
-    .particle {
-      position: absolute;
-      pointer-events: none;
-      animation: popParticle 0.8s ease-out forwards;
-      opacity: 0;
-    }
-
-    @keyframes popParticle {
-      0% {
-        transform: translate(0, 0) scale(0.3) rotate(0deg);
-        opacity: 1;
-      }
-      100% {
-        transform: translate(var(--tx), var(--ty)) scale(1.2) rotate(var(--rot));
-        opacity: 0;
-      }
-    }
-
-    /* Subtle background glow pulsing */
-    @keyframes pulseGlow {
-      0%, 100% { opacity: 0.5; transform: scale(1); }
-      50% { opacity: 0.8; transform: scale(1.08); }
-    }
-
-    .bg-glow {
-      animation: pulseGlow 4s ease-in-out infinite;
-    }
-
+    body { overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    #root { min-height: 100vh; min-height: 100dvh; }
     #app-splash {
-      transition: opacity 0.4s ease-out;
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #fdf8f4;
+      opacity: 1;
+      transition: opacity 350ms ease-out;
+    }
+    #app-splash iframe {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fdf8f4;
     }
   </style>
 </head>
-<body class="bg-gradient-to-b from-slate-50 via-orange-50/30 to-amber-50/40 min-h-screen w-full flex items-center justify-center p-4 overflow-hidden relative">
-
-  <!-- Splash Screen Overlay -->
-  <div id="app-splash" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-b from-slate-50 via-orange-50/30 to-amber-50/40 p-4">
-    <!-- Background decorative floating soft circles -->
-    <div class="absolute inset-0 overflow-hidden pointer-events-none">
-      <div class="bg-glow absolute -top-20 -left-20 w-80 h-80 rounded-full bg-orange-100/60 blur-3xl"></div>
-      <div class="bg-glow absolute -bottom-20 -right-20 w-96 h-96 rounded-full bg-blue-100/50 blur-3xl" style="animation-delay: -2s;"></div>
-    </div>
-
-    <!-- Main Container -->
-    <div class="relative z-10 w-full max-w-sm flex flex-col items-center justify-center text-center px-4 py-8">
-
-      <!-- App Icon Card Container -->
-      <div class="animate-float cursor-pointer relative group my-4" id="characterContainer" title="Tap me!">
-
-        <!-- Particle explosion container -->
-        <div id="particleContainer" class="absolute inset-0 pointer-events-none z-30"></div>
-
-        <!-- Icon Outer Rounded Container -->
-        <div class="w-48 h-48 sm:w-56 sm:h-56 bg-[#fcdbbd] rounded-[42px] sm:rounded-[48px] p-3 shadow-2xl shadow-orange-900/10 border-4 border-white/80 relative flex items-center justify-center transform transition-transform duration-200 active:scale-95 group-hover:shadow-orange-900/15">
-
-          <!-- Subtle inner border outline -->
-          <div class="absolute inset-2 rounded-[34px] sm:rounded-[40px] border border-orange-300/40 pointer-events-none"></div>
-
-          <!-- Cute Blue Character SVG -->
-          <svg id="characterSvg" class="w-full h-full relative z-10 drop-shadow-md" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-
-            <!-- Ears -->
-            <g class="ear-left">
-              <ellipse cx="60" cy="55" rx="28" ry="32" fill="#3b9bd6" />
-            </g>
-            <g class="ear-right">
-              <ellipse cx="140" cy="55" rx="28" ry="32" fill="#3b9bd6" />
-            </g>
-
-            <!-- Main Body / Head -->
-            <circle cx="100" cy="115" r="70" fill="#4ba3e3" />
-
-            <!-- Subtle Body Shadow/Gradient highlight -->
-            <ellipse cx="100" cy="170" rx="55" ry="12" fill="#368ecf" opacity="0.4" />
-
-            <!-- Blush Cheeks -->
-            <ellipse cx="58" cy="122" rx="13" ry="8" fill="#e8a2a8" opacity="0.85" />
-            <ellipse cx="142" cy="122" rx="13" ry="8" fill="#e8a2a8" opacity="0.85" />
-
-            <!-- Eyes with blink animation -->
-            <g class="eye">
-              <!-- Left Eye -->
-              <circle cx="72" cy="104" r="9" fill="white" />
-              <circle cx="73" cy="104" r="5" fill="#232738" />
-              <circle cx="75" cy="102" r="2" fill="white" />
-
-              <!-- Right Eye -->
-              <circle cx="128" cy="104" r="9" fill="white" />
-              <circle cx="127" cy="104" r="5" fill="#232738" />
-              <circle cx="125" cy="102" r="2" fill="white" />
-            </g>
-
-            <!-- Cute Mouth -->
-            <path d="M 88 116 Q 100 128 112 116" stroke="#232738" stroke-width="4.5" stroke-linecap="round" fill="none" />
-
-            <!-- Paws folded at bottom -->
-            <path d="M 60 155 C 65 135, 95 135, 100 155" fill="#3b9bd6" opacity="0.9" />
-            <path d="M 140 155 C 135 135, 105 135, 100 155" fill="#3187c7" opacity="0.9" />
-          </svg>
-        </div>
-
-        <!-- Hint tap badge -->
-        <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm text-xs font-semibold text-orange-600/80 px-3 py-0.5 rounded-full shadow-sm border border-orange-100 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          Tap me! ✨
-        </div>
-      </div>
-
-      <!-- App Title -->
-      <h1 class="font-heading text-3xl sm:text-4xl font-bold text-slate-800 tracking-wider mt-5 mb-1 drop-shadow-sm">
-        PLAYGROUND LIFE
-      </h1>
-
-      <!-- Loading Text with pulsing dots -->
-      <p class="text-slate-500 font-semibold text-sm sm:text-base tracking-wide flex items-center justify-center gap-1">
-        <span>Loading... Please wait</span>
-      </p>
-
-      <!-- Circular Spinner & Progress Section -->
-      <div class="mt-7 flex flex-col items-center gap-3 w-full max-w-[200px]">
-
-        <!-- Custom Ring Spinner -->
-        <div class="relative w-10 h-10 flex items-center justify-center">
-          <!-- Track ring -->
-          <div class="w-full h-full rounded-full border-4 border-orange-200/60"></div>
-          <!-- Animated Arc ring -->
-          <div class="spinner-ring absolute inset-0 w-full h-full rounded-full border-4 border-transparent border-t-teal-500 border-r-teal-500"></div>
-        </div>
-
-        <!-- Animated Progress Bar -->
-        <div class="w-full h-2 bg-orange-100 rounded-full overflow-hidden p-0.5 shadow-inner">
-          <div id="progressBar" class="h-full bg-gradient-to-r from-teal-400 to-blue-500 rounded-full transition-all duration-300 ease-out" style="width: 15%;"></div>
-        </div>
-
-        <!-- Progress Percentage -->
-        <span id="progressText" class="text-xs font-bold text-slate-400 tracking-wider">15%</span>
-      </div>
-
-    </div>
+<body>
+  <div id="app-splash">
+    <iframe
+      src="/playground_life_splash_screen.html"
+      title="Playground Life loading screen"
+    ></iframe>
   </div>
-
-  <!-- React Root -->
   <div id="root"></div>
-
-  <!-- JavaScript for Interactions and Loading Simulation -->
-  <script>
-    const characterContainer = document.getElementById('characterContainer');
-    const characterSvg = document.getElementById('characterSvg');
-    const particleContainer = document.getElementById('particleContainer');
-    const progressBar = document.getElementById('progressBar');
-    const progressText = document.getElementById('progressText');
-
-    // Tap / Click Interaction: Squeeze + Particle Burst
-    function triggerReaction(e) {
-      // Squeeze animation
-      characterSvg.classList.remove('squeeze-active');
-      void characterSvg.offsetWidth; // Trigger reflow
-      characterSvg.classList.add('squeeze-active');
-
-      // Spawn burst particles
-      const particleCount = 12;
-      const shapes = ['❤️', '⭐', '✨', '🎈', '🌸'];
-
-      for (let i = 0; i < particleCount; i++) {
-        const particle = document.createElement('div');
-        particle.className = 'particle text-lg select-none';
-
-        // Random shape
-        particle.textContent = shapes[Math.floor(Math.random() * shapes.length)];
-
-        // Target offsets
-        const angle = (i / particleCount) * 2 * Math.PI + (Math.random() * 0.5);
-        const distance = 80 + Math.random() * 60;
-        const tx = Math.cos(angle) * distance;
-        const ty = Math.sin(angle) * distance;
-        const rot = (Math.random() - 0.5) * 360;
-
-        particle.style.setProperty('--tx', `${tx}px`);
-        particle.style.setProperty('--ty`, `${ty}px`);
-        particle.style.setProperty('--rot', `${rot}deg`);
-        particle.style.left = '50%';
-        particle.style.top = '50%';
-
-        particleContainer.appendChild(particle);
-
-        // Remove particle after animation finish
-        setTimeout(() => {
-          particle.remove();
-        }, 850);
-      }
-    }
-
-    if (characterContainer) {
-      characterContainer.addEventListener('click', triggerReaction);
-      characterContainer.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        triggerReaction(e);
-      });
-    }
-
-    // Simulated Loading Progress Bar Loop
-    let progress = 15;
-    const progressInterval = setInterval(() => {
-      if (progress < 100) {
-        const increment = Math.floor(Math.random() * 8) + 2;
-        progress = Math.min(100, progress + increment);
-        if (progressBar) progressBar.style.width = `${progress}%`;
-        if (progressText) progressText.textContent = `${progress}%`;
-      }
-    }, 350);
-  </script>
-
   <script type="module" src="/src/main.tsx"></script>
   <script src="/register-sw.js" defer></script>
 </body>
