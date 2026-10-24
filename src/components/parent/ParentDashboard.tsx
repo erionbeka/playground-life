@@ -1,7 +1,9 @@
+import PasswordInput from "@/components/ui/PasswordInput";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
+import { ApiError } from "@/lib/productionApi";
 import { getCatalogGameById, useCatalog } from "@/lib/customCatalog";
 import GamePlayer from "../game/GamePlayer";
 import { getPersonalizationSummary } from "@/lib/personalization";
@@ -99,16 +101,24 @@ export default function ParentDashboard() {
                 event.preventDefault();
 
                 const normalizedPhoneNumber = phoneNumber.replace(/\D/g, "");
-                const match = await signInFamily(normalizedPhoneNumber, password);
+                try {
+                  const match = await signInFamily(normalizedPhoneNumber, password);
 
-                if (!match) {
-                  setSignInError("We couldn't sign you in. Check the phone number and password and try again.");
-                  return;
+                  if (!match) {
+                    setSignInError("We couldn't sign you in. Check the phone number and password and try again.");
+                    return;
+                  }
+
+                  setSignInError("");
+                  setSignedInFamilyMemberId(match.familyMemberId);
+                  setSelectedChildId(match.childId);
+                } catch (err) {
+                  setSignInError(
+                    err instanceof ApiError && err.code === "network"
+                      ? "Can't reach the clinic server. Check your connection and try again."
+                      : "We couldn't sign you in right now. Please try again."
+                  );
                 }
-
-                setSignInError("");
-                setSignedInFamilyMemberId(match.familyMemberId);
-                setSelectedChildId(match.childId);
               }}
             >
               <div className="space-y-2">
@@ -133,9 +143,8 @@ export default function ParentDashboard() {
                 <label htmlFor="family-password" className="block text-sm font-semibold text-foreground">
                   Password
                 </label>
-                <input
+                <PasswordInput
                   id="family-password"
-                  type="password"
                   value={password}
                   onChange={(event) => {
                     setPassword(event.target.value);

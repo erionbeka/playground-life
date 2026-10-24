@@ -3,22 +3,9 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { allGames, GameConfig } from "@/data/games";
 import { shuffleItems } from "@/lib/shuffle";
-import PlaygroundEngine from "@/components/game/engines/PlaygroundEngine";
-import MatchingEngine from "@/components/game/engines/MatchingEngine";
-import SequenceEngine from "@/components/game/engines/SequenceEngine";
-import SortingEngine from "@/components/game/engines/SortingEngine";
-import TappingEngine from "@/components/game/engines/TappingEngine";
-import SocialEngine from "@/components/game/engines/SocialEngine";
-import RecognitionEngine from "@/components/game/engines/RecognitionEngine";
-import CountingEngine from "@/components/game/engines/CountingEngine";
-import MemoryEngine from "@/components/game/engines/MemoryEngine";
-import BuildingEngine, { getBuildTemplate } from "@/components/game/engines/BuildingEngine";
-import ChoiceRequestEngine from "@/components/game/engines/ChoiceRequestEngine";
-import RegulationEngine from "@/components/game/engines/RegulationEngine";
-import FlexibleThinkingEngine from "@/components/game/engines/FlexibleThinkingEngine";
-import MagicToysEngine from "@/components/game/engines/MagicToysEngine";
-import PatternNextEngine from "@/components/game/engines/PatternNextEngine";
-import OddOneOutEngine from "@/components/game/engines/OddOneOutEngine";
+import { ENGINE_COMPONENTS } from "@/components/game/GameEngineView";
+import { getBuildTemplate } from "@/components/game/engines/BuildingEngine";
+import { TRACE_PATHS } from "@/components/game/engines/TracingEngine";
 
 interface GameEngineProps {
   game: GameConfig;
@@ -26,26 +13,7 @@ interface GameEngineProps {
   onComplete: (score: number) => void;
 }
 
-const engineComponents: Record<string, ComponentType<GameEngineProps>> = {
-  sandbox: PlaygroundEngine,
-  slide: PlaygroundEngine,
-  bench: PlaygroundEngine,
-  matching: MatchingEngine,
-  sequence: SequenceEngine,
-  sorting: SortingEngine,
-  tapping: TappingEngine,
-  social: SocialEngine,
-  building: BuildingEngine,
-  recognition: RecognitionEngine,
-  counting: CountingEngine,
-  memory: MemoryEngine,
-  "choice-request": ChoiceRequestEngine,
-  regulation: RegulationEngine,
-  flexible: FlexibleThinkingEngine,
-  "magic-toys": MagicToysEngine,
-  "pattern-next": PatternNextEngine,
-  "odd-one-out": OddOneOutEngine,
-};
+const engineComponents: Record<string, ComponentType<GameEngineProps>> = ENGINE_COMPONENTS;
 
 const recognitionTargets: Record<string, string[]> = {
   "red things": ["🍎", "🚗", "🍓", "🌹"],
@@ -123,7 +91,7 @@ async function playGame(game: GameConfig, onComplete: ReturnType<typeof vi.fn>, 
         const buttons = Array.from(container.querySelectorAll("button")) as HTMLButtonElement[];
         for (const button of buttons) {
           if (button.disabled) continue;
-          const label = button.getAttribute("aria-label") || button.textContent || "";
+          const label = button.getAttribute("data-pair-id") || button.getAttribute("aria-label") || button.textContent || "";
           groups.set(label, [...(groups.get(label) || []), button]);
         }
         let progressed = false;
@@ -213,6 +181,68 @@ async function playGame(game: GameConfig, onComplete: ReturnType<typeof vi.fn>, 
         if (buttons.length === 0) break;
         fireEvent.click(buttons[buttons.length - 1]);
         await advance(400);
+        safety += 1;
+      }
+      break;
+    }
+    case "tracing": {
+      const field = container.querySelector('[data-tracing-field="true"]') as HTMLElement | null;
+      if (!field) throw new Error("tracing field missing");
+      Object.defineProperty(field, "getBoundingClientRect", {
+        configurable: true,
+        value: () => ({ left: 0, top: 0, width: 400, height: 400, right: 400, bottom: 400, x: 0, y: 0, toJSON: () => ({}) }),
+      });
+      const theme = String(game.config.theme || "trace lines").toLowerCase();
+      const path = TRACE_PATHS[theme] || TRACE_PATHS["trace lines"];
+      for (const [x, y] of path.points) {
+        fireEvent.pointerDown(field, { clientX: x * 4, clientY: y * 4 });
+        await advance(20);
+      }
+      await advance(100);
+      break;
+    }
+    case "listen": {
+      let safety = 0;
+      while (!onComplete.mock.calls.length && safety < 40) {
+        for (const button of Array.from(container.querySelectorAll('[data-testid^="listen-option-"]'))) {
+          fireEvent.click(button);
+          await advance(900);
+          if (onComplete.mock.calls.length) break;
+        }
+        safety += 1;
+      }
+      break;
+    }
+    case "intraverbal": {
+      let safety = 0;
+      while (!onComplete.mock.calls.length && safety < 40) {
+        for (const button of Array.from(container.querySelectorAll('[data-testid^="intraverbal-option-"]'))) {
+          fireEvent.click(button);
+          await advance(1200);
+          if (onComplete.mock.calls.length) break;
+        }
+        safety += 1;
+      }
+      break;
+    }
+    case "sentence-builder":
+    case "comment": {
+      const prefix = game.engine === "sentence-builder" ? "sentence-option-" : `${game.engine}-option-`;
+      let safety = 0;
+      while (!onComplete.mock.calls.length && safety < 40) {
+        const button = container.querySelector(`[data-testid^="${prefix}"]`);
+        if (button) fireEvent.click(button);
+        await advance(1800);
+        safety += 1;
+      }
+      break;
+    }
+    case "echoic": {
+      let safety = 0;
+      while (!onComplete.mock.calls.length && safety < 40) {
+        const button = container.querySelector('[data-testid="echoic-copied"]');
+        if (button) fireEvent.click(button);
+        await advance(1800);
         safety += 1;
       }
       break;

@@ -14,7 +14,8 @@ const RESULTS_SUBQUERY = `COALESCE((
       'durationSeconds', gr.duration_seconds,
       'score', gr.score,
       'interactions', gr.interactions,
-      'skillScores', gr.skill_scores
+      'skillScores', gr.skill_scores,
+      'metrics', gr.metrics
     ) ORDER BY gr.completed_at)
     FROM game_results gr WHERE gr.assignment_id = assignments.id
   ), '[]'::json)`;
@@ -211,6 +212,13 @@ router.post("/:id/results", requireAuth, async (req, res) => {
   }
 
   await writeAudit(req, "game_result_recorded", "result", assignmentId, { gameId: parsed.data.gameId, score: parsed.data.score });
+  if (req.user?.role === "therapist" || req.user?.role === "admin") {
+    await query(
+      `INSERT INTO therapist_sessions (clinic_id, therapist_id, child_id, session_type, title, notes)
+       VALUES ($1, $2, $3, 'therapy', $4, $5)`,
+      [req.user?.clinicId, req.user?.id, childId, `Game: ${parsed.data.gameId}`, `Score: ${parsed.data.score}`]
+    );
+  }
   return res.status(201).json({ assignmentId, gameId: parsed.data.gameId });
 });
 

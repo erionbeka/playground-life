@@ -29,6 +29,8 @@ const emojiSets: Record<string, string[]> = {
 };
 
 type PairVariant = "open" | "flip" | "shadow";
+type PairGroup = [string, string];
+const EMPTY_PAIR_GROUPS: PairGroup[] = [];
 
 interface PairCard {
   id: number;
@@ -71,13 +73,29 @@ function buildPairDeck(labels: string[], seed: number | undefined): PairCard[] {
   return seed === undefined ? shuffleItems(doubled) : seededShuffle(doubled, seed);
 }
 
+function buildGroupDeck(groups: PairGroup[], seed: number | undefined): PairCard[] {
+  const cards = groups.flatMap((group, pairId) =>
+    group.slice(0, 2).map((label, groupIndex) => ({
+      id: pairId * 2 + groupIndex,
+      label,
+      pairId,
+      flipped: false,
+      matched: false,
+      role: (groupIndex === 0 ? "reference" : "shadow") as "reference" | "shadow",
+    })),
+  );
+
+  return seed === undefined ? shuffleItems(cards) : seededShuffle(cards, seed);
+}
+
 function PairBoard({ game, onInteraction, onComplete, variant }: Props & { variant: PairVariant }) {
   const pairs = typeof game.config.pairs === "number" ? (game.config.pairs as number) : 4;
   const theme = String(game.config.theme || "default");
   const emojis = emojiSets[theme] || emojiSets.default;
   const pairList = game.config.pairList;
   const authorPairList = Array.isArray(pairList) ? (pairList as string[]) : [];
-  const totalPairs = authorPairList.length > 0 ? authorPairList.length : pairs;
+  const pairGroups = Array.isArray(game.config.pairGroups) ? (game.config.pairGroups as PairGroup[]) : EMPTY_PAIR_GROUPS;
+  const totalPairs = pairGroups.length > 0 ? pairGroups.length : authorPairList.length > 0 ? authorPairList.length : pairs;
   const seed = typeof game.config.shuffleSeed === "number" ? (game.config.shuffleSeed as number) : undefined;
   const cardsVisible = typeof game.config.cardsVisible === "number" ? (game.config.cardsVisible as number) : undefined;
 
@@ -91,7 +109,7 @@ function PairBoard({ game, onInteraction, onComplete, variant }: Props & { varia
   useEffect(() => {
     const authorList = Array.isArray(pairList) ? (pairList as string[]) : [];
     const labels = authorList.length > 0 ? authorList : emojis.slice(0, pairs);
-    const deck = buildPairDeck(labels, seed);
+    const deck = pairGroups.length > 0 ? buildGroupDeck(pairGroups, seed) : buildPairDeck(labels, seed);
     const visible = variant === "shadow" || cardsVisible === undefined ? deck : deck.slice(0, cardsVisible);
 
     setCards(visible);
@@ -100,7 +118,7 @@ function PairBoard({ game, onInteraction, onComplete, variant }: Props & { varia
     setMatchedCount(0);
     setResolving(false);
     completedRef.current = false;
-  }, [pairList, emojis, pairs, seed, cardsVisible, variant]);
+  }, [pairGroups, pairList, emojis, pairs, seed, cardsVisible, variant]);
 
   const handleTap = (index: number) => {
     if (resolving || selected.length >= 2) return;
@@ -179,6 +197,7 @@ function PairBoard({ game, onInteraction, onComplete, variant }: Props & { varia
             onClick={() => handleTap(index)}
             disabled={resolving}
             aria-label={`${card.label} card`}
+            data-pair-id={card.pairId}
             className={`touch-target flex aspect-square flex-col items-center justify-center gap-1 rounded-2xl border-2 text-3xl transition-all ${
               card.matched
                 ? "border-secondary bg-secondary/30"

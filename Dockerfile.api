@@ -4,7 +4,11 @@ ENV NODE_ENV=production
 
 FROM base AS deps
 COPY package*.json ./
-RUN npm ci
+# The API image only needs the runtime dependencies. The build toolchain
+# (vite, vitest, tailwind, eslint and their trees) stays out of the deployed
+# container, so a vulnerable build-time package cannot ship to production.
+RUN npm ci --omit=dev
+
 
 FROM base AS build
 COPY package*.json ./

@@ -7,6 +7,7 @@ export const CUSTOM_GAMES_CACHE_VERSION = "v1";
 
 let customGames: GameConfig[] = [];
 let catalogSnapshot: GameConfig[] = allGames.map((g) => ({ ...g }));
+let activeCatalogSnapshot: GameConfig[] = catalogSnapshot.filter((g) => !g.archived);
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -16,6 +17,7 @@ function emit() {
 function rebuildSnapshot() {
   const builtins = allGames.map((g) => (g.source ? g : { ...g, source: "builtin" as const }));
   catalogSnapshot = builtins.concat(customGames);
+  activeCatalogSnapshot = catalogSnapshot.filter((g) => !g.archived);
 }
 
 function subscribe(listener: () => void): () => void {
@@ -24,7 +26,11 @@ function subscribe(listener: () => void): () => void {
 }
 
 export function useCatalog(): GameConfig[] {
-  return useSyncExternalStore(subscribe, getCatalog, getCatalog);
+  return useSyncExternalStore(subscribe, getActiveCatalog, getActiveCatalog);
+}
+
+export function getActiveCatalog(): GameConfig[] {
+  return activeCatalogSnapshot;
 }
 
 export function getCatalog(): GameConfig[] {

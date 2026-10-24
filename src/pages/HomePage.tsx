@@ -241,8 +241,8 @@ export default function HomePage() {
             color={heroCritter.color}
             blush={heroCritter.blush}
             size={210}
-            grabCursor
-            label="A friendly blue blob cat mascot that tries to playfully grab your cursor"
+            reach
+            label="A friendly blue blob cat mascot with a left hand and a right hand that reaches for your cursor, grabbing with both hands when you move the pointer below it"
           />
         </div>
         <div className="sm:order-1">

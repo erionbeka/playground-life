@@ -1,4 +1,4 @@
-﻿// @vitest-environment node
+// @vitest-environment node
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -54,7 +54,10 @@ describe("production API", () => {
       .expect(200);
 
     expect(response.body.user).toMatchObject({ id: "user-1", clinicId: "clinic-1", role: "therapist" });
-    expect(response.body.token).toBe("signed-test-token");
+    // The session token is delivered in an httpOnly cookie only. A token in
+    // the response body is readable by any script on the page and ends up in
+    // the logs of anything that records response bodies.
+    expect(response.body.token).toBeUndefined();
     expect(response.headers["set-cookie"]?.[0]).toContain("HttpOnly");
     expect(response.headers["set-cookie"]?.[0]).toContain("SameSite=Lax");
     expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "therapist_sign_in", "auth", "user-1", { method: "password" });
@@ -251,7 +254,7 @@ describe("production API", () => {
       })
       .expect(201);
 
-    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1", inviteCode: expect.any(String) });
+    expect(response.body).toEqual({ id: "link-1", userId: "user-parent-1", emailed: false, temporaryPassword: expect.any(String) });
     expect(writeAuditMock).toHaveBeenCalledWith(
       expect.anything(),
       "caregiver_created",
@@ -441,7 +444,7 @@ describe("production API", () => {
       .expect(200);
 
     expect(response.body.auditLog).toHaveLength(1);
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("WHERE clinic_id = $1"), ["clinic-1"]);
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("WHERE clinic_id = $1"), ["clinic-1", null]);
   });
 
   it("removes a game from an assignment", async () => {

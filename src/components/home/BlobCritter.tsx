@@ -2,6 +2,7 @@ import {
   motion,
   useMotionTemplate,
   useMotionValue,
+  useMotionValueEvent,
   useSpring,
   useTime,
   useTransform,
@@ -26,6 +27,15 @@ const CRITTERS: Record<CritterShape, CritterConfig> = {
   bear: { ear: "bear", eyeStyle: "round", mouth: "open", bodySquash: 0.96 },
   bird: { ear: "tuft", eyeStyle: "round", mouth: "open", bodySquash: 0.92 },
 };
+
+/**
+ * The angle to travel from one heading to another, taking the short way
+ * round the circle. Without this an arm that has to turn past 180 degrees
+ * spins the long way instead of turning towards the pointer.
+ */
+function shortestAngleDelta(from: number, to: number) {
+  return (((to - from + 180) % 360) + 360) % 360 - 180;
+}
 
 function Ears({ shape, color, size }: { shape: CritterShape; color: string; size: number }) {
   const earStyle = CRITTERS[shape].ear;
@@ -495,7 +505,7 @@ export interface BlobCritterProps {
   className?: string;
   label?: string;
   mood?: CritterMood;
-  grabCursor?: boolean;
+  reach?: boolean;
 }
 
 export default function BlobCritter({
@@ -507,11 +517,13 @@ export default function BlobCritter({
   className = "",
   label,
   mood,
-  grabCursor = false,
+  reach = false,
 }: BlobCritterProps) {
   const reducedMotion = useReducedMotionMode();
   const time = useTime();
   const squash = CRITTERS[shape].bodySquash;
+  const bodyWidth = size;
+  const bodyHeight = size * squash;
   const rootRef = useRef<HTMLDivElement>(null);
   const rawX = useMotionValue(0);
   const rawY = useMotionValue(0);
@@ -520,6 +532,7 @@ export default function BlobCritter({
   const [hover, setHover] = useState(false);
   const hoverRef = useRef(false);
   const nearRef = useRef(false);
+  const [reachMode, setReachMode] = useState<{ left: number; right: number }>({ left: 0, right: 0 });
 
   const radiusA = useTransform(time, (v) => 46 + Math.sin(v * 0.00055 + phase) * 7);
   const radiusB = useTransform(time, (v) => 56 + Math.cos(v * 0.00068 + phase) * 6);
@@ -535,13 +548,143 @@ export default function BlobCritter({
   const pupilX = useTransform(px, [-size * 2, size * 2], [-size * 0.03, size * 0.03]);
   const pupilY = useTransform(py, [-size * 2, size * 2], [-size * 0.025, size * 0.025]);
 
-  const grabReach = useTransform(dist, (d) => {
-    const start = size * 0.4;
-    const max = size * 0.85;
-    return Math.max(0, Math.min(d - start, max));
+  // Shoulder anchors. The arms hang from the sides of the body, so each arm
+  // measures the vector to the cursor from its own shoulder.
+  const shoulderLeftX = bodyWidth * 0.08;
+  const shoulderRightX = bodyWidth * 0.92;
+  const shoulderY = bodyHeight * 0.55;
+
+  // The pointer is tracked from the blob's centre, while the shoulder anchors
+  // are measured from the body's top-left corner. Convert the pointer into
+  // the body's own frame so the two can be compared.
+  const pointerX = useTransform(px, (x) => x + bodyWidth / 2);
+  const pointerY = useTransform(py, (y) => y + bodyHeight / 2 + size * 0.04);
+
+  // How engaged the blob is with the cursor: 0 when the cursor is far away,
+  // 1 once it is inside the reach circle. Blending with this instead of a
+  // boolean keeps the arms from snapping at the boundary.
+  const reachFactor = useTransform(dist, (d) => {
+    const outer = size * 1.7;
+    const inner = size * 1.1;
+    if (d >= outer) return 0;
+    if (d <= inner) return 1;
+    return (outer - d) / (outer - inner);
   });
-  const grabAngle = useTransform([px, py], ([x, y]: number[]) => (Math.atan2(y, x) * 180) / Math.PI);
-  const grabOpacity = useTransform([dist, grabReach], ([d, r]: number[]) => (d > size * 0.42 && r > 4 ? 1 : 0));
+
+  const REST_SCALE = 0.28;
+  const ARM_LENGTH = size * 0.4;
+  const LEFT_REST_ANGLE = -45;
+  const RIGHT_REST_ANGLE = 45;
+
+  const REACH_MODE_LABEL: Record<number, string> = {
+    0: "rest",
+    1: "nearest",
+    2: "both",
+  };
+
+  // A cursor in the lower half of the reach circle makes the blob grab with
+  // both hands instead of just the nearer arm.
+  const bothHandsReach = useTransform([px, py, reachFactor], ([x, y, factor]: number[]) =>
+    factor > 0.35 && y > 0 && y > Math.abs(x) * 0.6 ? 1 : 0
+  );
+
+  // Which side of the body the cursor is on. Each side is tracked separately
+  // so the arms swap over when the cursor crosses the centre line.
+  const cursorIsLeft = useTransform(px, (x) => (x < 0 ? 1 : 0));
+  const cursorIsRight = useTransform(px, (x) => (x > 0 ? 1 : 0));
+
+  // Reach mode per arm: 0 = resting, 1 = the nearest arm reaches, 2 = both.
+  const reachModeLeft = useTransform(
+    [bothHandsReach, cursorIsLeft],
+    ([both, left]: number[]) => (both ? 2 : left ? 1 : 0)
+  );
+  const reachModeRight = useTransform(
+    [bothHandsReach, cursorIsRight],
+    ([both, right]: number[]) => (both ? 2 : right ? 1 : 0)
+  );
+
+  // How much of the reach an arm puts into following the cursor. An arm that
+  // is not the one reaching keeps its rest pose, so it stays by the body
+  // instead of stretching across it.
+  const reachAmountLeft = useTransform(
+    [reachFactor, reachModeLeft],
+    ([factor, mode]: number[]) => (mode === 0 ? 0 : factor)
+  );
+  const reachAmountRight = useTransform(
+    [reachFactor, reachModeRight],
+    ([factor, mode]: number[]) => (mode === 0 ? 0 : factor)
+  );
+
+  // How far each arm stretches, as a scale factor of its rest length.
+  const armScaleLeft = useTransform(
+    [pointerX, pointerY, reachAmountLeft],
+    ([x, y, amount]: number[]) => {
+      const stretch = Math.min(Math.hypot(x - shoulderLeftX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
+      return REST_SCALE + Math.max(0, stretch - REST_SCALE) * amount;
+    }
+  );
+  const armScaleRight = useTransform(
+    [pointerX, pointerY, reachAmountRight],
+    ([x, y, amount]: number[]) => {
+      const stretch = Math.min(Math.hypot(x - shoulderRightX, y - shoulderY) * 0.55, size * 0.85) / ARM_LENGTH;
+      return REST_SCALE + Math.max(0, stretch - REST_SCALE) * amount;
+    }
+  );
+
+  // The angle each arm points in. The left arm's natural direction is local
+  // -x and the right arm's is local +x, so they need different offsets.
+  const armAngleLeft = useTransform(
+    [pointerX, pointerY, reachAmountLeft],
+    ([x, y, amount]: number[]) => {
+      const target = (Math.atan2(y - shoulderY, x - shoulderLeftX) * 180) / Math.PI - 180;
+      return LEFT_REST_ANGLE + shortestAngleDelta(LEFT_REST_ANGLE, target) * amount;
+    }
+  );
+  const armAngleRight = useTransform(
+    [pointerX, pointerY, reachAmountRight],
+    ([x, y, amount]: number[]) => {
+      const target = (Math.atan2(y - shoulderY, x - shoulderRightX) * 180) / Math.PI;
+      return RIGHT_REST_ANGLE + shortestAngleDelta(RIGHT_REST_ANGLE, target) * amount;
+    }
+  );
+
+  // When the cursor is below the blob, both arms angle down and inward so
+  // the hands converge under the body instead of both pointing straight down.
+  const armAngleLeftFinal = useTransform(
+    [armAngleLeft, bothHandsReach],
+    ([normal, both]: number[]) => normal + shortestAngleDelta(normal, -135) * both
+  );
+  const armAngleRightFinal = useTransform(
+    [armAngleRight, bothHandsReach],
+    ([normal, both]: number[]) => normal + shortestAngleDelta(normal, 135) * both
+  );
+
+  // Both arms extend fully when the grab is two-handed, even if one of them
+  // is further from the cursor than the other.
+  const armScaleLeftFinal = useTransform(
+    [armScaleLeft, bothHandsReach],
+    ([scale, both]: number[]) => (both ? Math.max(scale, 0.85) : scale)
+  );
+  const armScaleRightFinal = useTransform(
+    [armScaleRight, bothHandsReach],
+    ([scale, both]: number[]) => (both ? Math.max(scale, 0.85) : scale)
+  );
+
+  // The arms are driven by their style props rather than by an `animate`
+  // target. Passing a motion value to `animate` makes framer-motion resolve
+  // the keyframes by measuring the element, which throws for transform props
+  // and takes the whole render loop down with it.
+  const armAngleLeftSpring = useSpring(armAngleLeftFinal, { stiffness: 90, damping: 20 });
+  const armAngleRightSpring = useSpring(armAngleRightFinal, { stiffness: 90, damping: 20 });
+  const armScaleLeftSpring = useSpring(armScaleLeftFinal, { stiffness: 90, damping: 20 });
+  const armScaleRightSpring = useSpring(armScaleRightFinal, { stiffness: 90, damping: 20 });
+
+  useMotionValueEvent(reachModeLeft, "change", (value) => {
+    setReachMode((current) => (current.left === value ? current : { ...current, left: value }));
+  });
+  useMotionValueEvent(reachModeRight, "change", (value) => {
+    setReachMode((current) => (current.right === value ? current : { ...current, right: value }));
+  });
 
   const zeroX = useMotionValue(0);
   const zeroY = useMotionValue(0);
@@ -633,12 +776,9 @@ export default function BlobCritter({
     };
   }, [rawX, rawY, size, reducedMotion]);
 
-  const bodyWidth = size;
-  const bodyHeight = size * squash;
-
   if (reducedMotion) {
     return (
-      <div ref={rootRef} className={`relative ${className}`} style={{ width: bodyWidth, height: bodyHeight + size * 0.2 }}>
+      <div ref={rootRef} className={`relative ${className}`} style={{ width: bodyWidth, height: bodyHeight + size * 0.2, userSelect: "none", WebkitUserSelect: "none", touchAction: "none" }}>
         <div style={{ position: "relative", width: bodyWidth, height: bodyHeight, marginTop: size * 0.2 }}>
           <div
             style={{
@@ -671,7 +811,7 @@ export default function BlobCritter({
     <motion.div
       ref={rootRef}
       className={`relative ${className}`}
-      style={{ width: bodyWidth, height: bodyHeight + size * 0.28 }}
+      style={{ width: bodyWidth, height: bodyHeight + size * 0.28, userSelect: "none", WebkitUserSelect: "none", touchAction: "none" }}
       animate={
         hover
           ? { y: [0, -size * 0.008, size * 0.004, -size * 0.006, 0] }
@@ -714,110 +854,77 @@ export default function BlobCritter({
           <Face shape={shape} size={bodyWidth} blush={blush} pupilX={pupilX} pupilY={pupilY} mood={mood} tickled={hover} />
         </motion.div>
 
-        {[-1, 1].map((side) => (
-          <motion.div
-            key={`arm-${side}`}
-            aria-hidden
-            style={{
-              position: "absolute",
-              left: side === -1 ? size * 0.04 : undefined,
-              right: side === 1 ? size * 0.04 : undefined,
-              top: bodyHeight * 0.56,
-              width: size * 0.38,
-              height: size * 0.13,
-              borderRadius: 99,
-              background: color,
-              zIndex: 3,
-              transformOrigin: side === -1 ? "left center" : "right center",
-              boxShadow: "inset 0 -3px 6px rgba(0,0,0,0.06)",
-            }}
-            animate={
-              hover
-                ? {
-                    opacity: 1,
-                    rotate: side === -1 ? -14 : 14,
-                    x: side === -1 ? size * 0.07 : -size * 0.07,
-                    y: [0, -size * 0.01, 0],
-                  }
-                : {
-                    opacity: 0,
-                    rotate: side === -1 ? 55 : -55,
-                    x: 0,
-                    y: 0,
-                  }
-            }
-            transition={
-              hover
-                ? { duration: 0.7, repeat: Infinity, ease: "easeInOut" }
-                : { duration: 0.4, ease: "easeOut" }
-            }
-          >
-            <div
-              style={{
-                position: "absolute",
-                left: side === -1 ? undefined : -size * 0.04,
-                right: side === -1 ? -size * 0.04 : undefined,
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: size * 0.13,
-                height: size * 0.13,
-                borderRadius: "50%",
-                background: color,
-                boxShadow: "inset 0 -2px 4px rgba(0,0,0,0.05)",
-              }}
-            />
-          </motion.div>
-        ))}
+        {reach ? (
+          <>
+            {[-1, 1].map((side) => {
+              const isLeft = side === -1;
+              const armScale = isLeft ? armScaleLeftSpring : armScaleRightSpring;
+              const armAngle = isLeft ? armAngleLeftSpring : armAngleRightSpring;
+              const mode = isLeft ? reachMode.left : reachMode.right;
 
-        {grabCursor ? (
-          <motion.div
-            aria-hidden
-            style={{
-              position: "absolute",
-              left: bodyWidth * 0.5,
-              top: bodyHeight * 0.45,
-              width: grabReach,
-              height: size * 0.11,
-              borderRadius: 99,
-              background: color,
-              transformOrigin: "left center",
-              rotate: grabAngle,
-              opacity: grabOpacity,
-              zIndex: 0,
-              boxShadow: "inset 0 -3px 6px rgba(0,0,0,0.06)",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                right: -size * 0.045,
-                top: "50%",
-                transform: "translateY(-50%)",
-                width: size * 0.14,
-                height: size * 0.14,
-                borderRadius: "50%",
-                background: color,
-                boxShadow: "inset 0 -3px 6px rgba(0,0,0,0.06)",
-              }}
-            >
-              {[-0.22, 0, 0.22].map((offset, i) => (
-                <div
-                  key={i}
+              return (
+                <motion.div
+                  key={`arm-${side}`}
+                  data-testid={`blob-arm-${isLeft ? "left" : "right"}`}
+                  data-reach={REACH_MODE_LABEL[mode]}
+                  aria-hidden
                   style={{
                     position: "absolute",
-                    left: `${50 + offset * 100}%`,
-                    top: i === 1 ? "18%" : "8%",
-                    transform: "translateX(-50%)",
-                    width: size * 0.045,
-                    height: size * 0.05,
-                    borderRadius: "50%",
+                    left: isLeft ? shoulderLeftX - size * 0.4 : shoulderRightX,
+                    top: shoulderY,
+width: size * 0.4,
+height: size * 0.19,
+                    borderRadius: 99,
                     background: color,
-                    boxShadow: "inset 0 -2px 3px rgba(0,0,0,0.05)",
+                    zIndex: 3,
+                    transformOrigin: isLeft ? "right center" : "left center",
+                    boxShadow: "inset 0 -3px 6px rgba(0,0,0,0.06)",
+                    rotate: armAngle,
+                    scaleX: armScale,
                   }}
-                />
-              ))}
-            </div>
-          </motion.div>
+                >
+                  <motion.div
+                    data-testid={`blob-hand-${isLeft ? "left" : "right"}`}
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      left: isLeft ? -size * 0.055 : undefined,
+                      right: isLeft ? undefined : -size * 0.055,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+width: size * 0.20,
+height: size * 0.19,
+                      borderRadius: "50%",
+                      background: color,
+                      boxShadow: "inset 0 -3px 5px rgba(0,0,0,0.06)",
+                    }}
+                  >
+                    {/* The inner wrapper cancels the arm's stretch, so the hand
+                        keeps its shape while the arm grows. */}
+                    <motion.div
+                      aria-hidden
+                      style={{ position: "absolute", inset: 0, scaleX: armScale }}
+                    >
+                      <div
+                        aria-hidden
+                        style={{
+                          position: "absolute",
+                          left: isLeft ? size * 0.11 : -size * 0.035,
+                          top: size * 0.03,
+                          width: size * 0.06,
+                          height: size * 0.07,
+                          borderRadius: "50% 50% 50% 0",
+                          background: color,
+                          transform: isLeft ? "rotate(18deg)" : "rotate(162deg)",
+                          transformOrigin: isLeft ? "bottom left" : "bottom right",
+                        }}
+                      />
+                    </motion.div>
+                  </motion.div>
+                </motion.div>
+              );
+            })}
+          </>
         ) : null}
 
         {mood ? <PersonalityProp mood={mood} size={bodyWidth} color={color} /> : null}

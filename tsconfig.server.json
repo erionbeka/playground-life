@@ -13,5 +13,5 @@
       "@/*": ["./src/*.ts"]
     }
   },
-  "include": ["server/**/*.ts", "src/lib/contentGuard.ts", "src/lib/gameAuthoring.ts"]
+  "include": ["server/**/*.ts", "src/lib/contentGuard.ts", "src/lib/gameAuthoring.ts", "src/lib/gameMetrics.ts", "src/lib/gameAnalytics.ts"]
 }

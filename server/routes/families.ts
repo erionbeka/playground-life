@@ -5,6 +5,7 @@ import { hashPassword } from "../auth.ts";
 import { writeAudit } from "../audit.ts";
 import { query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
+import { appUrl, queueEmail } from "../lib/mailer.ts";
 
 const router = Router();
 
@@ -21,11 +22,12 @@ const caregiverSchema = z.object({
   name: z.string().min(2),
   relationship: z.string().min(2),
   phoneNumber: z.string().min(7),
-  temporaryPassword: z.string().min(12),
+  email: z.string().email().optional(),
+  temporaryPassword: z.string().min(8).optional(),
 });
 
 const resetSchema = z.object({
-  temporaryPassword: z.string().min(12),
+  temporaryPassword: z.string().min(8),
   credentialStatus: z.enum(["active", "pending"]).default("active"),
 });
 
@@ -55,28 +57,37 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = caregiverSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid caregiver payload" });
 
-  const passwordHash = await hashPassword(parsed.data.temporaryPassword);
+  const temporaryPassword = parsed.data.temporaryPassword || `Tmp-${randomBytes(4).toString("hex")}`;
+  const passwordHash = await hashPassword(temporaryPassword);
   const user = await query<{ id: string }>(
-    `INSERT INTO users (clinic_id, role, name, phone_number, password_hash, credential_status)
-     VALUES ($1, 'parent', $2, $3, $4, 'active')
+    `INSERT INTO users (clinic_id, role, name, email, phone_number, password_hash, credential_status)
+     VALUES ($1, 'parent', $2, $3, $4, $5, 'active')
      RETURNING id`,
-    [req.user?.clinicId, parsed.data.name, parsed.data.phoneNumber, passwordHash]
+    [req.user?.clinicId, parsed.data.name, parsed.data.email ?? null, parsed.data.phoneNumber, passwordHash]
   );
 
-  const inviteCode = generateInviteCode();
   const link = await query<{ id: string }>(
-    `INSERT INTO family_child_links (clinic_id, child_id, user_id, relationship, invited_at, invite_code_hash)
-     VALUES ($1, $2, $3, $4, now(), $5)
+    `INSERT INTO family_child_links (clinic_id, child_id, user_id, relationship, invited_at)
+     VALUES ($1, $2, $3, $4, now())
      RETURNING id`,
-    [req.user?.clinicId, parsed.data.childId, user.rows[0].id, parsed.data.relationship, hashInviteCode(inviteCode)]
+    [req.user?.clinicId, parsed.data.childId, user.rows[0].id, parsed.data.relationship]
   );
+
+  if (parsed.data.email) {
+    await queueEmail({
+      to: parsed.data.email,
+      kind: "invite",
+      subject: "Your Playground Life family access",
+      body: `You can sign in with phone ${parsed.data.phoneNumber} and temporary password ${temporaryPassword}. Sign in at ${appUrl()}.\n\nMund të hyni me telefonin ${parsed.data.phoneNumber} dhe fjalëkalimin e përkohshëm ${temporaryPassword}. Hyni në ${appUrl()}.`,
+    });
+  }
 
   await writeAudit(req, "caregiver_created", "credential", link.rows[0].id, {
     childId: parsed.data.childId,
     relationship: parsed.data.relationship,
   });
 
-  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id, inviteCode });
+  return res.status(201).json({ id: link.rows[0].id, userId: user.rows[0].id, emailed: !!parsed.data.email, temporaryPassword });
 });
 
 router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
@@ -85,15 +96,25 @@ router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async 
   const userId = String(req.params.userId);
   const passwordHash = await hashPassword(parsed.data.temporaryPassword);
 
-  const updated = await query<{ id: string }>(
+  const updated = await query<{ id: string; email: string | null; phone_number: string | null }>(
     `UPDATE users
      SET password_hash = $1, credential_status = $2, updated_at = now()
      WHERE id = $3 AND clinic_id = $4 AND role = 'parent'
-     RETURNING id`,
+     RETURNING id, email, phone_number`,
     [passwordHash, parsed.data.credentialStatus, userId, req.user?.clinicId]
   );
 
   if (!updated.rows[0]) return res.status(404).json({ error: "Caregiver not found" });
+
+  const caregiver = updated.rows[0];
+  if (caregiver.email) {
+    await queueEmail({
+      to: caregiver.email,
+      kind: "reset",
+      subject: "Your Playground Life password was reset",
+      body: `Your temporary password is ${parsed.data.temporaryPassword}. Sign in at ${appUrl()} with phone ${caregiver.phone_number}.\n\nFjalëkalimi juaj i përkohshëm është ${parsed.data.temporaryPassword}. Hyni në ${appUrl()} me telefonin ${caregiver.phone_number}.`,
+    });
+  }
 
   await writeAudit(req, "caregiver_password_reset", "credential", userId, { credentialStatus: parsed.data.credentialStatus });
   return res.json({ userId, credentialStatus: parsed.data.credentialStatus });

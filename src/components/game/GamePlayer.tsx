@@ -1,19 +1,9 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import type { GameCompletionMetrics } from "./gameCompletion";
 import { useApp, HomeworkAssignment } from "@/context/AppContext";
 import { getCatalogGameById, useCatalog } from "@/lib/customCatalog";
 import { AnimatePresence, motion } from "framer-motion";
-import MatchingEngine from "./engines/MatchingEngine";
-import TappingEngine from "./engines/TappingEngine";
-import SocialEngine from "./engines/SocialEngine";
-import GenericEngine from "./engines/GenericEngine";
-import PlaygroundEngine from "./engines/PlaygroundEngine";
-import SequenceEngine from "./engines/SequenceEngine";
-import SortingEngine from "./engines/SortingEngine";
-import RecognitionEngine from "./engines/RecognitionEngine";
-import CountingEngine from "./engines/CountingEngine";
-import MemoryEngine from "./engines/MemoryEngine";
-import BuildingEngine from "./engines/BuildingEngine";
-import MagicToysEngine from "./engines/MagicToysEngine";
+import GameEngineView from "./GameEngineView";
 import CelebrationOverlay from "./CelebrationOverlay";
 import BreathingOverlay from "./BreathingOverlay";
 import SensoryControls from "./SensoryControls";
@@ -27,6 +17,7 @@ import { ResponseMode } from "@/lib/responseModes";
 import { AAC_POSITIONING } from "@/lib/positioning";
 import InputModeProvider from "@/components/input/InputModeProvider";
 import { useTargetRegion } from "@/components/input/context";
+import { getGameAlignment } from "@/lib/alignment";
 
 interface Props {
   gameId: string;
@@ -172,7 +163,7 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   }, [celebrationVisible, playCelebrationSound]);
 
   const handleGameComplete = useCallback(
-    async (score: number, socialScore?: number) => {
+    async (score: number, socialScore?: number, metrics?: GameCompletionMetrics) => {
       const durationSeconds = Math.round((Date.now() - startTime) / 1000);
       try {
         await completeGame(assignment.id, {
@@ -182,6 +173,21 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
           score,
           interactions,
           socialScore,
+          ...(metrics
+            ? {
+                trials: metrics.trials,
+                correctTrials: metrics.correctTrials,
+                errors: metrics.errors,
+                accuracy: metrics.accuracy,
+                promptsNeeded: metrics.promptsNeeded,
+                attemptsBySkill: metrics.attemptsBySkill,
+                observations: metrics.observations,
+                independenceRate: metrics.independenceRate,
+                medianLatencyMs: metrics.medianLatencyMs,
+                trace: metrics.trace,
+                insights: metrics.insights,
+              }
+            : {}),
         });
         const current = await getChildRewards(assignment.childId);
         const { next } = applyResultToRewardState(
@@ -294,16 +300,31 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   }
 
   const engineProps = { game: runtimeGame, onInteraction: handleInteraction, onComplete: handleGameComplete };
+  const configuredAccess = runtimeGame.config.forceAccess;
+  const modeOverride = configuredAccess === "switch" || configuredAccess === "dwell" ? configuredAccess : undefined;
+  const alignment = useMemo(() => getGameAlignment(gameId), [gameId]);
 
   return (
-    <InputModeProvider childId={assignment.childId}>
-      <div className="min-h-screen">
+    <InputModeProvider childId={assignment.childId} modeOverride={modeOverride}>
+      <div className="min-h-screen" data-game-engine={runtimeGame.engine} data-game-id={runtimeGame.id}>
       <div className="bg-card/85 backdrop-blur-md border-b border-border px-4 py-2 flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
           <span role="img" aria-label={game.name} title={game.name} className="text-xl">{game.emoji}</span>
           {runtimeGame.learningGoal ? (
             <p className="hidden text-[10px] text-muted-foreground sm:block">{runtimeGame.learningGoal}</p>
           ) : null}
+          <div className="hidden lg:flex items-center gap-1.5 ml-2">
+            {alignment.ablls.slice(0, 2).map((area) => (
+              <span key={area} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full capitalize">
+                ABLLS: {area.replace("-", " ")}
+              </span>
+            ))}
+            {alignment.aac.functions.slice(0, 2).map((fn) => (
+              <span key={fn} className="text-[10px] bg-secondary/20 text-secondary-foreground px-2 py-0.5 rounded-full capitalize">
+                AAC: {fn}
+              </span>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <SensoryControls onBreathingBreak={openBreathing} />
@@ -314,31 +335,7 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
       </div>
 
       <div className="relative p-4" ref={playRef}>
-        {game.engine === "matching" ? (
-          <MatchingEngine {...engineProps} />
-        ) : game.engine === "tapping" ? (
-          <TappingEngine {...engineProps} />
-        ) : game.engine === "magic-toys" ? (
-          <MagicToysEngine {...engineProps} />
-        ) : game.engine === "social" ? (
-          <SocialEngine {...engineProps} />
-        ) : game.engine === "sandbox" || game.engine === "slide" || game.engine === "bench" ? (
-          <PlaygroundEngine {...engineProps} />
-        ) : game.engine === "sequence" ? (
-          <SequenceEngine {...engineProps} />
-        ) : game.engine === "sorting" ? (
-          <SortingEngine {...engineProps} />
-        ) : game.engine === "recognition" ? (
-          <RecognitionEngine {...engineProps} />
-        ) : game.engine === "counting" ? (
-          <CountingEngine {...engineProps} />
-        ) : game.engine === "memory" ? (
-          <MemoryEngine {...engineProps} />
-        ) : game.engine === "building" ? (
-          <BuildingEngine {...engineProps} />
-        ) : (
-          <GenericEngine {...engineProps} />
-        )}
+        <GameEngineView {...engineProps} />
 
         <AnimatePresence>
           {celebrationVisible && child ? (

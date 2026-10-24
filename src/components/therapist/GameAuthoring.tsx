@@ -255,7 +255,6 @@ function CreateReviewButtons({
 }
 
 export default function GameAuthoring() {
-  const apiMode = typeof import.meta.env.VITE_DATA_MODE === "string" && import.meta.env.VITE_DATA_MODE === "api";
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [editing, setEditing] = useState<AuthoredGame | null>(null);
   const [viewingDraft, setViewingDraft] = useState<DraftRow | null>(null);
@@ -265,7 +264,6 @@ export default function GameAuthoring() {
   const [submitNotice, setSubmitNotice] = useState("");
 
   const load = async () => {
-    if (!apiMode) return;
     try {
       const { drafts: rows } = await productionApi.listGameDrafts();
       setDrafts(rows as DraftRow[]);
@@ -273,7 +271,7 @@ export default function GameAuthoring() {
       setLoadError("Could not load drafts. Is the server running?");
     }
   };
-  useEffect(() => { void load(); }, [apiMode]);
+  useEffect(() => { void load(); }, []);
 
   const errors = useMemo(() => (editing ? validateAuthoredGame(editing) : []), [editing]);
   const audit = useMemo(
@@ -391,17 +389,6 @@ export default function GameAuthoring() {
   };
 
   const saveLabel = editing && "id" in editing ? "Save changes" : "Create draft";
-
-  if (!apiMode) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-6">
-        <h2 className="font-display text-lg font-bold text-foreground">Create games</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Game authoring needs the clinic server. Start the app with VITE_DATA_MODE=api to create new games.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">

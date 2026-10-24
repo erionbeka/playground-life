@@ -15,7 +15,7 @@ interface Props {
   onComplete: (score: number, socialScore?: number, metrics?: GameCompletionMetrics) => void;
 }
 
-const TRACE_PATHS: Record<string, { label: string; points: [number, number][] }> = {
+export const TRACE_PATHS: Record<string, { label: string; points: [number, number][] }> = {
   "trace lines": {
     label: "Straight line",
     points: [[8, 50], [22, 50], [36, 50], [50, 50], [64, 50], [78, 50], [92, 50]],
@@ -76,6 +76,37 @@ const TRACE_PATHS: Record<string, { label: string; points: [number, number][] }>
       [50, 12], [61, 40], [90, 42], [67, 60], [75, 88],
       [50, 71], [25, 88], [33, 60], [10, 42], [39, 40], [50, 12],
     ],
+  },
+  "letter c": {
+    label: "Letter C",
+    points: [[80, 22], [62, 12], [42, 14], [28, 28], [24, 48], [28, 68], [42, 82], [62, 86], [80, 76]],
+  },
+  "letter o": {
+    label: "Letter O",
+    points: Array.from({ length: 14 }, (_, index) => {
+      const angle = (index / 14) * Math.PI * 2;
+      return [Math.round(50 + 30 * Math.sin(angle)), Math.round(50 - 36 * Math.cos(angle))] as [number, number];
+    }),
+  },
+  "letter s": {
+    label: "Letter S",
+    points: [[76, 20], [58, 12], [40, 16], [32, 28], [38, 40], [56, 46], [72, 56], [76, 70], [64, 82], [44, 84], [28, 76]],
+  },
+  "letter l": {
+    label: "Letter L",
+    points: [[38, 12], [38, 40], [38, 68], [38, 86], [62, 86]],
+  },
+  "letter t": {
+    label: "Letter T",
+    points: [[22, 22], [50, 22], [78, 22], [50, 22], [50, 52], [50, 86]],
+  },
+  "letter e": {
+    label: "Letter E",
+    points: [[78, 40], [52, 40], [32, 42], [30, 58], [44, 62], [64, 62], [72, 70], [64, 80], [46, 82], [30, 76]],
+  },
+  "letter a": {
+    label: "Letter A",
+    points: [[72, 24], [52, 20], [34, 32], [28, 52], [36, 70], [54, 74], [70, 64], [74, 44], [74, 24], [74, 86]],
   },
 };
 

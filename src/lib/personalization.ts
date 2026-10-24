@@ -1,5 +1,5 @@
 import { Child, HomeworkAssignment, GameResult, SkillDomain } from "@/context/AppContext";
-import { allGames, Difficulty, GameCategory, GameConfig } from "@/data/games";
+import { activeGames, allGames, Difficulty, GameCategory, GameConfig } from "@/data/games";
 
 const difficultyRank: Record<Difficulty, number> = {
   easy: 0,
@@ -417,7 +417,7 @@ function buildProgressiveGameSet(
 export function getPersonalizationSummary(
   child: Child,
   assignments: HomeworkAssignment[],
-  availableGames: GameConfig[] = allGames
+  availableGames: GameConfig[] = activeGames
 ): PersonalizationSummary {
   const results = getChildResults(assignments, child.id);
   const avgScore = results.length > 0

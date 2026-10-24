@@ -40,7 +40,6 @@ const draftRow = {
 describe("GameAuthoring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("VITE_DATA_MODE", "api");
   });
 
   afterEach(() => {
