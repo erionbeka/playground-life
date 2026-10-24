@@ -18,10 +18,21 @@ const AdminDashboard = lazy(() => import("@/components/admin/AdminDashboard"));
 const TherapistDashboard = lazy(() => import("@/components/therapist/TherapistDashboard"));
 const ParentDashboard = lazy(() => import("@/components/parent/ParentDashboard"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+const GameLab = lazy(() => import("./pages/GameLab.tsx"));
 
 const queryClient = new QueryClient();
 
-const App = () => (
+const App = () => {
+  const isDevLab = import.meta.env.DEV && /\/dev\/lab\/?$/.test(window.location.pathname);
+  if (isDevLab) {
+    return (
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center" aria-busy="true" aria-label="Loading" />}>
+        <GameLab />
+      </Suspense>
+    );
+  }
+
+  return (
   <QueryClientProvider client={queryClient}>
     <ApiAppProvider>
       <TooltipProvider>
@@ -56,6 +67,7 @@ const App = () => (
       </TooltipProvider>
     </ApiAppProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

@@ -1,7 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { GameConfig } from "@/data/games";
 import { shuffleItems } from "@/lib/shuffle";
 import { getAdaptiveGameConfig } from "@/lib/gameProgression";
+import LearningLabel from "../LearningLabel";
+import RoundProgress from "../RoundProgress";
+import { speak } from "@/lib/speech";
 
 interface Props {
   game: GameConfig;
@@ -48,9 +51,10 @@ export default function RecognitionEngine({ game, onInteraction, onComplete }: P
     const wrongLimit = personalized && supportLevel === "high" ? 2 : wrongItems.length;
     return shuffleItems([...correctItems, ...wrongItems.slice(0, wrongLimit)]);
   }, [correctItems, effective.correctItems, effective.items, personalized, supportLevel]);
+
   const totalCorrect = correctItems.length;
   const [selected, setSelected] = useState<number[]>([]);
-  const [correct, setCorrect] = useState(0);
+  const [correctCount, setCorrectCount] = useState(0);
   const [mistakes, setMistakes] = useState(0);
 
   const handlePick = (index: number, value: string) => {
@@ -59,11 +63,11 @@ export default function RecognitionEngine({ game, onInteraction, onComplete }: P
     onInteraction();
     const nextSelected = [...selected, index];
     const isCorrect = correctSet.has(value);
-    const nextCorrect = correct + (isCorrect ? 1 : 0);
+    const nextCorrect = correctCount + (isCorrect ? 1 : 0);
     const nextMistakes = mistakes + (isCorrect ? 0 : 1);
 
     setSelected(nextSelected);
-    setCorrect(nextCorrect);
+    setCorrectCount(nextCorrect);
     setMistakes(nextMistakes);
 
     if (nextCorrect >= totalCorrect) {
@@ -74,21 +78,58 @@ export default function RecognitionEngine({ game, onInteraction, onComplete }: P
 
   return (
     <div className="mx-auto max-w-lg text-center">
-      <p className="mb-4 text-sm text-muted-foreground">{effective.target}</p>
-      <p className="mb-4 text-xs text-muted-foreground">Find {totalCorrect} correct item{totalCorrect === 1 ? "" : "s"}.</p>
-      <div className="grid grid-cols-3 gap-3">
-        {pool.map((item, index) => (
-          <button
-            key={`${item}-${index}`}
-            onClick={() => handlePick(index, item)}
-            className={`touch-target rounded-2xl border-2 p-5 text-4xl transition-colors ${
-              selected.includes(index) ? "border-secondary bg-secondary/20" : "border-border bg-card hover:border-primary"
-            }`}
-          >
-            {item}
-          </button>
-        ))}
+      <div className="mb-4 flex items-center justify-between">
+        <LearningLabel game={game} />
+        <RoundProgress current={correctCount} total={totalCorrect} />
       </div>
+
+      <div className="mb-6 rounded-2xl border border-border bg-card p-4 shadow-sm flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase font-bold tracking-wider text-muted-foreground">ABLLS-R Listener Responding</p>
+          <p className="text-lg font-display font-bold text-foreground">{effective.target}</p>
+        </div>
+        <button
+          onClick={() => speak(effective.target)}
+          className="rounded-xl bg-primary/10 p-3 text-primary hover:bg-primary/20 touch-target"
+          title="Play audio prompt"
+        >
+          🔊
+        </button>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        {pool.map((item, index) => {
+          const isSelected = selected.includes(index);
+          const isTarget = correctSet.has(item);
+          const showPromptCue = (supportLevel === "high" || supportLevel === "moderate") && isTarget && !isSelected;
+
+          return (
+            <button
+              key={`${item}-${index}`}
+              onClick={() => handlePick(index, item)}
+              aria-label={item}
+              className={`touch-target relative rounded-2xl border-2 p-6 text-4xl transition-all ${
+                isSelected
+                  ? "border-secondary bg-secondary/20 scale-95"
+                  : showPromptCue
+                  ? "border-primary/60 bg-primary/5 animate-pulse shadow-md"
+                  : "border-border bg-card hover:border-primary"
+              }`}
+            >
+              {item}
+              {showPromptCue && (
+                <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground pointer-events-none">
+                  ★
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="mt-4 text-xs text-muted-foreground">
+        {supportLevel === "high" || supportLevel === "moderate" ? "💡 Errorless learning prompt active: Correct targets have a gold star-cue." : "Select all correct matching targets."}
+      </p>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import PasswordInput from "@/components/ui/PasswordInput";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -247,9 +248,8 @@ export default function AdminDashboard() {
 
               <div className="space-y-2">
                 <label htmlFor="admin-password" className="block text-sm font-semibold text-foreground">Password</label>
-                <input
+                <PasswordInput
                   id="admin-password"
-                  type="password"
                   value={password}
                   onChange={(event) => {
                     setPassword(event.target.value);
@@ -410,7 +410,7 @@ export default function AdminDashboard() {
                   <>
                     <input value={staffName} onChange={(event) => setStaffName(event.target.value)} placeholder="Full name" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
                     <input value={staffEmail} onChange={(event) => setStaffEmail(event.target.value)} placeholder="Email" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
-                    <input value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Temporary password" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
+                    <PasswordInput value={staffPassword} onChange={(event) => setStaffPassword(event.target.value)} placeholder="Temporary password" className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground" />
                     <button
                       onClick={async () => {
                         if (!staffName.trim() || !staffEmail.trim() || !staffPassword.trim()) return;
@@ -700,7 +700,7 @@ export default function AdminDashboard() {
                     <div className="mt-3 space-y-2 rounded-xl bg-muted p-3">
                       <input value={fmName} onChange={(event) => setFmName(event.target.value)} placeholder="Name" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground" />
                       <input value={fmPhoneNumber} onChange={(event) => setFmPhoneNumber(event.target.value)} placeholder="Phone number" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground" />
-                      <input value={fmPassword} onChange={(event) => setFmPassword(event.target.value)} placeholder="Temporary password (min 12 characters)" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground" />
+                      <PasswordInput value={fmPassword} onChange={(event) => setFmPassword(event.target.value)} placeholder="Temporary password (min 12 characters)" className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground" />
                       <select value={fmRelationship} onChange={(event) => setFmRelationship(event.target.value as FamilyMember["relationship"])} className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground">
                         <option value="parent">Parent</option>
                         <option value="sibling">Sibling</option>

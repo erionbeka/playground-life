@@ -1,3 +1,5 @@
+import { archiveInfoFor } from "./gameArchive";
+
 export type GameCategory =
   | "playground"
   | "matching"
@@ -36,10 +38,15 @@ export type GameEngine =
   | "situation-feelings"
   | "sound-memory"
   | "listen"
+  | "intraverbal"
+  | "sentence-builder"
+  | "comment"
+  | "echoic"
   | "choice-request"
   | "regulation"
   | "flexible"
-  | "tracing";
+  | "tracing"
+  | "social-story";
 
 export type Difficulty = "easy" | "medium" | "hard";
 
@@ -69,6 +76,9 @@ export interface GameConfig {
   successCriteria?: string[];
   config: Record<string, unknown>;
   source?: "builtin" | "therapist";
+  archived?: boolean;
+  archiveReason?: string;
+  replacementId?: string;
 }
 
 const categoryMeta: Record<GameCategory, { label: string; emoji: string; color: string }> = {
@@ -191,22 +201,33 @@ const categoryLearningTargets: Record<GameCategory, { goal: string; prompt: stri
 function enhanceGameForAutisticLearners(game: GameConfig): GameConfig {
   const target = categoryLearningTargets[game.category];
   const ageRange = ageRangeFor(game);
+  const configOverride = game.config || {};
+  const learningGoal =
+    typeof configOverride.learningGoal === "string" ? configOverride.learningGoal : target.goal;
+  const adultPrompt =
+    typeof configOverride.adultPrompt === "string" ? configOverride.adultPrompt : target.prompt;
+  const autismSupports = Array.isArray(configOverride.autismSupports)
+    ? (configOverride.autismSupports as string[])
+    : target.supports;
+  const successCriteria = Array.isArray(configOverride.successCriteria)
+    ? (configOverride.successCriteria as string[])
+    : target.success;
   return {
     ...game,
     ageRange,
     contentVersion: game.contentVersion || DEFAULT_CONTENT_VERSION,
-    learningGoal: target.goal,
-    adultPrompt: target.prompt,
-    autismSupports: target.supports,
-    successCriteria: target.success,
+    learningGoal,
+    adultPrompt,
+    autismSupports,
+    successCriteria,
     estimatedMinutes: Math.min(game.estimatedMinutes, game.difficulty === "easy" ? 4 : game.difficulty === "medium" ? 5 : 6),
     config: {
       ...game.config,
       ageRange,
-      learningGoal: target.goal,
-      adultPrompt: target.prompt,
-      autismSupports: target.supports,
-      successCriteria: target.success,
+      learningGoal,
+      adultPrompt,
+      autismSupports,
+      successCriteria,
       developmentalStage: game.difficulty === "easy" ? "early learner" : game.difficulty === "medium" ? "developing learner" : "school readiness",
       responseModes: ["tap", "point", "gesture", "spoken word", "AAC"],
     },
@@ -571,39 +592,65 @@ function makeGames(): GameConfig[] {
     });
   });
 
-  const languageThemes = ["First Words", "Action Words", "Describing Words", "Question Starters", "Story Starters", "Rhyming Fun", "Sentence Builder", "What Comes Next", "Picture Naming", "Category Names", "Following Directions", "Conversation Starter"];
+  const languageThemes: Array<{ name: string; engine: GameEngine; theme: string }> = [
+    { name: "First Words", engine: "listen", theme: "first words" },
+    { name: "Action Words", engine: "listen", theme: "action words" },
+    { name: "Describing Words", engine: "comment", theme: "describing words" },
+    { name: "Question Starters", engine: "intraverbal", theme: "question starters" },
+    { name: "Story Starters", engine: "sentence-builder", theme: "story starters" },
+    { name: "Rhyming Fun", engine: "intraverbal", theme: "rhyming fun" },
+    { name: "Sentence Builder", engine: "sentence-builder", theme: "sentence builder" },
+    { name: "What Comes Next", engine: "pattern-next", theme: "colors" },
+    { name: "Picture Naming", engine: "recognition", theme: "picture naming" },
+    { name: "Category Names", engine: "recognition", theme: "category names" },
+    { name: "Following Directions", engine: "listen", theme: "following directions" },
+    { name: "Conversation Starter", engine: "comment", theme: "conversation" },
+  ];
   languageThemes.forEach((theme, index) => {
     games.push({
       id: gid(),
-      name: theme,
+      name: theme.name,
       emoji: "💬",
       category: "language",
-      engine: "social",
-      description: `Practice ${theme.toLowerCase()} skills`,
+      engine: theme.engine,
+      description: `Practice ${theme.name.toLowerCase()} skills`,
       skills: ["language", "communication", "vocabulary"],
       difficulty: index < 4 ? "easy" : index < 8 ? "medium" : "hard",
       estimatedMinutes: 5,
       supportsShared: true,
       supportsMultiplayer: false,
-      config: { theme: theme.toLowerCase(), prompts: 6 },
+      config: { theme: theme.theme, prompts: 6 },
     });
   });
 
-  const motorThemes = ["Trace Lines", "Connect Dots", "Tap & Pop", "Tap & Aim", "Swipe Patterns", "Follow the Path", "Catch the Ball", "Pop & Hold", "Slow Drag", "Circle Draw", "Zig-Zag Trace", "Target Aim"];
+  const motorThemes: Array<{ name: string; engine: GameEngine; theme: string }> = [
+    { name: "Trace Lines", engine: "tracing", theme: "trace lines" },
+    { name: "Connect Dots", engine: "tracing", theme: "connect dots" },
+    { name: "Tap & Pop", engine: "tapping", theme: "tap & pop" },
+    { name: "Tap & Aim", engine: "tapping", theme: "target aim" },
+    { name: "Swipe Patterns", engine: "tracing", theme: "swipe patterns" },
+    { name: "Follow the Path", engine: "tracing", theme: "follow the path" },
+    { name: "Catch the Ball", engine: "tapping", theme: "catch the ball" },
+    { name: "Pop & Hold", engine: "tapping", theme: "pop & hold" },
+    { name: "Slow Drag", engine: "tracing", theme: "slow drag" },
+    { name: "Circle Draw", engine: "tracing", theme: "circle draw" },
+    { name: "Zig-Zag Trace", engine: "tracing", theme: "zig-zag trace" },
+    { name: "Target Aim", engine: "tapping", theme: "target aim" },
+  ];
   motorThemes.forEach((theme, index) => {
     games.push({
       id: gid(),
-      name: theme,
+      name: theme.name,
       emoji: "✋",
       category: "motor",
-      engine: "tapping",
-      description: `Practice ${theme.toLowerCase()} motor skills`,
+      engine: theme.engine,
+      description: `Practice ${theme.name.toLowerCase()} motor skills`,
       skills: ["fine-motor", "coordination", "control"],
       difficulty: index < 4 ? "easy" : index < 8 ? "medium" : "hard",
       estimatedMinutes: 4,
       supportsShared: false,
       supportsMultiplayer: false,
-      config: { theme: theme.toLowerCase(), targets: 8 },
+      config: { theme: theme.theme, targets: 8 },
     });
   });
 
@@ -736,15 +783,323 @@ function makeGames(): GameConfig[] {
     });
   });
 
+  games.push(
+    {
+      id: gid(),
+      name: "Intraverbals: Fill In",
+      emoji: "💬",
+      category: "language",
+      engine: "intraverbal",
+      description: "Complete a familiar phrase by choosing the missing word or picture",
+      skills: ["intraverbals", "word retrieval", "communication"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: {
+        theme: "intraverbals",
+        rounds: 4,
+        learningGoal: "Practice filling in a familiar phrase after hearing the first part.",
+        adultPrompt: "Say the first part of the phrase, pause, and let the child choose or say the missing word.",
+        autismSupports: ["spoken model", "picture choices", "wait time", "no time limit"],
+        successCriteria: ["Chooses or says a word that completes the phrase", "Uses the picture choices to respond"],
+        prompts: [
+          { prompt: "Twinkle, twinkle, little ___", answer: "star", options: [{ label: "star", emoji: "⭐" }, { label: "car", emoji: "🚗" }, { label: "cup", emoji: "🥤" }] },
+          { prompt: "The itsy bitsy ___ climbed up the water spout", answer: "spider", options: [{ label: "spider", emoji: "🕷️" }, { label: "dog", emoji: "🐶" }, { label: "ball", emoji: "⚽" }] },
+          { prompt: "Old MacDonald had a ___", answer: "farm", options: [{ label: "farm", emoji: "🚜" }, { label: "school", emoji: "🏫" }, { label: "store", emoji: "🏪" }] },
+          { prompt: "If you're happy and you know it, ___ your hands", answer: "clap", options: [{ label: "clap", emoji: "👏" }, { label: "wash", emoji: "🧼" }, { label: "hide", emoji: "🙈" }] },
+          { prompt: "The wheels on the bus go round and ___", answer: "round", options: [{ label: "round", emoji: "🔁" }, { label: "fast", emoji: "⚡" }, { label: "quiet", emoji: "🤫" }] },
+          { prompt: "Head, shoulders, knees, and ___", answer: "toes", options: [{ label: "toes", emoji: "🦶" }, { label: "hands", emoji: "👐" }, { label: "ears", emoji: "👂" }] },
+        ],
+      },
+    },
+    {
+      id: gid(),
+      name: "Echoics: Copy the Sound",
+      emoji: "🗣️",
+      category: "language",
+      engine: "echoic",
+      description: "Listen to a sound or word, copy it, and tell your grown-up you tried",
+      skills: ["vocal imitation", "listening", "communication"],
+      difficulty: "easy",
+      estimatedMinutes: 3,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: {
+        theme: "echoics",
+        rounds: 4,
+        learningGoal: "Practice copying a sound or word after an adult model.",
+        adultPrompt: "Say the model slowly, wait, and accept any sound attempt. Do not correct the sound; model it again if the child wants.",
+        autismSupports: ["one model at a time", "spoken and picture cues", "self-paced", "no microphone required"],
+        successCriteria: ["Listens to the model", "Makes a sound or word attempt", "Stays engaged for the round"],
+        models: [
+          { label: "ah", say: "ah", emoji: "👄" },
+          { label: "mama", say: "mama", emoji: "👩" },
+          { label: "ba", say: "ba", emoji: "🫧" },
+          { label: "ball", say: "ball", emoji: "⚽" },
+          { label: "up", say: "up", emoji: "⬆️" },
+          { label: "more", say: "more", emoji: "➕" },
+        ],
+      },
+    },
+    {
+      id: gid(),
+      name: "Grammar: Sentence Builder",
+      emoji: "🧱",
+      category: "language",
+      engine: "sentence-builder",
+      description: "Build a short sentence with core words and a picture symbol",
+      skills: ["syntax", "sentence building", "AAC"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: {
+        theme: "grammar",
+        rounds: 3,
+        learningGoal: "Build a short spoken sentence using a sentence strip and symbol choices.",
+        adultPrompt: "Read the sentence strip together, choose one symbol, then say the whole sentence.",
+        autismSupports: ["core word strip", "symbol choices", "spoken model", "wait time"],
+        successCriteria: ["Chooses a symbol to complete the sentence", "Hears or says the full sentence"],
+        frames: [
+          { lead: "I want", trail: "please", answer: "apple", options: [{ label: "apple", emoji: "🍎" }, { label: "ball", emoji: "⚽" }, { label: "juice", emoji: "🧃" }, { label: "book", emoji: "📘" }] },
+          { lead: "More", trail: "please", answer: "juice", options: [{ label: "juice", emoji: "🧃" }, { label: "apple", emoji: "🍎" }, { label: "ball", emoji: "⚽" }, { label: "book", emoji: "📘" }] },
+          { lead: "My turn", trail: "", answer: "ball", options: [{ label: "ball", emoji: "⚽" }, { label: "apple", emoji: "🍎" }, { label: "juice", emoji: "🧃" }, { label: "book", emoji: "📘" }] },
+          { lead: "I see", trail: "", answer: "dog", options: [{ label: "dog", emoji: "🐶" }, { label: "cat", emoji: "🐱" }, { label: "fish", emoji: "🐟" }, { label: "bird", emoji: "🐦" }] },
+        ],
+      },
+    },
+    {
+      id: gid(),
+      name: "Reading: Letter Match",
+      emoji: "🔤",
+      category: "matching",
+      engine: "matching",
+      description: "Match uppercase and lowercase letters",
+      skills: ["letter recognition", "reading", "visual discrimination"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: false,
+      supportsMultiplayer: false,
+      config: {
+        theme: "letters",
+        cardsVisible: 8,
+        pairGroups: [["A", "a"], ["B", "b"], ["C", "c"], ["D", "d"]],
+        learningGoal: "Match each uppercase letter to its lowercase partner.",
+        adultPrompt: "Name each letter as the child turns it over: 'big A, little a'.",
+        successCriteria: ["Matches uppercase and lowercase letters", "Names or points to letters with support"],
+      },
+    },
+    {
+      id: gid(),
+      name: "Writing: Trace Letters",
+      emoji: "✍️",
+      category: "motor",
+      engine: "tracing",
+      description: "Trace a letter shape with a finger or pointer",
+      skills: ["letter formation", "fine motor", "writing"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: false,
+      supportsMultiplayer: false,
+      config: {
+        theme: "letter c",
+        learningGoal: "Trace the letter shape from start to finish.",
+        adultPrompt: "Model the stroke in the air first, then guide the child's hand only if needed.",
+        successCriteria: ["Follows the letter path", "Completes the stroke with decreasing help"],
+      },
+    },
+    {
+      id: gid(),
+      name: "Group Instruction: Follow Along",
+      emoji: "👂",
+      category: "language",
+      engine: "listen",
+      description: "Listen to a one- or two-step direction and choose the matching symbols",
+      skills: ["receptive language", "group instruction", "listening"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: {
+        theme: "group-instruction",
+        rounds: 3,
+        learningGoal: "Follow a spoken direction by selecting the named symbols in order.",
+        adultPrompt: "Give the direction once, wait, and repeat it only if the child needs a second model.",
+        autismSupports: ["one direction at a time", "visual choices", "repeat button", "wait time"],
+        successCriteria: ["Follows a one-step direction", "Follows a two-step direction with support"],
+        directions: [
+          { say: "Touch the ball", steps: ["ball"], options: [{ label: "ball", emoji: "⚽" }, { label: "cup", emoji: "🥤" }, { label: "shoe", emoji: "👟" }] },
+          { say: "Touch the cup, then the shoe", steps: ["cup", "shoe"], options: [{ label: "cup", emoji: "🥤" }, { label: "shoe", emoji: "👟" }, { label: "ball", emoji: "⚽" }] },
+          { say: "Touch the book, then the apple", steps: ["book", "apple"], options: [{ label: "book", emoji: "📘" }, { label: "apple", emoji: "🍎" }, { label: "cup", emoji: "🥤" }] },
+          { say: "Touch the dog, then the cat", steps: ["dog", "cat"], options: [{ label: "dog", emoji: "🐶" }, { label: "cat", emoji: "🐱" }, { label: "fish", emoji: "🐟" }] },
+        ],
+      },
+    },
+    {
+      id: gid(),
+      name: "Action Words: Move & Copy",
+      emoji: "🤸",
+      category: "motor",
+      engine: "tapping",
+      description: "Tap the action words, then copy the actions in real life",
+      skills: ["action words", "motor imitation", "gross motor"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: {
+        theme: "move and copy",
+        speed: "slow",
+        targets: 6,
+        learningGoal: "Recognize action words and copy the action with your body.",
+        adultPrompt: "Stand up together. Say each action word, do the action, and invite the child to copy: jump, clap, arms up, stomp, spin, sit down.",
+        autismSupports: ["one action at a time", "adult model", "movement break", "slow pace"],
+        successCriteria: ["Selects action words", "Copies at least one action with an adult model"],
+      },
+    },
+    {
+      id: gid(),
+      name: "AAC: Symbol Selection",
+      emoji: "🟦",
+      category: "language",
+      engine: "choice-request",
+      description: "Choose a symbol to ask for something in a four-symbol field",
+      skills: ["AAC", "symbol selection", "requesting"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: {
+        theme: "symbol-selection",
+        rounds: 3,
+        optionLimit: 4,
+        learningGoal: "Practice finding and selecting a communication symbol in a small field.",
+        adultPrompt: "Model the symbol with your finger, then wait. Accept any symbol the child chooses and say what it means.",
+        autismSupports: ["stable symbol positions", "four-symbol field", "spoken model", "no time limit"],
+        successCriteria: ["Selects a symbol from the field", "Uses the same symbol to request across rounds"],
+        scenarios: [
+          {
+            situation: "You want a turn with the tablet.",
+            request: "ask for a turn",
+            emoji: "📱",
+            options: [
+              { label: "my turn", emoji: "🙋", strategy: "card", modality: "visual" },
+              { label: "help", emoji: "🆘", strategy: "card", modality: "visual" },
+              { label: "stop", emoji: "✋", strategy: "card", modality: "visual" },
+              { label: "break", emoji: "⏸️", strategy: "card", modality: "visual" },
+            ],
+          },
+          {
+            situation: "You want a drink.",
+            request: "ask for a drink",
+            emoji: "🧃",
+            options: [
+              { label: "juice", emoji: "🧃", strategy: "card", modality: "visual" },
+              { label: "apple", emoji: "🍎", strategy: "card", modality: "visual" },
+              { label: "ball", emoji: "⚽", strategy: "card", modality: "visual" },
+              { label: "book", emoji: "📘", strategy: "card", modality: "visual" },
+            ],
+          },
+          {
+            situation: "The jar is stuck and you want it open.",
+            request: "ask for help",
+            emoji: "🫙",
+            options: [
+              { label: "help", emoji: "🆘", strategy: "card", modality: "visual" },
+              { label: "more", emoji: "➕", strategy: "card", modality: "visual" },
+              { label: "all done", emoji: "✅", strategy: "card", modality: "visual" },
+              { label: "my turn", emoji: "🙋", strategy: "card", modality: "visual" },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      id: gid(),
+      name: "AAC: Scanning Choice",
+      emoji: "🔲",
+      category: "language",
+      engine: "choice-request",
+      description: "Use switch scanning to choose a two-symbol request",
+      skills: ["AAC", "switch access", "requesting"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: {
+        theme: "scanning",
+        rounds: 2,
+        optionLimit: 2,
+        forceAccess: "switch",
+        learningGoal: "Practice choosing a request symbol with switch scanning.",
+        adultPrompt: "Let the scan move, then press the switch when the wanted symbol is highlighted. Give the child time.",
+        autismSupports: ["two-symbol field", "slow scanning", "pause button", "spoken model"],
+        successCriteria: ["Waits for the scan", "Activates the switch to choose a symbol"],
+        scenarios: [
+          {
+            situation: "You want more bubbles.",
+            request: "ask for more bubbles",
+            emoji: "🫧",
+            options: [
+              { label: "more", emoji: "➕", strategy: "card", modality: "visual" },
+              { label: "all done", emoji: "✅", strategy: "card", modality: "visual" },
+            ],
+          },
+          {
+            situation: "You want a break from the noise.",
+            request: "ask for a break",
+            emoji: "🤫",
+            options: [
+              { label: "break", emoji: "⏸️", strategy: "card", modality: "visual" },
+              { label: "more", emoji: "➕", strategy: "card", modality: "visual" },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      id: gid(),
+      name: "AAC: Commenting",
+      emoji: "💭",
+      category: "language",
+      engine: "comment",
+      description: "Look at a picture and choose a comment symbol",
+      skills: ["AAC", "commenting", "social communication"],
+      difficulty: "easy",
+      estimatedMinutes: 4,
+      supportsShared: true,
+      supportsMultiplayer: false,
+      config: {
+        theme: "commenting",
+        rounds: 4,
+        learningGoal: "Practice sharing a comment about a picture, not just requesting.",
+        adultPrompt: "Look at the picture together, choose a comment, and expand it: 'Pizza! Yummy pizza.' Any comment is okay.",
+        autismSupports: ["one picture at a time", "comment symbol choices", "spoken expansion", "no wrong answers"],
+        successCriteria: ["Chooses a comment symbol", "Hears or repeats the expanded comment"],
+        scenes: [
+          { scene: "🍕", label: "Pizza", comments: [{ label: "yummy", emoji: "😋" }, { label: "I like it", emoji: "❤️" }, { label: "wow", emoji: "😮" }, { label: "no thank you", emoji: "🙅" }] },
+          { scene: "🐶", label: "Puppy", comments: [{ label: "cute", emoji: "🥰" }, { label: "I like it", emoji: "❤️" }, { label: "wow", emoji: "😮" }, { label: "look", emoji: "👀" }] },
+          { scene: "🌧️", label: "Rain", comments: [{ label: "wet", emoji: "💧" }, { label: "I don't like it", emoji: "🙅" }, { label: "look", emoji: "👀" }, { label: "wow", emoji: "😮" }] },
+          { scene: "🎈", label: "Balloon", comments: [{ label: "pretty", emoji: "✨" }, { label: "I like it", emoji: "❤️" }, { label: "up", emoji: "⬆️" }, { label: "wow", emoji: "😮" }] },
+        ],
+      },
+    }
+  );
+
   return games;
 }
 
-export const allGames = makeGames().map(enhanceGameForAutisticLearners);
+export const allGames = makeGames()
+  .map(enhanceGameForAutisticLearners)
+  .map((game) => ({ ...game, ...archiveInfoFor(game.id) }));
 
 export function getGamesByCategory(category: GameCategory): GameConfig[] {
-  return allGames.filter((game) => game.category === category);
+  return allGames.filter((game) => game.category === category && !game.archived);
 }
 
 export function getGameById(id: string): GameConfig | undefined {
   return allGames.find((game) => game.id === id);
 }
+
+export const activeGames = allGames.filter((game) => !game.archived);

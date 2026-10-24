@@ -1,4 +1,4 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+﻿import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.playgroundlife.app',
@@ -6,8 +6,9 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   plugins: {
     SplashScreen: {
-      launchShowDuration: 1500,
-      backgroundColor: '#f5f0e8',
+      launchShowDuration: 0,
+      launchAutoHide: false,
+      backgroundColor: '#fdf8f4',
       showSpinner: false,
     },
     StatusBar: {
@@ -18,3 +19,4 @@ const config: CapacitorConfig = {
 };
 
 export default config;
+

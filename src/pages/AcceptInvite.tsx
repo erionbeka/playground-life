@@ -1,3 +1,4 @@
+import PasswordInput from "@/components/ui/PasswordInput";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -58,7 +59,7 @@ export default function AcceptInvite() {
             </label>
             <label className="block">
 <span className="mb-1 block text-sm font-semibold text-foreground">Password (8+ characters)</span>
-<input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
+<PasswordInput required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password"
                 className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none" />
             </label>
             {status === "error" ? <p className="text-sm text-destructive">{message}</p> : null}

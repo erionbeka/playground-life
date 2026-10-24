@@ -38,6 +38,7 @@ const themeVisuals: Record<string, { emoji: string; background: string; renderAs
   "circle draw": { emoji: "circle", background: "from-fuchsia-100/80 via-pink-100/70 to-orange-100/60" },
   "zig-zag trace": { emoji: "bolt", background: "from-yellow-100/80 via-amber-100/70 to-orange-100/60" },
   "target aim": { emoji: "target", background: "from-rose-100/80 via-orange-100/70 to-yellow-100/60" },
+  "move and copy": { emoji: "move", background: "from-sky-100/80 via-cyan-100/70 to-emerald-100/60" },
   default: { emoji: "star", background: "from-sky-100/80 via-white/70 to-fuchsia-100/60" },
 };
 
@@ -79,6 +80,7 @@ const iconMap: Record<string, string> = {
   circle: "O",
   bolt: "Z",
   target: "+",
+  move: "->",
 };
 
 const distractorPool = ["x", "+", "~", ".", "#"];

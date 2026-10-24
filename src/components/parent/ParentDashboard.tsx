@@ -1,3 +1,4 @@
+import PasswordInput from "@/components/ui/PasswordInput";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -142,9 +143,8 @@ export default function ParentDashboard() {
                 <label htmlFor="family-password" className="block text-sm font-semibold text-foreground">
                   Password
                 </label>
-                <input
+                <PasswordInput
                   id="family-password"
-                  type="password"
                   value={password}
                   onChange={(event) => {
                     setPassword(event.target.value);
