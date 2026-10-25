@@ -43,6 +43,7 @@ export interface ApiSessionUser {
   clinicId: string;
   role: ApiRole;
   name: string;
+  canManageAdmins?: boolean;
 }
 
 export interface ApiChildPayload {
@@ -168,6 +169,7 @@ export const productionApi = {
         name: string;
         email: string;
         role: ApiRole;
+        can_manage_admins: boolean;
         credential_status: string;
         last_signed_in_at: string | null;
         created_at: string;

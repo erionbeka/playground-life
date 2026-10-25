@@ -31,6 +31,7 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   useCatalog();
   const game = getCatalogGameById(gameId);
   const [started, setStarted] = useState(false);
+  const alignment = useMemo(() => getGameAlignment(gameId), [gameId]);
   const [startTime] = useState(Date.now());
   const [interactions, setInteractions] = useState(0);
   const [celebrationVisible, setCelebrationVisible] = useState(false);
@@ -302,7 +303,6 @@ export default function GamePlayer({ gameId, assignment, onComplete, onExit }: P
   const engineProps = { game: runtimeGame, onInteraction: handleInteraction, onComplete: handleGameComplete };
   const configuredAccess = runtimeGame.config.forceAccess;
   const modeOverride = configuredAccess === "switch" || configuredAccess === "dwell" ? configuredAccess : undefined;
-  const alignment = useMemo(() => getGameAlignment(gameId), [gameId]);
 
   return (
     <InputModeProvider childId={assignment.childId} modeOverride={modeOverride}>

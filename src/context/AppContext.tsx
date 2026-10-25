@@ -187,6 +187,7 @@ export interface AuthSession {
   childId?: string;
   familyMemberId?: string;
   isSuperadmin?: boolean;
+  canManageAdmins?: boolean;
 }
 
 /** Moved here from `src/lib/backend.ts` when the localStorage demo provider was deleted. */
@@ -196,6 +197,7 @@ export interface AdminUser {
   name: string;
   email: string;
   passwordHash: string;
+  canManageAdmins?: boolean;
 }
 
 export interface TherapistUser {

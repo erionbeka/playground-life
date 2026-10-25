@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { hashPassword, signAccessToken, verifyPassword } from "../auth.ts";
 import { config, isProduction } from "../config.ts";
-import { query } from "../db.ts";
+import { pool, query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 import { appUrl, queueEmail } from "../lib/mailer.ts";
 import { signInLimiter } from "../rateLimit.ts";
@@ -17,9 +17,18 @@ interface UserRow {
   name: string;
   password_hash: string;
   credential_status: string;
+  can_manage_admins: boolean;
 }
 
 const router = Router();
+
+async function canManageAdminAccounts(userId: string, clinicId: string) {
+  const result = await query<{ can_manage_admins: boolean }>(
+    "SELECT can_manage_admins FROM users WHERE id = $1 AND clinic_id = $2 AND role = 'admin' AND credential_status = 'active'",
+    [userId, clinicId]
+  );
+  return result.rows[0]?.can_manage_admins === true;
+}
 
 const loginSchema = z.object({
   identifier: z.string().min(1),
@@ -27,7 +36,7 @@ const loginSchema = z.object({
 });
 
 const createStaffSchema = z.object({
-  role: z.enum(["superadmin", "admin", "therapist"]),
+  role: z.enum(["admin", "therapist"]),
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(1),
@@ -50,7 +59,7 @@ router.post("/login", signInLimiter, async (req, res) => {
   const identifier = parsed.data.identifier.trim();
   const normalizedPhone = identifier.replace(/\D/g, "");
   const result = await query<UserRow>(
-    `SELECT id, clinic_id, role, name, password_hash, credential_status
+    `SELECT id, clinic_id, role, name, password_hash, credential_status, can_manage_admins
      FROM users
      WHERE lower(email) = lower($1)
         OR ($2 <> '' AND regexp_replace(coalesce(phone_number, ''), '\\D', '', 'g') = $2)
@@ -65,7 +74,7 @@ router.post("/login", signInLimiter, async (req, res) => {
 
   try { await query("UPDATE users SET last_signed_in_at = now(), updated_at = now() WHERE id = $1", [user.id]); } catch { /* non-fatal */ }
 
-  const sessionUser = { id: user.id, clinicId: user.clinic_id, role: user.role, name: user.name };
+  const sessionUser = { id: user.id, clinicId: user.clinic_id, role: user.role, name: user.name, canManageAdmins: user.role === "admin" && user.can_manage_admins === true };
   req.user = sessionUser;
   const token = signAccessToken(sessionUser);
   setSessionCookie(res, token);
@@ -90,8 +99,19 @@ router.post("/logout", requireAuth, async (req, res) => {
   return res.status(204).send();
 });
 
-router.get("/me", requireAuth, (req, res) => {
-  return res.json({ user: req.user });
+router.get("/me", requireAuth, async (req, res) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: "Authentication required" });
+  const result = await query<{ can_manage_admins: boolean }>(
+    "SELECT can_manage_admins FROM users WHERE id = $1 AND clinic_id = $2 AND role = 'admin'",
+    [user.id, user.clinicId]
+  );
+  return res.json({
+    user: {
+      ...user,
+      canManageAdmins: result.rows[0]?.can_manage_admins === true,
+    },
+  });
 });
 
 const clinicNameSchema = z.object({ name: z.string().min(2).max(80) });
@@ -117,7 +137,10 @@ router.patch("/clinic", requireAuth, requireRole("admin"), async (req, res) => {
 router.post("/staff", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = createStaffSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid staff payload" });
-  if (parsed.data.role === "superadmin" && req.user?.role !== "superadmin") return res.status(403).json({ error: "Only superadmin can create superadmin" });
+  if (parsed.data.role === "admin" &&
+      !(await canManageAdminAccounts(req.user!.id, req.user!.clinicId))) {
+    return res.status(403).json({ error: "Admin-management permission required" });
+  }
   const passwordHash = await hashPassword(parsed.data.password);
   const inserted = await query<{ id: string; name: string; email: string; role: UserRole }>(
     `INSERT INTO users (clinic_id, role, name, email, password_hash)
@@ -145,8 +168,11 @@ router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), asyn
   const id = String(req.params.id);
   const target = await query<{ role: string }>(`SELECT role FROM users WHERE id = $1 AND clinic_id = $2`, [id, req.user?.clinicId]);
   if (!target.rows[0]) return res.status(404).json({ error: "Staff member not found" });
-  if (target.rows[0].role === "superadmin") return res.status(403).json({ error: "Cannot reset superadmin password" });
-  if (target.rows[0].role === "admin" && req.user?.role !== "superadmin") return res.status(403).json({ error: "Only superadmin can reset admin passwords" });
+  if (target.rows[0].role === "superadmin") return res.status(403).json({ error: "Legacy superadmin accounts cannot be managed here" });
+  if (target.rows[0].role === "admin" &&
+      !(await canManageAdminAccounts(req.user!.id, req.user!.clinicId))) {
+    return res.status(403).json({ error: "Admin-management permission required" });
+  }
   const password = parsed.data.password || `Tmp-${randomBytes(4).toString("hex")}`;
   const passwordHash = await hashPassword(password);
   const updated = await query<{ id: string; email: string | null; name: string }>(
@@ -173,6 +199,16 @@ router.patch("/staff/:id/status", requireAuth, requireRole("admin"), async (req,
   const parsed = staffStatusSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid status" });
   const id = String(req.params.id);
+  const target = await query<{ role: string }>(
+    "SELECT role FROM users WHERE id = $1 AND clinic_id = $2",
+    [id, req.user!.clinicId]
+  );
+  if (!target.rows[0]) return res.status(404).json({ error: "Staff member not found" });
+  if (target.rows[0].role === "superadmin") return res.status(403).json({ error: "Legacy superadmin accounts cannot be managed here" });
+  if (target.rows[0].role === "admin" &&
+      !(await canManageAdminAccounts(req.user!.id, req.user!.clinicId))) {
+    return res.status(403).json({ error: "Admin-management permission required" });
+  }
   const updated = await query<{ id: string }>(
     `UPDATE users SET credential_status = $1, updated_at = now()
      WHERE id = $2 AND clinic_id = $3 AND role IN ('admin','therapist')
@@ -189,15 +225,82 @@ router.delete("/staff/:id", requireAuth, requireRole("admin"), async (req, res) 
   if (id === req.user?.id) return res.status(400).json({ error: "Cannot delete your own account" });
   const target = await query<{ role: string }>(`SELECT role FROM users WHERE id = $1 AND clinic_id = $2`, [id, req.user?.clinicId]);
   if (!target.rows[0]) return res.status(404).json({ error: "Staff member not found" });
-  if (target.rows[0].role === "superadmin") return res.status(403).json({ error: "Cannot remove superadmin" });
-  if (target.rows[0].role === "admin" && req.user?.role !== "superadmin") return res.status(403).json({ error: "Only superadmin can remove admins" });
+  if (target.rows[0].role === "superadmin") return res.status(403).json({ error: "Legacy superadmin accounts cannot be managed here" });
+  if (target.rows[0].role === "admin" &&
+      !(await canManageAdminAccounts(req.user!.id, req.user!.clinicId))) {
+    return res.status(403).json({ error: "Admin-management permission required" });
+  }
   const deleted = await query<{ id: string }>(
-    `DELETE FROM users WHERE id = $1 AND clinic_id = $2 AND role IN ('superadmin','admin','therapist') RETURNING id`,
+    `DELETE FROM users WHERE id = $1 AND clinic_id = $2 AND role IN ('admin','therapist') RETURNING id`,
     [id, req.user?.clinicId]
   );
   if (!deleted.rows[0]) return res.status(404).json({ error: "Staff member not found" });
   await writeAudit(req, "staff_deleted", "staff", id, {});
   return res.json({ ok: true });
+});
+
+
+router.patch("/staff/:id/admin-management-permission", requireAuth, requireRole("admin"), async (req, res) => {
+  if (!(await canManageAdminAccounts(req.user!.id, req.user!.clinicId))) {
+    return res.status(403).json({ error: "Admin-management permission required" });
+  }
+  if (typeof req.body?.canManageAdmins !== "boolean") {
+    return res.status(400).json({ error: "canManageAdmins must be a boolean" });
+  }
+
+  const id = String(req.params.id);
+  const client = await pool.connect();
+  let updated: { id: string; email: string; can_manage_admins: boolean } | undefined;
+
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [req.user!.clinicId]);
+
+    // Recheck permission inside the locked transaction to prevent stale authorization.
+    const actorPermission = await client.query<{ can_manage_admins: boolean }>(
+      "SELECT can_manage_admins FROM users WHERE id = $1 AND clinic_id = $2 AND role = 'admin' AND credential_status = 'active' FOR UPDATE",
+      [req.user!.id, req.user!.clinicId]
+    );
+    if (actorPermission.rows[0]?.can_manage_admins !== true) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ error: "Admin-management permission required" });
+    }
+
+    const target = await client.query<{ id: string; email: string; role: string; can_manage_admins: boolean }>(
+      "SELECT id, email, role, can_manage_admins FROM users WHERE id = $1 AND clinic_id = $2 FOR UPDATE",
+      [id, req.user!.clinicId]
+    );
+    if (!target.rows[0] || target.rows[0].role !== "admin") {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Admin account not found" });
+    }
+
+    if (!req.body.canManageAdmins && target.rows[0].can_manage_admins) {
+      const count = await client.query<{ count: string }>(
+        "SELECT count(*)::text AS count FROM users WHERE clinic_id = $1 AND role = 'admin' AND can_manage_admins = TRUE AND credential_status = 'active'",
+        [req.user!.clinicId]
+      );
+      if (Number(count.rows[0].count) <= 1) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({ error: "At least one authorized admin manager must remain" });
+      }
+    }
+
+    const result = await client.query<{ id: string; email: string; can_manage_admins: boolean }>(
+      "UPDATE users SET can_manage_admins = $1, updated_at = now() WHERE id = $2 AND clinic_id = $3 AND role = 'admin' RETURNING id, email, can_manage_admins",
+      [req.body.canManageAdmins, id, req.user!.clinicId]
+    );
+    updated = result.rows[0];
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  await writeAudit(req, updated!.can_manage_admins ? "admin_management_permission_granted" : "admin_management_permission_revoked", "staff", id, {});
+  return res.json({ userId: updated!.id, email: updated!.email, canManageAdmins: updated!.can_manage_admins });
 });
 
 router.get("/staff", requireAuth, requireRole("admin"), async (req, res) => {
@@ -209,8 +312,9 @@ router.get("/staff", requireAuth, requireRole("admin"), async (req, res) => {
     credential_status: string;
     last_signed_in_at: string | null;
     created_at: string;
+    can_manage_admins: boolean;
   }>(
-    `SELECT id, name, email, role, credential_status, last_signed_in_at, created_at
+    `SELECT id, name, email, role, credential_status, last_signed_in_at, created_at, can_manage_admins
      FROM users
      WHERE clinic_id = $1 AND role IN ('admin', 'therapist')
      ORDER BY created_at ASC`,
