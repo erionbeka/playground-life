@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContext, AppState, AuditEntry, AuthSession, Child, FamilyMember, GameResult, HomeworkAssignment, SkillDomain, TherapyGoal, AdminUser, TherapistUser } from "@/context/AppContext";
 import { ApiError, type ApiSessionUser, productionApi } from "@/lib/productionApi";
 import type { Insight, SessionTrace } from "@/lib/gameAnalytics";
@@ -219,6 +219,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
           name: entry.name,
           email: entry.email,
           passwordHash: "",
+          canManageAdmins: entry.can_manage_admins === true,
         };
         if (entry.role === "admin" || entry.role === "superadmin") admins.push(mapped);
         else if (entry.role === "therapist") therapists.push(mapped);
@@ -253,7 +254,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
      productionApi.me()
       .then(async ({ user }) => {
         const resolvedRole = user.role === "superadmin" ? "admin" : user.role;
-        const nextSession: AuthSession = { role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name };
+        const nextSession: AuthSession = { role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name, canManageAdmins: user.canManageAdmins === true };
         setSession(nextSession);
         setRole(resolvedRole as AppState["role"]);
         await refreshClinicData();
@@ -309,7 +310,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       return false;
     }
 
-    setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name, isSuperadmin: user.role === "superadmin" });
+    setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name, isSuperadmin: user.role === "superadmin", canManageAdmins: user.canManageAdmins === true });
     setRole(resolvedRole as AppState["role"]);
 
     // The credential was accepted. A refresh that fails afterwards is a

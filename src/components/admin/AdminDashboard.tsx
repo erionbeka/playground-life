@@ -404,7 +404,7 @@ export default function AdminDashboard() {
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setStaffRole("therapist")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffRole === "therapist" ? "bg-primary text-primary-foreground" : "bg-card text-foreground"}`}>Therapist</button>
-                  <button onClick={() => setStaffRole("admin")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffRole === "admin" ? "bg-amber-500 text-white" : "bg-card text-foreground"}`}>Admin</button>
+                  {session?.canManageAdmins ? <button onClick={() => setStaffRole("admin")} className={`rounded-lg px-4 py-2 text-sm font-semibold ${staffRole === "admin" ? "bg-amber-500 text-white" : "bg-card text-foreground"}`}>Admin</button> : null}
                 </div>
                 {staffInviteMode === "password" ? (
                   <>
@@ -490,8 +490,32 @@ export default function AdminDashboard() {
                     <div key={user.id} className="rounded-xl border border-border bg-card p-3">
                       <p className="font-semibold text-foreground">{user.name}</p>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
-                      {session?.isSuperadmin ? (
+                      {session?.canManageAdmins ? (
                         <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const API = import.meta.env.VITE_API_URL || "";
+                              const grant = !user.canManageAdmins;
+                              try {
+                                const res = await fetch(`${API}/api/auth/staff/${user.id}/admin-management-permission`, {
+                                  method: "PATCH",
+                                  credentials: "include",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ canManageAdmins: grant }),
+                                });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.error || "Permission update failed");
+                                toast.success(grant ? "Admin-management permission granted." : "Admin-management permission revoked.");
+                                window.location.reload();
+                              } catch (error) {
+                                toast.error(error instanceof Error ? error.message : "Permission update failed.");
+                              }
+                            }}
+                            className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                          >
+                            {user.canManageAdmins ? "Revoke admin-management permission" : "Grant admin-management permission"}
+                          </button>
                           <button
                             type="button"
                             onClick={async () => {
@@ -499,6 +523,7 @@ export default function AdminDashboard() {
                               const token = localStorage.getItem("accessToken");
                               const res = await fetch(`${API}/api/auth/staff/${user.id}/reset-password`, {
                                 method: "POST",
+                                credentials: "include",
                                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                                 body: JSON.stringify({}),
                               });
@@ -515,7 +540,7 @@ export default function AdminDashboard() {
                             onClick={async () => {
                               const API = import.meta.env.VITE_API_URL || "";
                               const token = localStorage.getItem("accessToken");
-                              const res = await fetch(`${API}/api/auth/staff/${user.id}`, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                              const res = await fetch(`${API}/api/auth/staff/${user.id}`, { method: "DELETE", credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} });
                               if (res.ok) toast.success("Deleted"); else toast.error("Failed");
                             }}
                             className="touch-target rounded-lg bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-600"
@@ -544,6 +569,7 @@ export default function AdminDashboard() {
                             const token = localStorage.getItem("accessToken");
                             const res = await fetch(`${API}/api/auth/staff/${user.id}/reset-password`, {
                               method: "POST",
+                              credentials: "include",
                               headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                               body: JSON.stringify({}),
                             });
@@ -562,6 +588,7 @@ export default function AdminDashboard() {
                             const token = localStorage.getItem("accessToken");
                             const res = await fetch(`${API}/api/auth/staff/${user.id}/status`, {
                               method: "PATCH",
+                              credentials: "include",
                               headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                               body: JSON.stringify({ status: "suspended" }),
                             });
@@ -576,7 +603,7 @@ export default function AdminDashboard() {
                           onClick={async () => {
                             const API = import.meta.env.VITE_API_URL || "";
                             const token = localStorage.getItem("accessToken");
-                            const res = await fetch(`${API}/api/auth/staff/${user.id}`, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+                            const res = await fetch(`${API}/api/auth/staff/${user.id}`, { method: "DELETE", credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} });
                             if (res.ok) toast.success("Deleted"); else toast.error("Failed");
                           }}
                           className="touch-target rounded-lg bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-600"

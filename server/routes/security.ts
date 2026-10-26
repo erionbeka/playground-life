@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { query } from "../db.ts";
+import { pool, query } from "../db.ts";
 import { hashPassword } from "../auth.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 import { invitationAcceptLimiter, resetConfirmLimiter, resetRequestLimiter } from "../rateLimit.ts";
@@ -136,6 +136,16 @@ securityRoutes.post("/invitations", requireAuth, requireRole("admin"), async (re
   const clinicId = clinicRows.rows[0]?.clinic_id;
   if (!clinicId) return res.status(400).json({ error: "No clinic associated with this admin" });
 
+  if (parsed.data.role === "admin") {
+    const permission = await query<{ can_manage_admins: boolean }>(
+      "SELECT can_manage_admins FROM users WHERE id = $1 AND clinic_id = $2 AND role = 'admin'",
+      [admin.id, clinicId]
+    );
+    if (permission.rows[0]?.can_manage_admins !== true) {
+      return res.status(403).json({ error: "You are not authorized to manage admin accounts" });
+    }
+  }
+
   const token = randomToken();
   await query(
     `INSERT INTO staff_invitations (clinic_id, email, role, token_hash, invited_by, expires_at)
@@ -162,35 +172,100 @@ const acceptInviteSchema = z.object({
 
 securityRoutes.post("/invitations/accept", invitationAcceptLimiter, async (req: Request, res: Response) => {
   const parsed = acceptInviteSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Name (2+ chars) and password (8+ chars) required" });
-
-  const rows = await query<{ id: string; clinic_id: string; email: string; role: UserRole }>(
-    `SELECT id, clinic_id, email, role FROM staff_invitations
-     WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now()
-     LIMIT 1`,
-    [sha256(parsed.data.token)]
-  );
-
-  const invite = rows.rows[0];
-  if (!invite) return res.status(400).json({ error: "Invitation is invalid or expired" });
-
-  const existing = await query("SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1", [invite.email]);
-  if (existing.rows.length > 0) return res.status(409).json({ error: "An account with this email already exists" });
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Name (2+ chars) and password (8+ chars) required" });
+  }
 
   const passwordHash = await hashPassword(parsed.data.password);
-  const inserted = await query<{ id: string; name: string; role: UserRole }>(
-    `INSERT INTO users (clinic_id, role, name, email, password_hash)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, name, role`,
-    [invite.clinic_id, invite.role, parsed.data.name, invite.email, passwordHash]
-  );
+  const client = await pool.connect();
 
-  await query("UPDATE staff_invitations SET accepted_at = now() WHERE id = $1", [invite.id]);
-  await query(
-    `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, details)
-     VALUES ($1, 'invitation_accepted', 'staff', $2, $3::jsonb)`,
-    [inserted.rows[0].id, inserted.rows[0].id, JSON.stringify({ role: invite.role, email: invite.email })]
-  );
+  try {
+    await client.query("BEGIN");
 
-  return res.status(201).json({ ok: true, user: inserted.rows[0] });
+    const rows = await client.query<{
+      id: string;
+      clinic_id: string;
+      email: string;
+      role: UserRole;
+      invited_by: string | null;
+    }>(
+      `SELECT id, clinic_id, email, role, invited_by
+       FROM staff_invitations
+       WHERE token_hash = $1 AND accepted_at IS NULL AND expires_at > now()
+       FOR UPDATE`,
+      [sha256(parsed.data.token)]
+    );
+
+    const invite = rows.rows[0];
+    if (!invite) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Invitation is invalid or expired" });
+    }
+
+    if (invite.role === "admin") {
+      if (!invite.invited_by) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({ error: "Admin invitation is no longer authorized" });
+      }
+
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtext($1))",
+        [invite.clinic_id]
+      );
+
+      const inviter = await client.query<{ can_manage_admins: boolean }>(
+        `SELECT can_manage_admins
+         FROM users
+         WHERE id = $1 AND clinic_id = $2 AND role = 'admin'
+           AND credential_status = 'active'
+         FOR UPDATE`,
+        [invite.invited_by, invite.clinic_id]
+      );
+
+      if (inviter.rows[0]?.can_manage_admins !== true) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({ error: "Admin invitation is no longer authorized" });
+      }
+    }
+
+    const existing = await client.query(
+      "SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1",
+      [invite.email]
+    );
+
+    if (existing.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "An account with this email already exists" });
+    }
+
+    const inserted = await client.query<{ id: string; name: string; role: UserRole }>(
+      `INSERT INTO users (clinic_id, role, name, email, password_hash)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, role`,
+      [invite.clinic_id, invite.role, parsed.data.name, invite.email, passwordHash]
+    );
+
+    await client.query(
+      "UPDATE staff_invitations SET accepted_at = now() WHERE id = $1",
+      [invite.id]
+    );
+
+    await client.query(
+      `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, details)
+       VALUES ($1, 'invitation_accepted', 'staff', $2, $3::jsonb)`,
+      [
+        inserted.rows[0].id,
+        inserted.rows[0].id,
+        JSON.stringify({ role: invite.role, email: invite.email }),
+      ]
+    );
+
+    await client.query("COMMIT");
+    return res.status(201).json({ ok: true, user: inserted.rows[0] });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 });

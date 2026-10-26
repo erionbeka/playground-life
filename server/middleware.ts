@@ -1,4 +1,4 @@
-﻿import type { NextFunction, Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { verifyAccessToken } from "./auth.ts";
 import type { UserRole } from "./types.ts";
 
@@ -22,10 +22,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export function requireRole(...roles: UserRole[]) {
-  const expanded = roles.includes("admin") ? [...roles, "superadmin"] : roles;
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Authentication required" });
-    if (!expanded.includes(req.user.role)) return res.status(403).json({ error: "Insufficient permissions" });
+    if (!roles.includes(req.user.role)) return res.status(403).json({ error: "Insufficient permissions" });
     return next();
   };
 }
