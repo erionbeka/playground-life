@@ -8,7 +8,7 @@ const API = import.meta.env.VITE_API_URL || "";
 export default function ResetPassword() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const token = params.get("token") || "";
+  const [token] = useState(() => params.get("token") || "");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
