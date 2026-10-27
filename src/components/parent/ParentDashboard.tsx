@@ -9,7 +9,7 @@ import GamePlayer from "../game/GamePlayer";
 import { getPersonalizationSummary } from "@/lib/personalization";
 
 export default function ParentDashboard() {
-  const { setRole, children, assignments, selectedChildId, setSelectedChildId, currentAssignment, setCurrentAssignment, signInFamily, signOut, session } = useApp();
+  const { setRole, children, assignments, selectedChildId, setSelectedChildId, currentAssignment, setCurrentAssignment, signInFamily, signOut, session, sessionRestoreStatus, retrySessionRestore } = useApp();
   const navigate = useNavigate();
   const catalog = useCatalog();
   const [playingGameId, setPlayingGameId] = useState<string | null>(null);
@@ -74,6 +74,54 @@ export default function ParentDashboard() {
     setPassword("");
     setSignInError("");
   };
+
+  if (sessionRestoreStatus === "restoring" && !selectedChildId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 text-center shadow-lg">
+          <h1 className="mb-3 font-display text-2xl font-bold text-foreground">
+            Restoring your family session
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Please wait while we reconnect you to your child's activities.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sessionRestoreStatus === "error" && !selectedChildId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 text-center shadow-lg">
+          <h1 className="mb-3 font-display text-2xl font-bold text-foreground">
+            Couldn't restore your family session
+          </h1>
+          <p className="mb-6 text-sm text-muted-foreground">
+            We couldn't connect to the clinic server. Your session may still be valid.
+            Check your connection and try again.
+          </p>
+          <button
+            type="button"
+            onClick={retrySessionRestore}
+            className="touch-target w-full rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition hover:brightness-105"
+          >
+            Try Again
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setRole("none");
+              navigate("/enter");
+            }}
+            className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold text-muted-foreground transition hover:bg-accent/15 hover:text-foreground"
+          >
+            Back to Entry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!selectedChildId) {
     return (

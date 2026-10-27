@@ -36,7 +36,7 @@ const App = () => {
   <QueryClientProvider client={queryClient}>
     <ApiAppProvider>
       <TooltipProvider>
-        <div className="relative min-h-screen overflow-hidden bg-background">
+        <div className="relative min-h-screen overflow-x-clip bg-background">
           <BlobBackground />
           <ApiStatusBanner />
           <div className="relative z-10 min-h-screen">

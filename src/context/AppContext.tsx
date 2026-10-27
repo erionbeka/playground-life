@@ -93,7 +93,12 @@ function createClinicalRatings(ratings?: Partial<ClinicalRatings>): ClinicalRati
   };
 }
 
-function createClinicalRatingEntry(recordedAt: string, ratings?: Partial<ClinicalRatings>, notes?: string, recordedBy?: string): ClinicalRatingEntry {
+function createClinicalRatingEntry(
+  recordedAt: string,
+  ratings?: Partial<ClinicalRatings>,
+  notes?: string,
+  recordedBy?: string
+): ClinicalRatingEntry {
   return {
     ...createClinicalRatings(ratings),
     recordedAt,
@@ -223,6 +228,13 @@ export interface AppState {
   role: "none" | "admin" | "therapist" | "parent";
   setRole: (role: "none" | "admin" | "therapist" | "parent") => void;
   session: AuthSession | null;
+
+  /** Status of restoring an existing authenticated session. */
+  sessionRestoreStatus: "idle" | "restoring" | "ready" | "error";
+
+  /** Retry restoring the session after a temporary failure. */
+  retrySessionRestore: () => void;
+
   adminUsers: AdminUser[];
   therapistUsers: TherapistUser[];
   signInAdmin: (email: string, password: string) => MaybePromise<boolean>;

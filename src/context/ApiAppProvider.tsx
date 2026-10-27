@@ -156,6 +156,13 @@ function mapAudit(row: Record<string, unknown>): AuditEntry {
 
 export function ApiAppProvider({ children: childrenNodes }: { children: React.ReactNode }) {
   const [role, setRole] = useState<AppState["role"]>("none");
+  const [sessionRestoreStatus, setSessionRestoreStatus] =
+    useState<AppState["sessionRestoreStatus"]>("idle");
+  const [sessionRestoreAttempt, setSessionRestoreAttempt] = useState(0);
+  const retrySessionRestore = useCallback(() => {
+    setSessionRestoreAttempt((attempt) => attempt + 1);
+  }, []);
+
   const [session, setSession] = useState<AuthSession | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
   const [assignments, setAssignments] = useState<HomeworkAssignment[]>([]);
@@ -244,31 +251,108 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
   }, []);
 
   useEffect(() => {
-    // Only probe for an existing session on routes that actually need one.
-    // Public pages (landing, role selector, terms) render anonymously, so a
-    // blocking round-trip to /api/auth/me there just delays first paint.
-    const path = typeof window !== "undefined" ? window.location.pathname : "/";
-    const isProtected = /^\/(therapist|family|admin)(\/|$)/.test(path);
-    if (!isProtected) return;
+    // Restore authentication only on protected routes.
+    const path = window.location.pathname;
+    const routeMatch = path.match(/^\/(therapist|family|admin)(\/|$)/);
 
-     productionApi.me()
-      .then(async ({ user }) => {
+    if (!routeMatch) {
+      setSessionRestoreStatus("idle");
+      return;
+    }
+
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      setSessionRestoreStatus("restoring");
+
+      try {
+        const { user } = await productionApi.me();
+        if (cancelled) return;
+
         const resolvedRole = user.role === "superadmin" ? "admin" : user.role;
-        const nextSession: AuthSession = { role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name, canManageAdmins: user.canManageAdmins === true };
+        const nextRole = resolvedRole as AuthSession["role"];
+
+        if (routeMatch[1] === "family" && nextRole === "parent") {
+          // Keep the authenticated session even if loading family data fails.
+          setSession({
+            role: "parent",
+            userId: user.id,
+            displayName: user.name,
+            familyMemberId: user.id,
+          });
+          setRole("parent");
+
+          const familyData = await productionApi.getFamilySession();
+          if (cancelled) return;
+
+          const mappedChildren = familyData.children.map((entry) =>
+            mapChild(entry as Record<string, unknown>)
+          );
+          const mappedAssignments = familyData.assignments.map((entry) =>
+            mapAssignment(entry as Record<string, unknown>)
+          );
+          const firstChild = mappedChildren[0];
+
+          setChildren(mappedChildren);
+          setAssignments(mappedAssignments);
+          setSelectedChildId(firstChild?.id ?? null);
+          setSession({
+            role: "parent",
+            userId: user.id,
+            displayName: user.name,
+            childId: firstChild?.id,
+            familyMemberId: user.id,
+          });
+
+          await loadCustomGames();
+          if (cancelled) return;
+          setSessionRestoreStatus("ready");
+          return;
+        }
+
+        const nextSession: AuthSession = {
+          role: nextRole,
+          userId: user.id,
+          displayName: user.name,
+          isSuperadmin: user.role === "superadmin",
+          canManageAdmins: user.canManageAdmins === true,
+        };
+
         setSession(nextSession);
         setRole(resolvedRole as AppState["role"]);
-        await refreshClinicData();
-        await refreshAudit();
-        await refreshStaff();
-        await loadCustomGames();
-      })
-      .catch(() => {
-        const path = typeof window !== "undefined" ? window.location.pathname : "/";
-        if (/^\/(therapist|family|admin)(\/|$)/.test(path)) {
+
+        // Ancillary dashboard data must not invalidate an authenticated session.
+        await Promise.allSettled([
+          refreshClinicData(),
+          refreshAudit(),
+          refreshStaff(),
+          loadCustomGames(),
+        ]);
+
+        if (cancelled) return;
+        setSessionRestoreStatus("ready");
+      } catch (error) {
+        if (cancelled) return;
+
+        if (error instanceof ApiError && error.status === 401) {
+          setSession(null);
+          setRole("none");
+          setSessionRestoreStatus("ready");
           window.location.assign("/enter");
+          return;
         }
-      });
-  }, [loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
+
+        console.error("Session restoration failed; keeping the current route.", error);
+        setSessionRestoreStatus("error");
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionRestoreAttempt, loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
   useEffect(() => {
     const retry = async () => {
@@ -312,6 +396,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
 
     setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name, isSuperadmin: user.role === "superadmin", canManageAdmins: user.canManageAdmins === true });
     setRole(resolvedRole as AppState["role"]);
+    setSessionRestoreStatus("ready");
 
     // The credential was accepted. A refresh that fails afterwards is a
     // separate problem - the API status banner reports an unreachable server,
@@ -360,6 +445,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     setAssignments(mappedAssignments);
     setSession({ role: user.role, userId: user.id, displayName: user.name, childId: mappedChildren[0]?.id, familyMemberId: user.id });
     setRole("parent");
+    setSessionRestoreStatus("ready");
     if (mappedChildren[0]) setSelectedChildId(mappedChildren[0].id);
     await loadCustomGames();
     return mappedChildren[0] ? { childId: mappedChildren[0].id, familyMemberId: user.id } : null;
@@ -369,6 +455,8 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     role,
     setRole,
     session,
+    sessionRestoreStatus,
+    retrySessionRestore,
     adminUsers: staffUsers,
     therapistUsers: therapistStaffUsers,
     signInAdmin: (email, password) => signIn(email, password, "admin"),
@@ -379,6 +467,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       clearCustomGames();
       setSession(null);
       setRole("none");
+      setSessionRestoreStatus("idle");
       setChildren([]);
       setAssignments([]);
       setAuditLog([]);
@@ -543,7 +632,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     currentAssignment,
     setCurrentAssignment,
     auditLog,
-  }), [assignments, auditLog, children, currentAssignment, refreshAudit, refreshClinicData, refreshStaff, role, selectedChildId, session, signIn, signInFamily, staffUsers, therapistStaffUsers]);
+  }), [assignments, auditLog, children, currentAssignment, refreshAudit, refreshClinicData, refreshStaff, retrySessionRestore, role, selectedChildId, session, sessionRestoreStatus, signIn, signInFamily, staffUsers, therapistStaffUsers]);
 
   return <AppContext.Provider value={value}>{childrenNodes}</AppContext.Provider>;
 }

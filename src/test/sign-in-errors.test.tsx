@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ApiAppProvider } from "@/context/ApiAppProvider";
 import { useApp } from "@/context/AppContext";
 import { ApiError, productionApi } from "@/lib/productionApi";
@@ -55,6 +55,19 @@ function FamilySignInProbe() {
   }, [signInFamily]);
 
   return <span data-testid="family-status">{status}</span>;
+}
+
+
+function SessionRestoreProbe() {
+  const { sessionRestoreStatus, session, retrySessionRestore } = useApp();
+
+  return (
+    <>
+      <span data-testid="restore-status">{sessionRestoreStatus}</span>
+      <span data-testid="restored-role">{session?.role ?? "none"}</span>
+      <button onClick={retrySessionRestore}>Retry restore</button>
+    </>
+  );
 }
 
 function readStatus() {
@@ -137,5 +150,39 @@ describe("sign-in error contract", () => {
 
     await waitFor(() => expect(readFamilyStatus()).toBe("signed-in-null"));
     expect(productionApi.logout).toHaveBeenCalled();
+  });
+
+  it("keeps the protected route after a temporary restore failure and retries successfully", async () => {
+    window.history.pushState({}, "", "/therapist");
+
+    vi.mocked(productionApi.me)
+      .mockRejectedValueOnce(
+        new ApiError("Can't reach the clinic server.", { status: null, code: "network" })
+      )
+      .mockResolvedValueOnce({
+        user: { role: "therapist", id: "therapist-1", name: "Dr. Maya Lane" },
+      } as never);
+
+    render(
+      <ApiAppProvider>
+        <SessionRestoreProbe />
+      </ApiAppProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("restore-status").textContent).toBe("error");
+    });
+
+    expect(window.location.pathname).toBe("/therapist");
+    expect(screen.getByTestId("restored-role").textContent).toBe("none");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry restore" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("restore-status").textContent).toBe("ready");
+      expect(screen.getByTestId("restored-role").textContent).toBe("therapist");
+    });
+
+    expect(window.location.pathname).toBe("/therapist");
   });
 });
