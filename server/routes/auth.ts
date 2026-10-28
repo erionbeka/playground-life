@@ -18,6 +18,7 @@ interface UserRow {
   password_hash: string;
   credential_status: string;
   can_manage_admins: boolean;
+  session_version: number;
 }
 
 const router = Router();
@@ -59,7 +60,7 @@ router.post("/login", signInLimiter, async (req, res) => {
   const identifier = parsed.data.identifier.trim();
   const normalizedPhone = identifier.replace(/\D/g, "");
   const result = await query<UserRow>(
-    `SELECT id, clinic_id, role, name, password_hash, credential_status, can_manage_admins
+    `SELECT id, clinic_id, role, name, password_hash, credential_status, can_manage_admins, session_version
      FROM users
      WHERE lower(email) = lower($1)
         OR ($2 <> '' AND regexp_replace(coalesce(phone_number, ''), '\\D', '', 'g') = $2)
@@ -74,7 +75,7 @@ router.post("/login", signInLimiter, async (req, res) => {
 
   try { await query("UPDATE users SET last_signed_in_at = now(), updated_at = now() WHERE id = $1", [user.id]); } catch { /* non-fatal */ }
 
-  const sessionUser = { id: user.id, clinicId: user.clinic_id, role: user.role, name: user.name, canManageAdmins: user.role === "admin" && user.can_manage_admins === true };
+  const sessionUser = { id: user.id, clinicId: user.clinic_id, role: user.role, name: user.name, sessionVersion: user.session_version, canManageAdmins: user.role === "admin" && user.can_manage_admins === true };
   req.user = sessionUser;
   const token = signAccessToken(sessionUser);
   setSessionCookie(res, token);
@@ -88,7 +89,13 @@ router.post("/login", signInLimiter, async (req, res) => {
 });
 
 router.post("/logout", requireAuth, async (req, res) => {
-  await writeAudit(req, "sign_out", "auth", req.user?.id ?? "unknown");
+  if (!req.user) return res.status(401).json({ error: "Authentication required" });
+
+  await query(
+    "UPDATE users SET session_version = session_version + 1, updated_at = now() WHERE id = $1",
+    [req.user.id]
+  );
+  await writeAudit(req, "sign_out", "auth", req.user.id);
   const secure = isProduction || config.COOKIE_SECURE;
   res.clearCookie("access_token", {
     httpOnly: true,
@@ -176,7 +183,8 @@ router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), asyn
   const password = parsed.data.password || `Tmp-${randomBytes(4).toString("hex")}`;
   const passwordHash = await hashPassword(password);
   const updated = await query<{ id: string; email: string | null; name: string }>(
-    `UPDATE users SET password_hash = $1, credential_status = 'active', updated_at = now()
+    `UPDATE users SET password_hash = $1, credential_status = 'active',
+       session_version = session_version + 1, updated_at = now()
      WHERE id = $2 AND clinic_id = $3 AND role IN ('admin','therapist')
      RETURNING id, email, name`,
     [passwordHash, id, req.user?.clinicId]
@@ -210,7 +218,8 @@ router.patch("/staff/:id/status", requireAuth, requireRole("admin"), async (req,
     return res.status(403).json({ error: "Admin-management permission required" });
   }
   const updated = await query<{ id: string }>(
-    `UPDATE users SET credential_status = $1, updated_at = now()
+    `UPDATE users SET credential_status = $1,
+       session_version = session_version + 1, updated_at = now()
      WHERE id = $2 AND clinic_id = $3 AND role IN ('admin','therapist')
      RETURNING id`,
     [parsed.data.status, id, req.user?.clinicId]

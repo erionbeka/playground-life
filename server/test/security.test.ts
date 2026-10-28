@@ -21,10 +21,10 @@ vi.mock("../middleware.ts", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
     const header = req.header("authorization") || "";
     const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
-    const users: Record<string, { id: string; clinicId: string; role: "admin" | "therapist" | "parent"; name: string }> = {
-      "admin-token": { id: "admin-1", clinicId: "clinic-1", role: "admin", name: "Admin" },
-      "therapist-token": { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist" },
-      "parent-token": { id: "user-parent", clinicId: "clinic-1", role: "parent", name: "Parent" },
+    const users: Record<string, { id: string; clinicId: string; role: "admin" | "therapist" | "parent"; name: string; sessionVersion: number }> = {
+      "admin-token": { id: "admin-1", clinicId: "clinic-1", role: "admin", name: "Admin", sessionVersion: 0 },
+      "therapist-token": { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist", sessionVersion: 0 },
+      "parent-token": { id: "user-parent", clinicId: "clinic-1", role: "parent", name: "Parent", sessionVersion: 0 },
     };
     req.user = users[token] ?? users["admin-token"];
     next();

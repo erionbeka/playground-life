@@ -67,10 +67,14 @@ securityRoutes.post("/reset-confirm", resetConfirmLimiter, async (req: Request, 
   const tokenRow = rows.rows[0];
   const passwordHash = await hashPassword(parsed.data.password);
 
-  await query("UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2", [
-    passwordHash,
-    tokenRow.user_id,
-  ]);
+  await query(
+    `UPDATE users
+     SET password_hash = $1,
+         session_version = session_version + 1,
+         updated_at = now()
+     WHERE id = $2`,
+    [passwordHash, tokenRow.user_id]
+  );
   await query("UPDATE password_reset_tokens SET used_at = now() WHERE id = $1", [tokenRow.id]);
   await query(
     `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, details)
@@ -81,16 +85,23 @@ securityRoutes.post("/reset-confirm", resetConfirmLimiter, async (req: Request, 
   return res.json({ ok: true });
 });
 
-securityRoutes.post("/mfa/setup", async (req: Request, res: Response) => {
-  const user = req.user as (AuthUser & { email?: string }) | undefined;
-  if (!user || !user.email) return res.status(401).json({ error: "Authentication required" });
+securityRoutes.post("/mfa/setup", requireAuth, async (req: Request, res: Response) => {
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: "Authentication required" });
+
+  const account = await query<{ email: string | null }>(
+    "SELECT email FROM users WHERE id = $1 LIMIT 1",
+    [user.id]
+  );
+  const email = account.rows[0]?.email;
+  if (!email) return res.status(400).json({ error: "An email address is required to configure MFA" });
 
   const secret = generateTotpSecret();
   await query("UPDATE users SET mfa_secret = $1, mfa_enabled = false WHERE id = $2", [secret, user.id]);
-  return res.json({ secret, uri: otpauthUri(secret, user.email) });
+  return res.json({ secret, uri: otpauthUri(secret, email) });
 });
 
-securityRoutes.post("/mfa/enable", async (req: Request, res: Response) => {
+securityRoutes.post("/mfa/enable", requireAuth, async (req: Request, res: Response) => {
   const user = req.user;
   const parsed = mfaTokenSchema.safeParse(req.body);
   if (!user || !parsed.success) return res.status(400).json({ error: "Token required" });
@@ -100,11 +111,14 @@ securityRoutes.post("/mfa/enable", async (req: Request, res: Response) => {
   if (!secret) return res.status(400).json({ error: "Run MFA setup first" });
   if (!verifyTotp(secret, parsed.data.token)) return res.status(400).json({ error: "Code did not match. Try the next code." });
 
-  await query("UPDATE users SET mfa_enabled = true WHERE id = $1", [user.id]);
+  await query(
+    "UPDATE users SET mfa_enabled = true, session_version = session_version + 1 WHERE id = $1",
+    [user.id]
+  );
   return res.json({ ok: true });
 });
 
-securityRoutes.post("/mfa/disable", async (req: Request, res: Response) => {
+securityRoutes.post("/mfa/disable", requireAuth, async (req: Request, res: Response) => {
   const user = req.user;
   const parsed = mfaTokenSchema.safeParse(req.body);
   if (!user || !parsed.success) return res.status(400).json({ error: "Token required" });
@@ -117,7 +131,10 @@ securityRoutes.post("/mfa/disable", async (req: Request, res: Response) => {
   if (!row?.mfa_enabled || !row.mfa_secret) return res.status(400).json({ error: "MFA is not enabled" });
   if (!verifyTotp(row.mfa_secret, parsed.data.token)) return res.status(400).json({ error: "Code did not match" });
 
-  await query("UPDATE users SET mfa_enabled = false, mfa_secret = NULL WHERE id = $1", [user.id]);
+  await query(
+    "UPDATE users SET mfa_enabled = false, mfa_secret = NULL, session_version = session_version + 1 WHERE id = $1",
+    [user.id]
+  );
   return res.json({ ok: true });
 });
 

@@ -11,11 +11,11 @@ let currentRole: "admin" | "therapist" | "parent" = "therapist";
 
 vi.mock("../middleware.ts", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
-    req.user = { id: "user-1", clinicId: "clinic-1", role: currentRole, name: "Staff" };
+    req.user = { id: "user-1", clinicId: "clinic-1", role: currentRole, name: "Staff", sessionVersion: 0 };
     next();
   },
   requireRole: (..._roles: string[]) => (req: Request, _res: Response, next: NextFunction) => {
-    req.user = req.user || { id: "user-1", clinicId: "clinic-1", role: currentRole, name: "Staff" };
+    req.user = req.user || { id: "user-1", clinicId: "clinic-1", role: currentRole, name: "Staff", sessionVersion: 0 };
     next();
   },
 }));

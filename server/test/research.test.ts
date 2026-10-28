@@ -11,11 +11,11 @@ vi.mock("../db.ts", () => ({
 
 vi.mock("../middleware.ts", () => ({
   requireAuth: (req: Request, _res: Response, next: NextFunction) => {
-    req.user = { id: "admin-1", clinicId: "clinic-1", role: "admin", name: "Admin" };
+    req.user = { id: "admin-1", clinicId: "clinic-1", role: "admin", name: "Admin", sessionVersion: 0 };
     next();
   },
   requireRole: (..._roles: string[]) => (req: Request, _res: Response, next: NextFunction) => {
-    req.user = req.user || { id: "admin-1", clinicId: "clinic-1", role: "admin", name: "Admin" };
+    req.user = req.user || { id: "admin-1", clinicId: "clinic-1", role: "admin", name: "Admin", sessionVersion: 0 };
     next();
   },
 }));

@@ -6,7 +6,25 @@ const queryMock = vi.fn();
 const writeAuditMock = vi.fn();
 
 vi.mock("./db.ts", () => ({
-  query: queryMock,
+  query: (sql: string, params?: unknown[]) => {
+    if (sql.includes("credential_status, session_version")) {
+      const users: Record<string, {
+        id: string;
+        clinic_id: string;
+        role: string;
+        name: string;
+        credential_status: string;
+        session_version: number;
+      }> = {
+          "user-admin": { id: "user-admin", clinic_id: "clinic-1", role: "admin", name: "Admin", credential_status: "active", session_version: 0 },
+          "user-therapist": { id: "user-therapist", clinic_id: "clinic-1", role: "therapist", name: "Therapist", credential_status: "active", session_version: 0 },
+          "user-parent": { id: "user-parent", clinic_id: "clinic-1", role: "parent", name: "Parent", credential_status: "active", session_version: 0 },
+        };
+      const row = users[String(params?.[0])];
+      return Promise.resolve({ rows: row ? [row] : [] });
+    }
+    return queryMock(sql, params);
+  },
   pool: {},
   closePool: vi.fn(),
 }));
@@ -20,9 +38,9 @@ vi.mock("./auth.ts", () => ({
   verifyPassword: vi.fn(async (_hash: string, password: string) => password === "CorrectHorseBatteryStaple1"),
   signAccessToken: vi.fn(() => "signed-test-token"),
   verifyAccessToken: vi.fn((token: string) => {
-    if (token === "admin-token") return { id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin" };
-    if (token === "therapist-token") return { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist" };
-    if (token === "parent-token") return { id: "user-parent", clinicId: "clinic-1", role: "parent", name: "Parent" };
+    if (token === "admin-token") return { id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin", sessionVersion: 0 };
+    if (token === "therapist-token") return { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist", sessionVersion: 0 };
+    if (token === "parent-token") return { id: "user-parent", clinicId: "clinic-1", role: "parent", name: "Parent", sessionVersion: 0 };
     throw new Error("bad token");
   }),
 }));
@@ -44,7 +62,7 @@ beforeEach(() => {
 describe("production API", () => {
   it("authenticates a valid user and writes an audit event", async () => {
     queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active", session_version: 0 }] })
       .mockResolvedValueOnce({ rows: [] });
 
     const app = await loadApp();
@@ -65,7 +83,7 @@ describe("production API", () => {
 
   it("does not match empty-phone users when signing in with an email identifier", async () => {
     queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active", session_version: 0 }] })
       .mockResolvedValueOnce({ rows: [] });
 
     const app = await loadApp();
@@ -113,7 +131,7 @@ describe("production API", () => {
   });
 
   it("rejects invalid credentials", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active" }] });
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active", session_version: 0 }] });
 
     const app = await loadApp();
     await request(app)

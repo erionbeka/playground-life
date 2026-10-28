@@ -1,10 +1,11 @@
-﻿export type UserRole = "superadmin" | "admin" | "therapist" | "parent";
+export type UserRole = "superadmin" | "admin" | "therapist" | "parent";
 
 export interface AuthUser {
   id: string;
   clinicId: string;
   role: UserRole;
   name: string;
+  sessionVersion: number;
 }
 
 declare global {
