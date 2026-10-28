@@ -359,29 +359,31 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-border bg-card/85 px-4 py-4 backdrop-blur-md sm:px-6">
-        <div>
-          <h1 className="font-display text-xl font-bold text-foreground">Clinic Admin Dashboard</h1>
-          <p className="text-xs text-muted-foreground">Signed in as {session.displayName}</p>
+      <header className="flex flex-col gap-3 border-b border-border bg-card/85 px-4 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
+        <div className="min-w-0">
+          <h1 className="font-display text-lg font-bold text-foreground sm:text-xl">Clinic Admin Dashboard</h1>
+          <p className="truncate text-xs text-muted-foreground">Signed in as {session.displayName}</p>
         </div>
-        <button onClick={signOut} className="touch-target px-3 text-sm text-muted-foreground hover:text-foreground">
+        <button onClick={signOut} className="touch-target self-start rounded-lg px-3 text-sm text-muted-foreground hover:bg-accent/10 hover:text-foreground sm:self-auto">
           Sign Out
         </button>
       </header>
 
-      <nav className="flex gap-1 overflow-x-auto px-4 pt-4 sm:px-6">
+      <nav aria-label="Admin dashboard sections" className="flex gap-1 overflow-x-auto px-3 pt-3 sm:px-6 sm:pt-4">
         {tabs.map((entry) => (
           <button
             key={entry.key}
+            type="button"
             onClick={() => setTab(entry.key)}
-            className={`touch-target whitespace-nowrap rounded-t-xl px-5 py-3 font-display text-sm font-semibold transition-colors ${tab === entry.key ? "border border-b-0 border-border bg-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            aria-current={tab === entry.key ? "page" : undefined}
+            className={`touch-target shrink-0 whitespace-nowrap rounded-t-xl px-3 py-3 font-display text-sm font-semibold transition-colors sm:px-5 ${tab === entry.key ? "border border-b-0 border-border bg-card text-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
             {entry.label}
           </button>
         ))}
       </nav>
 
-      <div className="mx-4 mb-6 rounded-b-xl rounded-tr-xl border border-border bg-card/88 p-4 backdrop-blur-md sm:mx-6 sm:p-6">
+      <div className="mx-3 mb-6 min-w-0 rounded-b-xl rounded-tr-xl border border-border bg-card/88 p-3 backdrop-blur-md sm:mx-6 sm:p-6">
         {tab === "overview" ? (
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

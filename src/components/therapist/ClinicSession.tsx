@@ -164,7 +164,7 @@ export default function ClinicSession() {
             })}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[500px] overflow-y-auto pr-2">
+          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[500px] overflow-y-auto pr-1 sm:pr-2">
             {filteredGames.map((g) => (
               <button
                 key={g.id}

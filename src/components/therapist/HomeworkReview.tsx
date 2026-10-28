@@ -309,7 +309,7 @@ export default function HomeworkReview() {
           <div className="space-y-3">
             {filteredAssignments.slice(0, 5).map((assignment) => (
               <div key={assignment.id} className="rounded-xl border border-border bg-card p-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-foreground">{getChild(assignment.childId)?.name} · {assignment.type}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
@@ -396,9 +396,9 @@ export default function HomeworkReview() {
           <div className="space-y-3">
             {goalProgressData.map((goal) => (
               <div key={goal.id} className="rounded-xl border border-border bg-card p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">{goal.title}</p>
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-semibold text-foreground">{goal.title}</p>
                     <p className="mt-1 text-xs text-muted-foreground">{goal.childName} · {domainLabels[goal.domain]} · target {goal.target}%</p>
                   </div>
                   <div className="flex gap-2">

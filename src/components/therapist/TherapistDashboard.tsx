@@ -205,14 +205,14 @@ export default function TherapistDashboard() {
 
   return (
     <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b border-border bg-card/85 px-4 py-4 backdrop-blur-md sm:px-6">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">Clinic</span>
-          <div>
-            <h1 className="font-display text-xl font-bold text-foreground">
+      <header className="flex flex-col gap-3 border-b border-border bg-card/85 px-4 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="shrink-0 text-2xl">Clinic</span>
+          <div className="min-w-0">
+            <h1 className="font-display text-lg font-bold text-foreground sm:text-xl">
               Therapist Dashboard
             </h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground">
               Signed in as {session.displayName}
             </p>
           </div>
@@ -223,18 +223,23 @@ export default function TherapistDashboard() {
             signOut();
             navigate("/enter");
           }}
-          className="touch-target px-3 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          className="touch-target self-start rounded-lg px-3 text-sm text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground sm:self-auto"
         >
           Sign Out
         </button>
       </header>
 
-      <nav className="flex gap-1 overflow-x-auto px-4 pt-4 sm:px-6">
+      <nav
+        aria-label="Therapist dashboard sections"
+        className="flex gap-1 overflow-x-auto px-3 pt-3 sm:px-6 sm:pt-4"
+      >
         {tabs.map((entry) => (
           <button
             key={entry.key}
+            type="button"
             onClick={() => setTab(entry.key)}
-            className={`touch-target whitespace-nowrap rounded-t-xl px-5 py-3 font-display text-sm font-semibold transition-colors ${
+            aria-current={tab === entry.key ? "page" : undefined}
+            className={`touch-target shrink-0 whitespace-nowrap rounded-t-xl px-3 py-3 font-display text-sm font-semibold transition-colors sm:px-5 ${
               tab === entry.key
                 ? "border border-b-0 border-border bg-card text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -250,7 +255,7 @@ export default function TherapistDashboard() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="mx-4 mb-6 rounded-b-xl rounded-tr-xl border border-border bg-card/88 p-4 backdrop-blur-md sm:mx-6 sm:p-6"
+        className="mx-3 mb-6 min-w-0 rounded-b-xl rounded-tr-xl border border-border bg-card/88 p-3 backdrop-blur-md sm:mx-6 sm:p-6"
       >
         {tab === "overview" && <CaseloadOverview />}
         {tab === "children" && <ChildList />}
