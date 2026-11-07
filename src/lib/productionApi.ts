@@ -74,6 +74,7 @@ export interface ApiAssignmentPayload {
 }
 
 export interface ApiGameResultPayload {
+  submissionId: string;
   gameId: string;
   durationSeconds: number;
   score: number;
@@ -308,7 +309,14 @@ export const productionApi = {
   },
 
   recordGameResult(assignmentId: string, payload: ApiGameResultPayload) {
-    return request<{ assignmentId: string; gameId: string }>(`/api/assignments/${assignmentId}/results`, {
+    return request<{
+      assignmentId: string;
+      gameId: string;
+      resultId: string;
+      submissionId: string;
+      reviewStatus: string;
+      replayed: boolean;
+    }>(`/api/assignments/${assignmentId}/results`, {
       method: "POST",
       body: JSON.stringify(payload),
     });

@@ -5,13 +5,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const queryMock = vi.fn();
 const writeAuditMock = vi.fn();
 
-vi.mock("../db.ts", () => ({ query: queryMock, pool: {}, closePool: vi.fn() }));
+vi.mock("../db.ts", () => ({ query: (sql: string, params?: unknown[]) => {
+    if (sql.includes("credential_status, session_version")) {
+      const users: Record<string, {
+        id: string;
+        clinic_id: string;
+        role: string;
+        name: string;
+        credential_status: string;
+        session_version: number;
+      }> = {
+          "user-admin": { id: "user-admin", clinic_id: "clinic-1", role: "admin", name: "Admin", credential_status: "active", session_version: 0 },
+        };
+      const row = users[String(params?.[0])];
+      return Promise.resolve({ rows: row ? [row] : [] });
+    }
+    return queryMock(sql, params);
+  }, pool: {}, closePool: vi.fn() }));
 vi.mock("../audit.ts", () => ({ writeAudit: writeAuditMock }));
 vi.mock("../auth.ts", () => ({
   hashPassword: vi.fn(async (password: string) => `hashed-${password}`),
   verifyPassword: vi.fn(async () => true),
   signAccessToken: vi.fn(() => "signed-test-token"),
-  verifyAccessToken: vi.fn(() => ({ id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin" })),
+  verifyAccessToken: vi.fn(() => ({ id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin", sessionVersion: 0 })),
 }));
 
 async function loadApp() {

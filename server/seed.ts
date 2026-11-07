@@ -38,7 +38,11 @@ try {
     `INSERT INTO users (clinic_id, role, name, email, password_hash)
      VALUES ($1, 'admin', 'Clinic Administrator', $2, $3)
      ON CONFLICT (lower(email)) WHERE email IS NOT NULL
-     DO UPDATE SET role = 'admin', password_hash = EXCLUDED.password_hash, updated_at = now()`,
+     DO UPDATE SET
+         role = 'admin',
+         password_hash = EXCLUDED.password_hash,
+         session_version = users.session_version + 1,
+         updated_at = now()`,
     [clinicId, adminEmail, passwordHash]
   );
 

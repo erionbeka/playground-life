@@ -594,6 +594,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     completeGame: async (assignmentId, result: Omit<GameResult, "assignmentId" | "skillScores">) => {
       const payload = {
         assignmentId,
+        submissionId: globalThis.crypto.randomUUID(),
         gameId: result.gameId,
         durationSeconds: result.durationSeconds,
         score: result.score,

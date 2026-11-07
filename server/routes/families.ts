@@ -1,4 +1,4 @@
-﻿import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { hashPassword } from "../auth.ts";
@@ -98,7 +98,10 @@ router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async 
 
   const updated = await query<{ id: string; email: string | null; phone_number: string | null }>(
     `UPDATE users
-     SET password_hash = $1, credential_status = $2, updated_at = now()
+     SET password_hash = $1,
+         credential_status = $2,
+         session_version = session_version + 1,
+         updated_at = now()
      WHERE id = $3 AND clinic_id = $4 AND role = 'parent'
      RETURNING id, email, phone_number`,
     [passwordHash, parsed.data.credentialStatus, userId, req.user?.clinicId]

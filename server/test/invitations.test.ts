@@ -6,7 +6,24 @@ const queryMock = vi.fn();
 const writeAuditMock = vi.fn();
 const queueEmailMock = vi.fn();
 
-vi.mock("../db.ts", () => ({ query: queryMock, pool: {}, closePool: vi.fn() }));
+vi.mock("../db.ts", () => ({ query: (sql: string, params?: unknown[]) => {
+    if (sql.includes("credential_status, session_version")) {
+      const users: Record<string, {
+        id: string;
+        clinic_id: string;
+        role: string;
+        name: string;
+        credential_status: string;
+        session_version: number;
+      }> = {
+          "user-admin": { id: "user-admin", clinic_id: "clinic-1", role: "admin", name: "Admin", credential_status: "active", session_version: 0 },
+          "user-therapist": { id: "user-therapist", clinic_id: "clinic-1", role: "therapist", name: "Therapist", credential_status: "active", session_version: 0 },
+        };
+      const row = users[String(params?.[0])];
+      return Promise.resolve({ rows: row ? [row] : [] });
+    }
+    return queryMock(sql, params);
+  }, pool: {}, closePool: vi.fn() }));
 vi.mock("../audit.ts", () => ({ writeAudit: writeAuditMock }));
 vi.mock("../lib/mailer.ts", () => ({ queueEmail: queueEmailMock, appUrl: () => "http://localhost:8080" }));
 vi.mock("../auth.ts", () => ({
@@ -14,8 +31,8 @@ vi.mock("../auth.ts", () => ({
   verifyPassword: vi.fn(async () => true),
   signAccessToken: vi.fn(() => "signed-test-token"),
   verifyAccessToken: vi.fn((token: string) => {
-    if (token === "admin-token") return { id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin" };
-    if (token === "therapist-token") return { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist" };
+    if (token === "admin-token") return { id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin", sessionVersion: 0 };
+    if (token === "therapist-token") return { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist", sessionVersion: 0 };
     throw new Error("bad token");
   }),
 }));

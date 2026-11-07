@@ -3,11 +3,33 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.fn();
+const transactionQueryMock = vi.fn();
+const withTransactionMock = vi.fn();
 const writeAuditMock = vi.fn();
 
 vi.mock("./db.ts", () => ({
-  query: queryMock,
+  query: (sql: string, params?: unknown[]) => {
+    if (sql.includes("credential_status, session_version")) {
+      const users: Record<string, {
+        id: string;
+        clinic_id: string;
+        role: string;
+        name: string;
+        credential_status: string;
+        session_version: number;
+      }> = {
+          "user-admin": { id: "user-admin", clinic_id: "clinic-1", role: "admin", name: "Admin", credential_status: "active", session_version: 0 },
+          "user-therapist": { id: "user-therapist", clinic_id: "clinic-1", role: "therapist", name: "Therapist", credential_status: "active", session_version: 0 },
+          "user-parent": { id: "user-parent", clinic_id: "clinic-1", role: "parent", name: "Parent", credential_status: "active", session_version: 0 },
+        };
+      const row = users[String(params?.[0])];
+      return Promise.resolve({ rows: row ? [row] : [] });
+    }
+    return queryMock(sql, params);
+  },
   pool: {},
+  withTransaction: (operation: (client: { query: typeof transactionQueryMock }) => Promise<unknown>) =>
+    withTransactionMock(operation),
   closePool: vi.fn(),
 }));
 
@@ -20,9 +42,9 @@ vi.mock("./auth.ts", () => ({
   verifyPassword: vi.fn(async (_hash: string, password: string) => password === "CorrectHorseBatteryStaple1"),
   signAccessToken: vi.fn(() => "signed-test-token"),
   verifyAccessToken: vi.fn((token: string) => {
-    if (token === "admin-token") return { id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin" };
-    if (token === "therapist-token") return { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist" };
-    if (token === "parent-token") return { id: "user-parent", clinicId: "clinic-1", role: "parent", name: "Parent" };
+    if (token === "admin-token") return { id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin", sessionVersion: 0 };
+    if (token === "therapist-token") return { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist", sessionVersion: 0 };
+    if (token === "parent-token") return { id: "user-parent", clinicId: "clinic-1", role: "parent", name: "Parent", sessionVersion: 0 };
     throw new Error("bad token");
   }),
 }));
@@ -38,13 +60,18 @@ async function loadApp() {
 
 beforeEach(() => {
   queryMock.mockReset();
+  transactionQueryMock.mockReset();
+  withTransactionMock.mockReset();
+  withTransactionMock.mockImplementation(async (operation) =>
+    operation({ query: transactionQueryMock })
+  );
   writeAuditMock.mockReset();
 });
 
 describe("production API", () => {
   it("authenticates a valid user and writes an audit event", async () => {
     queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active", session_version: 0 }] })
       .mockResolvedValueOnce({ rows: [] });
 
     const app = await loadApp();
@@ -65,7 +92,7 @@ describe("production API", () => {
 
   it("does not match empty-phone users when signing in with an email identifier", async () => {
     queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active", session_version: 0 }] })
       .mockResolvedValueOnce({ rows: [] });
 
     const app = await loadApp();
@@ -113,7 +140,7 @@ describe("production API", () => {
   });
 
   it("rejects invalid credentials", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active" }] });
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "user-1", clinic_id: "clinic-1", role: "therapist", name: "Dr. Lane", password_hash: "hash", credential_status: "active", session_version: 0 }] });
 
     const app = await loadApp();
     await request(app)
@@ -364,52 +391,367 @@ describe("production API", () => {
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("assigned_family_user_id IS NULL OR assignments.assigned_family_user_id = $2"), ["clinic-1", "user-parent"]);
   });
 
-  it("records game results and updates assignment status", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-0000-0000-000000000002", child_id: "00000000-0000-0000-0000-000000000001", game_ids: ["game-001"] }] })
-      .mockResolvedValue({ rows: [] });
+  it("records an approved assignment result with submitter and review metadata", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: ["game-001"],
+          therapist_approval: "approved",
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000010",
+          review_status: "pending",
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
 
     const app = await loadApp();
     const response = await request(app)
       .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
       .set("Authorization", "Bearer parent-token")
-      .send({ gameId: "game-001", durationSeconds: 120, score: 88, interactions: 12 })
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000020",
+        gameId: "game-001",
+        durationSeconds: 120,
+        score: 88,
+        interactions: 12,
+      })
       .expect(201);
 
-    expect(response.body.gameId).toBe("game-001");
-    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "game_result_recorded", "result", "00000000-0000-0000-0000-000000000002", { gameId: "game-001", score: 88 });
+    expect(response.body).toMatchObject({
+      assignmentId: "00000000-0000-0000-0000-000000000002",
+      gameId: "game-001",
+      resultId: "00000000-0000-0000-0000-000000000010",
+      submissionId: "00000000-0000-0000-0000-000000000020",
+      reviewStatus: "pending",
+      replayed: false,
+    });
+    expect(transactionQueryMock).toHaveBeenCalledWith(
+      expect.stringContaining("INSERT INTO game_results"),
+      expect.arrayContaining(["user-parent", "parent"])
+    );
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "game_result_recorded",
+      "result",
+      "00000000-0000-0000-0000-000000000010",
+      expect.objectContaining({
+        submissionId: "00000000-0000-0000-0000-000000000020",
+        reviewStatus: "pending",
+      }),
+      expect.objectContaining({ query: expect.any(Function) })
+    );
   });
 
-  it("recomputes skill profile and advances goals after a result", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ id: "a1", child_id: "c1", game_ids: ["game-001"] }] })
+  it("does not update clinical skill profiles or goals when a result is submitted", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: ["game-001"],
+          therapist_approval: "approved",
+        }],
+      })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ skill_profile: { attention: 40 } }] })
-      .mockResolvedValueOnce({ rows: [{ skill_scores: { attention: 90 } }] })
-      .mockResolvedValue({ rows: [{ id: "goal-1", domain: "attention", target_level: 75, status: "active" }] });
-
-    const app = await loadApp();
-    await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
-      .set("Authorization", "Bearer therapist-token")
-      .send({ gameId: "game-001", durationSeconds: 60, score: 90, interactions: 5 })
-      .expect(201);
-
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("UPDATE children SET skill_profile"), expect.any(Array));
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("UPDATE therapy_goals SET status = 'achieved'"), expect.any(Array));
-  });
-
-  it("blocks parent result recording for unlinked assignments", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({
+        rows: [{ id: "result-1", review_status: "pending" }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
 
     const app = await loadApp();
     await request(app)
       .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
       .set("Authorization", "Bearer parent-token")
-      .send({ gameId: "game-001", durationSeconds: 120, score: 88, interactions: 12 })
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000021",
+        gameId: "game-001",
+        durationSeconds: 60,
+        score: 90,
+        interactions: 5,
+        skillScores: { attention: 100 },
+      })
+      .expect(201);
+
+    const sql = transactionQueryMock.mock.calls.map(([q]) => String(q)).join("\n");
+    expect(sql).not.toContain("UPDATE children SET skill_profile");
+    expect(sql).not.toContain("UPDATE therapy_goals SET status = 'achieved'");
+  });
+
+  it("returns the existing result for an identical submission retry", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: [],
+          therapist_approval: "pending",
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "result-1",
+          assignment_id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_id: "game-001",
+          duration_seconds: 120,
+          score: 88,
+          interactions: 12,
+          same_metrics: true,
+          submitted_by: "user-parent",
+          submitted_by_role: "parent",
+          review_status: "pending",
+        }],
+      });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000020",
+        gameId: "game-001",
+        durationSeconds: 120,
+        score: 88,
+        interactions: 12,
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      resultId: "result-1",
+      submissionId: "00000000-0000-0000-0000-000000000020",
+      replayed: true,
+    });
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a submission UUID reused with different result data", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: ["game-001"],
+          therapist_approval: "approved",
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "result-existing",
+          assignment_id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_id: "game-001",
+          duration_seconds: 120,
+          score: 87,
+          interactions: 12,
+          same_metrics: true,
+          submitted_by: "user-parent",
+          submitted_by_role: "parent",
+          review_status: "pending",
+        }],
+      });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000020",
+        gameId: "game-001",
+        durationSeconds: 120,
+        score: 88,
+        interactions: 12,
+      })
+      .expect(409);
+
+    expect(response.body.error).toContain("already been used");
+    expect(transactionQueryMock.mock.calls.some(([sql]) =>
+      String(sql).includes("INSERT INTO game_results")
+    )).toBe(false);
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a matching result when a concurrent insert wins the submission UUID", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: ["game-001"],
+          therapist_approval: "approved",
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "result-concurrent",
+          assignment_id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_id: "game-001",
+          duration_seconds: 120,
+          score: 88,
+          interactions: 12,
+          same_metrics: true,
+          submitted_by: "user-parent",
+          submitted_by_role: "parent",
+          review_status: "pending",
+        }],
+      });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000020",
+        gameId: "game-001",
+        durationSeconds: 120,
+        score: 88,
+        interactions: 12,
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      resultId: "result-concurrent",
+      submissionId: "00000000-0000-0000-0000-000000000020",
+      reviewStatus: "pending",
+      replayed: true,
+    });
+    expect(transactionQueryMock.mock.calls.filter(([sql]) =>
+      String(sql).includes("SELECT id, assignment_id, child_id, game_id")
+    )).toHaveLength(2);
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks new result submissions while therapist approval is pending", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: ["game-001"],
+          therapist_approval: "pending",
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000022",
+        gameId: "game-001",
+        durationSeconds: 60,
+        score: 90,
+        interactions: 5,
+      })
+      .expect(409);
+
+    expect(response.body.error).toContain("must be approved");
+    expect(transactionQueryMock.mock.calls.some(([sql]) =>
+      String(sql).includes("INSERT INTO game_results")
+    )).toBe(false);
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a result submission without a valid submission UUID", async () => {
+    const app = await loadApp();
+    await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({ gameId: "game-001", durationSeconds: 60, score: 90, interactions: 5 })
+      .expect(400);
+
+    expect(withTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks parent result recording for unlinked assignments", async () => {
+    transactionQueryMock.mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000022",
+        gameId: "game-001",
+        durationSeconds: 120,
+        score: 88,
+        interactions: 12,
+      })
       .expect(404);
 
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks a linked parent from recording results for another assigned family", async () => {
+    transactionQueryMock.mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000023",
+        gameId: "game-001",
+        durationSeconds: 120,
+        score: 88,
+        interactions: 12,
+      })
+      .expect(404);
+
+    expect(response.body.error).toBe("Assignment not found");
+    expect(transactionQueryMock).toHaveBeenCalledTimes(1);
+    expect(transactionQueryMock.mock.calls[0][0]).toContain(
+      "assignments.assigned_family_user_id = $3"
+    );
+    expect(transactionQueryMock.mock.calls[0][1]).toEqual([
+      "00000000-0000-0000-0000-000000000002",
+      "clinic-1",
+      "user-parent",
+    ]);
+    expect(transactionQueryMock.mock.calls.some(([sql]) =>
+      String(sql).includes("INSERT INTO game_results")
+    )).toBe(false);
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an ineligible game even when it is included in an approved assignment", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: ["unknown-game-001"],
+          therapist_approval: "approved",
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000024",
+        gameId: "unknown-game-001",
+        durationSeconds: 120,
+        score: 88,
+        interactions: 12,
+      })
+      .expect(400);
+
+    expect(response.body.error).toContain("not eligible");
+    expect(transactionQueryMock.mock.calls.some(([sql]) =>
+      String(sql).includes("INSERT INTO game_results")
+    )).toBe(false);
     expect(writeAuditMock).not.toHaveBeenCalled();
   });
 
@@ -447,25 +789,26 @@ describe("production API", () => {
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("WHERE clinic_id = $1"), ["clinic-1", null]);
   });
 
-  it("removes a game from an assignment", async () => {
-    queryMock
-      .mockResolvedValueOnce({ rows: [{ game_ids: ["game-002"] }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+  it("prevents removing a game when submitted result history exists", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{ id: "assignment-1", game_ids: ["game-001", "game-002"] }],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "result-1" }] });
 
     const app = await loadApp();
     const response = await request(app)
       .delete("/api/assignments/00000000-0000-0000-0000-000000000002/games/game-001")
       .set("Authorization", "Bearer therapist-token")
-      .expect(200);
+      .expect(409);
 
-    expect(response.body).toEqual({ id: "00000000-0000-0000-0000-000000000002", gameIds: ["game-002"] });
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("array_remove"), expect.arrayContaining(["game-001"]));
-    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "assignment_game_removed", "assignment", "00000000-0000-0000-0000-000000000002", { gameId: "game-001" });
+    expect(response.body.error).toMatch(/submitted results/i);
+    expect(transactionQueryMock).toHaveBeenCalledTimes(2);
+    expect(writeAuditMock).not.toHaveBeenCalled();
   });
 
   it("returns 404 when removing a game not on the assignment", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
+    transactionQueryMock.mockResolvedValueOnce({ rows: [] });
 
     const app = await loadApp();
     await request(app)
