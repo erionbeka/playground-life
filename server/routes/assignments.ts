@@ -1,14 +1,19 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { z } from "zod";
 import { writeAudit } from "../audit.ts";
-import { query } from "../db.ts";
+import { query, withTransaction } from "../db.ts";
+import { isEligibleAssignmentGame } from "../gameEligibility.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
-import { advanceableGoalIds, emptySkillProfile, mergeSkillProfiles } from "../skills.ts";
 
 const router = Router();
 
 const RESULTS_SUBQUERY = `COALESCE((
     SELECT json_agg(json_build_object(
+      'id', gr.id,
+      'submissionId', gr.submission_id,
+      'reviewStatus', gr.review_status,
+      'submittedBy', gr.submitted_by,
+      'submittedByRole', gr.submitted_by_role,
       'gameId', gr.game_id,
       'completedAt', gr.completed_at,
       'durationSeconds', gr.duration_seconds,
@@ -41,12 +46,14 @@ const approvalSchema = z.object({
 });
 
 const resultSchema = z.object({
-  gameId: z.string(),
+  submissionId: z.string().uuid(),
+  gameId: z.string().min(1).max(128),
   durationSeconds: z.number().int().nonnegative(),
   score: z.number().int().min(0).max(100),
   interactions: z.number().int().nonnegative(),
-  metrics: z.record(z.string(), z.unknown()).default({}),
-  skillScores: z.record(z.string(), z.unknown()).default({}),
+  metrics: z.record(z.string(), z.unknown()).default({}).refine(
+    (metrics) => JSON.stringify(metrics).length <= 64_000
+  ),
 });
 
 router.get("/", requireAuth, async (req, res) => {
@@ -135,119 +142,309 @@ router.post("/:id/approval", requireAuth, requireRole("therapist", "admin"), asy
   return res.json({ id: assignmentId, approval: parsed.data.approval });
 });
 
-router.post("/:id/results", requireAuth, async (req, res) => {
+router.post("/:id/results", requireAuth, requireRole("parent", "therapist", "admin"), async (req, res) => {
   const parsed = resultSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid result payload" });
+
   const assignmentId = String(req.params.id);
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: "Authentication required" });
 
-  const assignment = req.user?.role === "parent"
-    ? await query<{ id: string; child_id: string; game_ids: string[] }>(
-      `SELECT assignments.id, assignments.child_id, assignments.game_ids
-       FROM assignments
-       INNER JOIN family_child_links ON family_child_links.child_id = assignments.child_id
-       WHERE assignments.id = $1
-         AND assignments.clinic_id = $2
-         AND family_child_links.user_id = $3
-         AND (assignments.assigned_family_user_id IS NULL OR assignments.assigned_family_user_id = $3)`,
-      [assignmentId, req.user.clinicId, req.user.id]
-    )
-    : await query<{ id: string; child_id: string; game_ids: string[] }>(
-      `SELECT id, child_id, game_ids FROM assignments WHERE id = $1 AND clinic_id = $2`,
-      [assignmentId, req.user?.clinicId]
-    );
-  if (!assignment.rows[0]) return res.status(404).json({ error: "Assignment not found" });
+  const outcome = await withTransaction(async (client) => {
+    const assignment = user.role === "parent"
+      ? await client.query<{
+          id: string;
+          child_id: string;
+          game_ids: string[];
+          therapist_approval: string;
+        }>(
+          `SELECT assignments.id, assignments.child_id, assignments.game_ids,
+                  assignments.therapist_approval
+           FROM assignments
+           INNER JOIN family_child_links
+             ON family_child_links.child_id = assignments.child_id
+           WHERE assignments.id = $1
+             AND assignments.clinic_id = $2
+             AND family_child_links.user_id = $3
+             AND (assignments.assigned_family_user_id IS NULL
+                  OR assignments.assigned_family_user_id = $3)
+           FOR UPDATE OF assignments`,
+          [assignmentId, user.clinicId, user.id]
+        )
+      : await client.query<{
+          id: string;
+          child_id: string;
+          game_ids: string[];
+          therapist_approval: string;
+        }>(
+          `SELECT id, child_id, game_ids, therapist_approval
+           FROM assignments
+           WHERE id = $1 AND clinic_id = $2
+           FOR UPDATE`,
+          [assignmentId, user.clinicId]
+        );
 
-  await query(
-      `INSERT INTO game_results (assignment_id, child_id, game_id, duration_seconds, score, interactions, metrics, skill_scores)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     ON CONFLICT (assignment_id, game_id)
-     DO UPDATE SET completed_at = now(), duration_seconds = EXCLUDED.duration_seconds, score = EXCLUDED.score,
-       interactions = EXCLUDED.interactions, metrics = EXCLUDED.metrics, skill_scores = EXCLUDED.skill_scores`,
-    [
-      assignmentId,
-      assignment.rows[0].child_id,
+    const assignmentRow = assignment.rows[0];
+    if (!assignmentRow) {
+      return { status: 404, body: { error: "Assignment not found" } };
+    }
+
+    const metricsJson = JSON.stringify(parsed.data.metrics);
+
+    // Check for an existing submission before applying current assignment
+    // rules, so a previously accepted offline submission remains retryable.
+    const findExistingSubmission = async () => {
+      const existing = await client.query<{
+        id: string;
+        assignment_id: string;
+        child_id: string;
+        game_id: string;
+        duration_seconds: number;
+        score: number;
+        interactions: number;
+        same_metrics: boolean;
+        submitted_by: string | null;
+        submitted_by_role: string | null;
+        review_status: string;
+      }>(
+        `SELECT id, assignment_id, child_id, game_id,
+                duration_seconds, score, interactions,
+                metrics = $2::jsonb AS same_metrics,
+                submitted_by, submitted_by_role, review_status
+         FROM game_results
+         WHERE submission_id = $1
+         FOR UPDATE`,
+        [parsed.data.submissionId, metricsJson]
+      );
+
+      const previous = existing.rows[0];
+      if (!previous) return null;
+
+      const sameSubmission =
+        previous.assignment_id === assignmentId
+        && previous.child_id === assignmentRow.child_id
+        && previous.game_id === parsed.data.gameId
+        && previous.duration_seconds === parsed.data.durationSeconds
+        && previous.score === parsed.data.score
+        && previous.interactions === parsed.data.interactions
+        && previous.same_metrics
+        && previous.submitted_by === user.id
+        && previous.submitted_by_role === user.role;
+
+      if (!sameSubmission) {
+        return {
+          status: 409,
+          body: { error: "Submission ID has already been used for different result data" },
+        };
+      }
+
+      return {
+        status: 200,
+        body: {
+          assignmentId,
+          gameId: parsed.data.gameId,
+          resultId: previous.id,
+          submissionId: parsed.data.submissionId,
+          reviewStatus: previous.review_status,
+          replayed: true,
+        },
+      };
+    };
+
+    const replay = await findExistingSubmission();
+    if (replay) return replay;
+
+    // Current approval and game rules apply only to new submissions.
+    if (!["approved", "adjusted"].includes(assignmentRow.therapist_approval)) {
+      return { status: 409, body: { error: "Assignment must be approved before results can be submitted" } };
+    }
+
+    if (!assignmentRow.game_ids.includes(parsed.data.gameId)) {
+      return { status: 400, body: { error: "Game is not part of this assignment" } };
+    }
+
+    const eligible = await isEligibleAssignmentGame(
       parsed.data.gameId,
-      parsed.data.durationSeconds,
-      parsed.data.score,
-      parsed.data.interactions,
-      JSON.stringify(parsed.data.metrics),
-      JSON.stringify(parsed.data.skillScores),
-    ]
-  );
-
-  await query(
-    `UPDATE assignments
-     SET status = CASE
-       WHEN (SELECT count(*) FROM game_results WHERE assignment_id = $1) >= cardinality(game_ids) THEN 'completed'::assignment_status
-       ELSE 'in-progress'::assignment_status
-    END,
-     updated_at = now()
-     WHERE id = $1`,
-    [assignmentId]
-  );
-
-  const childId = assignment.rows[0].child_id;
-  const profileRow = await query<{ skill_profile: Record<string, number> }>(
-    `SELECT skill_profile FROM children WHERE id = $1`,
-    [childId]
-  );
-  const resultRows = await query<{ skill_scores: Record<string, number> }>(
-    `SELECT skill_scores FROM game_results WHERE child_id = $1`,
-    [childId]
-  );
-  const baseProfile = { ...emptySkillProfile(), ...(profileRow.rows[0]?.skill_profile ?? {}) };
-  const nextProfile = mergeSkillProfiles(baseProfile, resultRows.rows.map((row) => row.skill_scores ?? {}));
-
-  await query(
-    `UPDATE children SET skill_profile = $1, updated_at = now() WHERE id = $2`,
-    [JSON.stringify(nextProfile), childId]
-  );
-
-  const activeGoals = await query<{ id: string; domain: string; target_level: number; status: string }>(
-    `SELECT id, domain, target_level, status FROM therapy_goals WHERE child_id = $1 AND status = 'active'`,
-    [childId]
-  );
-  for (const goalId of advanceableGoalIds(activeGoals.rows, nextProfile)) {
-    await query(`UPDATE therapy_goals SET status = 'achieved', updated_at = now() WHERE id = $1`, [goalId]);
-  }
-
-  await writeAudit(req, "game_result_recorded", "result", assignmentId, { gameId: parsed.data.gameId, score: parsed.data.score });
-  if (req.user?.role === "therapist" || req.user?.role === "admin") {
-    await query(
-      `INSERT INTO therapist_sessions (clinic_id, therapist_id, child_id, session_type, title, notes)
-       VALUES ($1, $2, $3, 'therapy', $4, $5)`,
-      [req.user?.clinicId, req.user?.id, childId, `Game: ${parsed.data.gameId}`, `Score: ${parsed.data.score}`]
+      user.clinicId,
+      client
     );
-  }
-  return res.status(201).json({ assignmentId, gameId: parsed.data.gameId });
+
+    if (!eligible) {
+      return { status: 400, body: { error: "Game is not eligible for assignment results" } };
+    }
+
+    const inserted = await client.query<{
+      id: string;
+      review_status: string;
+    }>(
+      `INSERT INTO game_results (
+         assignment_id, child_id, game_id, submission_id,
+         submitted_by, submitted_by_role,
+         duration_seconds, score, interactions, metrics, skill_scores
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, '{}'::jsonb)
+       ON CONFLICT (submission_id) DO NOTHING
+       RETURNING id, review_status`,
+      [
+        assignmentId,
+        assignmentRow.child_id,
+        parsed.data.gameId,
+        parsed.data.submissionId,
+        user.id,
+        user.role,
+        parsed.data.durationSeconds,
+        parsed.data.score,
+        parsed.data.interactions,
+        metricsJson,
+      ]
+    );
+
+    if (!inserted.rows[0]) {
+      // A concurrent request may have inserted the same submission after
+      // our first lookup. Re-check it using the same comparison rules.
+      const concurrentReplay = await findExistingSubmission();
+      if (concurrentReplay) return concurrentReplay;
+
+      return {
+        status: 409,
+        body: { error: "Submission ID has already been used for different result data" },
+      };
+    }
+
+    const resultId = inserted.rows[0].id;
+
+    await client.query(
+      `UPDATE assignments
+       SET status = CASE
+         WHEN (
+           SELECT count(DISTINCT gr.game_id)
+           FROM game_results gr
+           WHERE gr.assignment_id = assignments.id
+             AND gr.game_id = ANY(assignments.game_ids)
+         ) >= cardinality(assignments.game_ids)
+         THEN 'completed'::assignment_status
+         ELSE 'in-progress'::assignment_status
+       END,
+       updated_at = now()
+       WHERE id = $1`,
+      [assignmentId]
+    );
+
+    await writeAudit(
+      req,
+      "game_result_recorded",
+      "result",
+      resultId,
+      {
+        assignmentId,
+        gameId: parsed.data.gameId,
+        submissionId: parsed.data.submissionId,
+        score: parsed.data.score,
+        reviewStatus: "pending",
+      },
+      client
+    );
+
+    if (user.role === "therapist" || user.role === "admin") {
+      await client.query(
+        `INSERT INTO therapist_sessions (clinic_id, therapist_id, child_id, session_type, title, notes)
+         VALUES ($1, $2, $3, 'therapy', $4, $5)`,
+        [
+          user.clinicId,
+          user.id,
+          assignmentRow.child_id,
+          `Game: ${parsed.data.gameId}`,
+          `Score: ${parsed.data.score}`,
+        ]
+      );
+    }
+
+    return {
+      status: 201,
+      body: {
+        assignmentId,
+        gameId: parsed.data.gameId,
+        resultId,
+        submissionId: parsed.data.submissionId,
+        reviewStatus: inserted.rows[0].review_status,
+        replayed: false,
+      },
+    };
+  });
+
+  return res.status(outcome.status).json(outcome.body);
 });
 
 router.delete("/:id/games/:gameId", requireAuth, requireRole("admin", "therapist"), async (req, res) => {
   const assignmentId = String(req.params.id);
   const gameId = String(req.params.gameId);
 
-  const updated = await query<{ game_ids: string[] }>(
-    `UPDATE assignments
-     SET game_ids = array_remove(game_ids, $1), updated_at = now()
-     WHERE id = $2 AND clinic_id = $3 AND $1 = ANY(game_ids)
-     RETURNING game_ids`,
-    [gameId, assignmentId, req.user?.clinicId]
-  );
-  if (!updated.rows[0]) return res.status(404).json({ error: "Assignment or game not found" });
+  const outcome = await withTransaction(async (client) => {
+    const assignment = await client.query<{ id: string; game_ids: string[] }>(
+      `SELECT id, game_ids
+       FROM assignments
+       WHERE id = $1 AND clinic_id = $2
+       FOR UPDATE`,
+      [assignmentId, req.user?.clinicId]
+    );
 
-  await query(`DELETE FROM game_results WHERE assignment_id = $1 AND game_id = $2`, [assignmentId, gameId]);
-  await query(
-    `UPDATE assignments SET status = CASE
-       WHEN cardinality(game_ids) = 0 THEN 'pending'::assignment_status
-       WHEN (SELECT count(*) FROM game_results WHERE assignment_id = $1) >= cardinality(game_ids) THEN 'completed'::assignment_status
-       ELSE 'in-progress'::assignment_status END,
-       updated_at = now()
-     WHERE id = $1`,
-    [assignmentId]
-  );
+    const row = assignment.rows[0];
+    if (!row || !row.game_ids.includes(gameId)) {
+      return { status: 404, body: { error: "Assignment or game not found" } };
+    }
 
-  await writeAudit(req, "assignment_game_removed", "assignment", assignmentId, { gameId });
-  return res.json({ id: assignmentId, gameIds: updated.rows[0].game_ids });
+    const existingResults = await client.query<{ id: string }>(
+      `SELECT id
+       FROM game_results
+       WHERE assignment_id = $1 AND game_id = $2
+       LIMIT 1`,
+      [assignmentId, gameId]
+    );
+
+    if (existingResults.rows.length > 0) {
+      return {
+        status: 409,
+        body: { error: "A game with submitted results cannot be removed from this assignment" },
+      };
+    }
+
+    const updated = await client.query<{ game_ids: string[] }>(
+      `UPDATE assignments
+       SET game_ids = array_remove(game_ids, $1),
+           status = CASE
+             WHEN cardinality(array_remove(game_ids, $1)) = 0
+               THEN 'pending'::assignment_status
+             WHEN (
+               SELECT count(DISTINCT gr.game_id)
+               FROM game_results gr
+               WHERE gr.assignment_id = assignments.id
+                 AND gr.game_id = ANY(array_remove(assignments.game_ids, $1))
+             ) >= cardinality(array_remove(game_ids, $1))
+               THEN 'completed'::assignment_status
+             ELSE 'in-progress'::assignment_status
+           END,
+           updated_at = now()
+       WHERE id = $2 AND clinic_id = $3
+       RETURNING game_ids`,
+      [gameId, assignmentId, req.user?.clinicId]
+    );
+
+    await writeAudit(
+      req,
+      "assignment_game_removed",
+      "assignment",
+      assignmentId,
+      { gameId },
+      client
+    );
+
+    return {
+      status: 200,
+      body: { id: assignmentId, gameIds: updated.rows[0].game_ids },
+    };
+  });
+
+  return res.status(outcome.status).json(outcome.body);
 });
 
 export default router;
