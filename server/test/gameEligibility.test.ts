@@ -14,14 +14,14 @@ describe("assignment game eligibility", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("rejects an archived built-in game", async () => {
-    vi.mocked(query).mockResolvedValueOnce({ rows: [] } as never);
-
+  it("rejects an archived built-in game without querying custom games", async () => {
     await expect(isEligibleAssignmentGame("game-054", "clinic-1")).resolves.toBe(false);
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining("status = 'approved'"),
-      ["game-054", "clinic-1"]
-    );
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unknown non-UUID game ID without querying custom games", async () => {
+    await expect(isEligibleAssignmentGame("unknown-game", "clinic-1")).resolves.toBe(false);
+    expect(query).not.toHaveBeenCalled();
   });
 
   it("accepts a custom game approved in the same clinic", async () => {
