@@ -240,8 +240,8 @@ describe("production API", () => {
     expect(writeAuditMock).not.toHaveBeenCalled();
   });
 
-  it("lets admins delete a child record", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
+  it("archives a child without deleting its clinical history", async () => {
+    transactionQueryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
 
     const app = await loadApp();
     const response = await request(app)
@@ -249,8 +249,41 @@ describe("production API", () => {
       .set("Authorization", "Bearer admin-token")
       .expect(200);
 
-    expect(response.body).toEqual({ ok: true });
-    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "child_deleted", "child", "00000000-0000-0000-0000-000000000001", expect.any(Object));
+    expect(response.body).toEqual({ ok: true, archived: true });
+    expect(transactionQueryMock).toHaveBeenCalledTimes(1);
+    expect(transactionQueryMock.mock.calls[0][0]).toContain("UPDATE children");
+    expect(transactionQueryMock.mock.calls[0][0]).toContain("archived_at = now()");
+    expect(transactionQueryMock.mock.calls[0][0]).not.toContain("DELETE FROM children");
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "child_archived",
+      "child",
+      "00000000-0000-0000-0000-000000000001",
+      {},
+      expect.anything()
+    );
+  });
+
+  it("restores an archived child without recreating its history", async () => {
+    transactionQueryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/children/00000000-0000-0000-0000-000000000001/restore")
+      .set("Authorization", "Bearer admin-token")
+      .expect(200);
+
+    expect(response.body).toEqual({ ok: true, restored: true });
+    expect(transactionQueryMock).toHaveBeenCalledTimes(1);
+    expect(transactionQueryMock.mock.calls[0][0]).toContain("archived_at = NULL");
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "child_restored",
+      "child",
+      "00000000-0000-0000-0000-000000000001",
+      {},
+      expect.anything()
+    );
   });
 
   it("blocks therapists from deleting child records", async () => {
@@ -264,7 +297,8 @@ describe("production API", () => {
   });
 
   it("lets admins create family sign-in credentials", async () => {
-    queryMock
+    transactionQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-0000-0000-000000000001" }] })
       .mockResolvedValueOnce({ rows: [{ id: "user-parent-1" }] })
       .mockResolvedValueOnce({ rows: [{ id: "link-1" }] });
 
@@ -287,12 +321,15 @@ describe("production API", () => {
       "caregiver_created",
       "credential",
       "link-1",
-      expect.objectContaining({ relationship: "Mother" })
+      expect.objectContaining({ relationship: "Mother" }),
+      expect.anything()
     );
   });
 
-  it("re-issues a family invite code", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ id: "link-1" }] });
+  it("re-issues a family invite code only for active child links", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: "link-1" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "link-1" }] });
 
     const app = await loadApp();
     const response = await request(app)
@@ -301,8 +338,37 @@ describe("production API", () => {
       .expect(200);
 
     expect(response.body.inviteCode).toEqual(expect.any(String));
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("invite_code_hash"), expect.any(Array));
-    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "family_invite_issued", "credential", "00000000-0000-0000-0000-000000000009", expect.any(Object));
+    expect(transactionQueryMock).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("children.archived_at IS NULL"),
+      ["00000000-0000-0000-0000-000000000009", "clinic-1"]
+    );
+    expect(transactionQueryMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("invite_code_hash"),
+      [expect.any(String), ["link-1"]]
+    );
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "family_invite_issued",
+      "credential",
+      "00000000-0000-0000-0000-000000000009",
+      expect.objectContaining({ activeLinkCount: 1 }),
+      expect.anything()
+    );
+  });
+
+  it("does not re-issue a family invite when all linked children are archived", async () => {
+    transactionQueryMock.mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    await request(app)
+      .post("/api/families/00000000-0000-0000-0000-000000000009/invite")
+      .set("Authorization", "Bearer admin-token")
+      .expect(404);
+
+    expect(transactionQueryMock).toHaveBeenCalledTimes(1);
+    expect(writeAuditMock).not.toHaveBeenCalled();
   });
 
   it("blocks therapists from creating family credentials", async () => {
@@ -322,6 +388,34 @@ describe("production API", () => {
     expect(writeAuditMock).not.toHaveBeenCalled();
   });
 
+
+  it("allows admins to list archived children", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{ id: "child-1", display_name: "Ava", archived_at: "2026-01-01T00:00:00Z" }],
+    });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get("/api/children?includeArchived=true")
+      .set("Authorization", "Bearer admin-token")
+      .expect(200);
+
+    expect(response.body.children).toHaveLength(1);
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.stringContaining("($2::boolean OR archived_at IS NULL)"),
+      ["clinic-1", true],
+    );
+  });
+
+  it("blocks therapists from listing archived children", async () => {
+    const app = await loadApp();
+    await request(app)
+      .get("/api/children?includeArchived=true")
+      .set("Authorization", "Bearer therapist-token")
+      .expect(403);
+
+    expect(queryMock).not.toHaveBeenCalled();
+  });
 
   it("limits parent child lists to linked children", async () => {
     queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1", display_name: "Ava" }] });
@@ -358,7 +452,7 @@ describe("production API", () => {
   });
 
   it("does not create assignments for children or caregivers outside the caller clinic scope", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [] });
+    transactionQueryMock.mockResolvedValueOnce({ rows: [] });
 
     const app = await loadApp();
     await request(app)
@@ -389,6 +483,7 @@ describe("production API", () => {
 
     expect(response.body.assignments).toHaveLength(1);
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("assigned_family_user_id IS NULL OR assignments.assigned_family_user_id = $2"), ["clinic-1", "user-parent"]);
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("children.archived_at IS NULL"), ["clinic-1", "user-parent"]);
   });
 
   it("records an approved assignment result with submitter and review metadata", async () => {
@@ -626,6 +721,90 @@ describe("production API", () => {
     expect(transactionQueryMock.mock.calls.filter(([sql]) =>
       String(sql).includes("SELECT id, assignment_id, child_id, game_id")
     )).toHaveLength(2);
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects new result submissions for archived children", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: ["game-001"],
+          therapist_approval: "approved",
+          child_archived: true,
+        }],
+      })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000030",
+        gameId: "game-001",
+        durationSeconds: 60,
+        score: 90,
+        interactions: 5,
+      })
+      .expect(409);
+
+    expect(response.body.error).toContain("Archived child");
+    expect(transactionQueryMock.mock.calls.some(([sql]) =>
+      String(sql).includes("INSERT INTO game_results")
+    )).toBe(false);
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("allows an identical accepted result to be replayed after child archiving", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_ids: [],
+          therapist_approval: "pending",
+          child_archived: true,
+        }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "result-archived-replay",
+          assignment_id: "00000000-0000-0000-0000-000000000002",
+          child_id: "00000000-0000-0000-0000-000000000001",
+          game_id: "game-001",
+          duration_seconds: 120,
+          score: 88,
+          interactions: 12,
+          same_metrics: true,
+          submitted_by: "user-parent",
+          submitted_by_role: "parent",
+          review_status: "pending",
+        }],
+      });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .set("Authorization", "Bearer parent-token")
+      .send({
+        submissionId: "00000000-0000-0000-0000-000000000020",
+        gameId: "game-001",
+        durationSeconds: 120,
+        score: 88,
+        interactions: 12,
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      resultId: "result-archived-replay",
+      submissionId: "00000000-0000-0000-0000-000000000020",
+      replayed: true,
+    });
+    expect(transactionQueryMock.mock.calls.some(([sql]) =>
+      String(sql).includes("INSERT INTO game_results")
+    )).toBe(false);
     expect(writeAuditMock).not.toHaveBeenCalled();
   });
 

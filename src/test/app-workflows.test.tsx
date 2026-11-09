@@ -618,6 +618,94 @@ describe("app workflows", () => {
     });
   });
 
+  it("clears the selected child and assignment only when that child is archived", async () => {
+    function ArchiveSelectionProbe() {
+      const {
+        signInAdmin,
+        removeChild,
+        assignments,
+        children,
+        session,
+        selectedChildId,
+        setSelectedChildId,
+        currentAssignment,
+        setCurrentAssignment,
+      } = useApp();
+      const signInStarted = useRef(false);
+
+      useEffect(() => {
+        if (signInStarted.current) return;
+        signInStarted.current = true;
+        void signInAdmin("admin@playgroundlife.app", "admin123");
+      }, [signInAdmin]);
+
+      return (
+        <>
+          <pre data-testid="archive-selection-state">
+            {JSON.stringify({
+              role: session?.role ?? null,
+              childIds: children.map((child) => child.id),
+              selectedChildId,
+              currentAssignmentId: currentAssignment?.id ?? null,
+              assignmentIds: assignments.map((item) => item.id),
+            })}
+          </pre>
+          <button
+            onClick={() => {
+              setSelectedChildId("child-1");
+              setCurrentAssignment(assignments.find((item) => item.id === "hw-1") ?? null);
+            }}
+          >
+            Select child 1
+          </button>
+          <button onClick={() => void removeChild("child-2")}>
+            Archive child 2
+          </button>
+          <button onClick={() => void removeChild("child-1")}>
+            Archive child 1
+          </button>
+        </>
+      );
+    }
+
+    render(
+      <ApiAppProvider>
+        <ArchiveSelectionProbe />
+      </ApiAppProvider>
+    );
+
+    const readState = () =>
+      JSON.parse(screen.getByTestId("archive-selection-state").textContent || "{}");
+
+    await waitFor(() => {
+      expect(readState().role).toBe("admin");
+      expect(readState().assignmentIds).toContain("hw-1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Select child 1" }));
+
+    await waitFor(() => {
+      expect(readState().selectedChildId).toBe("child-1");
+      expect(readState().currentAssignmentId).toBe("hw-1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive child 2" }));
+
+    await waitFor(() => {
+      expect(readState().childIds).not.toContain("child-2");
+      expect(readState().selectedChildId).toBe("child-1");
+      expect(readState().currentAssignmentId).toBe("hw-1");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive child 1" }));
+
+    await waitFor(() => {
+      expect(readState().childIds).not.toContain("child-1");
+      expect(readState().selectedChildId).toBeNull();
+      expect(readState().currentAssignmentId).toBeNull();
+    });
+  });
+
   it("renders the admin dashboard sign-in flow", () => {
     render(
       <MemoryRouter>

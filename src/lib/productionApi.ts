@@ -182,6 +182,16 @@ export const productionApi = {
     return request<{ children: unknown[] }>("/api/children");
   },
 
+  listArchivedChildren() {
+    return request<{ children: unknown[] }>("/api/children?includeArchived=true");
+  },
+
+  restoreChild(id: string) {
+    return request<{ ok: true; restored: true }>(`/api/children/${id}/restore`, {
+      method: "POST",
+    });
+  },
+
   createChild(payload: ApiChildPayload) {
     return request<{ id: string }>("/api/children", {
       method: "POST",

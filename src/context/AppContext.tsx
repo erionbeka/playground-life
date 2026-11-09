@@ -244,6 +244,9 @@ export interface AppState {
   addStaffUser: (user: { role: "admin" | "therapist"; name: string; email: string; clinicName: string; password: string }) => MaybePromise<void>;
   inviteStaffUser: (payload: { email: string; role: "admin" | "therapist" }) => MaybePromise<void>;
   children: Child[];
+  archivedChildren: Child[];
+  loadArchivedChildren: () => MaybePromise<void>;
+  restoreChild: (id: string) => MaybePromise<void>;
   addChild: (child: Omit<Child, "id">) => MaybePromise<void>;
   addFamilyMember: (childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => MaybePromise<string | null>;
   removeChild: (id: string) => MaybePromise<void>;

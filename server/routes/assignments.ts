@@ -61,8 +61,14 @@ router.get("/", requireAuth, async (req, res) => {
     const result = await query(
       `SELECT assignments.*, ${RESULTS_SUBQUERY} AS results
        FROM assignments
-       INNER JOIN family_child_links ON family_child_links.child_id = assignments.child_id
+       INNER JOIN children
+         ON children.id = assignments.child_id
+        AND children.clinic_id = assignments.clinic_id
+       INNER JOIN family_child_links
+         ON family_child_links.child_id = assignments.child_id
+        AND family_child_links.clinic_id = assignments.clinic_id
        WHERE assignments.clinic_id = $1
+         AND children.archived_at IS NULL
          AND family_child_links.user_id = $2
          AND (assignments.assigned_family_user_id IS NULL OR assignments.assigned_family_user_id = $2)
        ORDER BY assignments.created_at DESC`,
@@ -82,46 +88,69 @@ router.post("/", requireAuth, requireRole("admin", "therapist"), async (req, res
   const parsed = assignmentSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid assignment payload" });
 
-  const inserted = await query<{ id: string }>(
-    `INSERT INTO assignments (
-      clinic_id, child_id, assigned_family_user_id, type, game_ids, difficulty, mode, notes, due_date,
-      skill_focus, support_level, system_suggested_difficulty, therapist_approval, monthly_plan, created_by
-    )
-    SELECT $1, children.id, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending', $13, $14
-    FROM children
-    WHERE children.id = $2 AND children.clinic_id = $1
-      AND (
-        $3::uuid IS NULL
-        OR EXISTS (
-          SELECT 1
-          FROM family_child_links
-          WHERE family_child_links.child_id = children.id
-            AND family_child_links.user_id = $3
-            AND family_child_links.clinic_id = $1
-        )
-      )
-    RETURNING id`,
-    [
-      req.user?.clinicId,
-      parsed.data.childId,
-      parsed.data.assignedFamilyUserId ?? null,
-      parsed.data.type,
-      parsed.data.gameIds,
-      parsed.data.difficulty,
-      parsed.data.mode,
-      parsed.data.notes,
-      parsed.data.dueDate,
-      parsed.data.skillFocus,
-      parsed.data.supportLevel ?? null,
-      parsed.data.systemSuggestedDifficulty ?? null,
-      parsed.data.monthlyPlan ? JSON.stringify(parsed.data.monthlyPlan) : null,
-      req.user?.id,
-    ]
-  );
-  if (!inserted.rows[0]) return res.status(404).json({ error: "Child or assigned family member not found" });
+  const created = await withTransaction(async (client) => {
+    const child = await client.query<{ id: string }>(
+      `SELECT id FROM children
+       WHERE id = $1 AND clinic_id = $2 AND archived_at IS NULL
+       FOR UPDATE`,
+      [parsed.data.childId, req.user?.clinicId]
+    );
+    if (!child.rows[0]) return null;
 
-  await writeAudit(req, "assignment_created", "assignment", inserted.rows[0].id, { childId: parsed.data.childId, type: parsed.data.type });
-  return res.status(201).json({ id: inserted.rows[0].id });
+    const inserted = await client.query<{ id: string }>(
+      `INSERT INTO assignments (
+        clinic_id, child_id, assigned_family_user_id, type, game_ids, difficulty, mode, notes, due_date,
+        skill_focus, support_level, system_suggested_difficulty, therapist_approval, monthly_plan, created_by
+      )
+      SELECT $1, children.id, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending', $13, $14
+      FROM children
+      WHERE children.id = $2 AND children.clinic_id = $1
+        AND children.archived_at IS NULL
+        AND (
+          $3::uuid IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM family_child_links
+            WHERE family_child_links.child_id = children.id
+              AND family_child_links.user_id = $3
+              AND family_child_links.clinic_id = $1
+          )
+        )
+      RETURNING id`,
+      [
+        req.user?.clinicId,
+        parsed.data.childId,
+        parsed.data.assignedFamilyUserId ?? null,
+        parsed.data.type,
+        parsed.data.gameIds,
+        parsed.data.difficulty,
+        parsed.data.mode,
+        parsed.data.notes,
+        parsed.data.dueDate,
+        parsed.data.skillFocus,
+        parsed.data.supportLevel ?? null,
+        parsed.data.systemSuggestedDifficulty ?? null,
+        parsed.data.monthlyPlan ? JSON.stringify(parsed.data.monthlyPlan) : null,
+        req.user?.id,
+      ]
+    );
+
+    if (!inserted.rows[0]) return null;
+
+    const assignmentId = inserted.rows[0].id;
+    await writeAudit(
+      req,
+      "assignment_created",
+      "assignment",
+      assignmentId,
+      { childId: parsed.data.childId, type: parsed.data.type },
+      client
+    );
+    return assignmentId;
+  });
+
+  if (!created) return res.status(404).json({ error: "Child or assigned family member not found" });
+  return res.status(201).json({ id: created });
 });
 
 router.post("/:id/approval", requireAuth, requireRole("therapist", "admin"), async (req, res) => {
@@ -129,16 +158,36 @@ router.post("/:id/approval", requireAuth, requireRole("therapist", "admin"), asy
   if (!parsed.success) return res.status(400).json({ error: "Invalid approval payload" });
   const assignmentId = String(req.params.id);
 
-  const updated = await query<{ id: string }>(
-    `UPDATE assignments
-     SET therapist_approval = $1, difficulty = coalesce($2, difficulty), approved_at = now(), approved_by = $3, updated_at = now()
-     WHERE id = $4 AND clinic_id = $5
-     RETURNING id`,
-    [parsed.data.approval, parsed.data.difficulty ?? null, req.user?.id, assignmentId, req.user?.clinicId]
-  );
-  if (!updated.rows[0]) return res.status(404).json({ error: "Assignment not found" });
+  const updated = await withTransaction(async (client) => {
+    const locked = await client.query<{ id: string }>(
+      `SELECT assignments.id
+       FROM assignments
+       JOIN children
+         ON children.id = assignments.child_id
+        AND children.clinic_id = assignments.clinic_id
+       WHERE assignments.id = $1
+         AND assignments.clinic_id = $2
+         AND children.archived_at IS NULL
+       FOR UPDATE OF assignments, children`,
+      [assignmentId, req.user?.clinicId]
+    );
+    if (!locked.rows[0]) return false;
 
-  await writeAudit(req, "assignment_approved", "assignment", assignmentId, parsed.data);
+    const result = await client.query<{ id: string }>(
+      `UPDATE assignments
+       SET therapist_approval = $1, difficulty = coalesce($2, difficulty),
+           approved_at = now(), approved_by = $3, updated_at = now()
+       WHERE id = $4 AND clinic_id = $5
+       RETURNING id`,
+      [parsed.data.approval, parsed.data.difficulty ?? null, req.user?.id, assignmentId, req.user?.clinicId]
+    );
+    if (!result.rows[0]) return false;
+
+    await writeAudit(req, "assignment_approved", "assignment", assignmentId, parsed.data, client);
+    return true;
+  });
+
+  if (!updated) return res.status(404).json({ error: "Assignment not found" });
   return res.json({ id: assignmentId, approval: parsed.data.approval });
 });
 
@@ -157,18 +206,24 @@ router.post("/:id/results", requireAuth, requireRole("parent", "therapist", "adm
           child_id: string;
           game_ids: string[];
           therapist_approval: string;
+          child_archived: boolean;
         }>(
           `SELECT assignments.id, assignments.child_id, assignments.game_ids,
-                  assignments.therapist_approval
+                  assignments.therapist_approval,
+                  children.archived_at IS NOT NULL AS child_archived
            FROM assignments
+           INNER JOIN children
+             ON children.id = assignments.child_id
+            AND children.clinic_id = assignments.clinic_id
            INNER JOIN family_child_links
              ON family_child_links.child_id = assignments.child_id
+            AND family_child_links.clinic_id = assignments.clinic_id
            WHERE assignments.id = $1
              AND assignments.clinic_id = $2
              AND family_child_links.user_id = $3
              AND (assignments.assigned_family_user_id IS NULL
                   OR assignments.assigned_family_user_id = $3)
-           FOR UPDATE OF assignments`,
+           FOR UPDATE OF assignments, children`,
           [assignmentId, user.clinicId, user.id]
         )
       : await client.query<{
@@ -176,11 +231,17 @@ router.post("/:id/results", requireAuth, requireRole("parent", "therapist", "adm
           child_id: string;
           game_ids: string[];
           therapist_approval: string;
+          child_archived: boolean;
         }>(
-          `SELECT id, child_id, game_ids, therapist_approval
+          `SELECT assignments.id, assignments.child_id, assignments.game_ids,
+                  assignments.therapist_approval,
+                  children.archived_at IS NOT NULL AS child_archived
            FROM assignments
-           WHERE id = $1 AND clinic_id = $2
-           FOR UPDATE`,
+           INNER JOIN children
+             ON children.id = assignments.child_id
+            AND children.clinic_id = assignments.clinic_id
+           WHERE assignments.id = $1 AND assignments.clinic_id = $2
+           FOR UPDATE OF assignments, children`,
           [assignmentId, user.clinicId]
         );
 
@@ -253,6 +314,12 @@ router.post("/:id/results", requireAuth, requireRole("parent", "therapist", "adm
 
     const replay = await findExistingSubmission();
     if (replay) return replay;
+
+    // A previously accepted offline result may be replayed, but no new
+    // result may be recorded after the child has been archived.
+    if (assignmentRow.child_archived) {
+      return { status: 409, body: { error: "Archived child cannot receive new results" } };
+    }
 
     // Current approval and game rules apply only to new submissions.
     if (!["approved", "adjusted"].includes(assignmentRow.therapist_approval)) {
@@ -381,10 +448,14 @@ router.delete("/:id/games/:gameId", requireAuth, requireRole("admin", "therapist
 
   const outcome = await withTransaction(async (client) => {
     const assignment = await client.query<{ id: string; game_ids: string[] }>(
-      `SELECT id, game_ids
+      `SELECT assignments.id, assignments.game_ids
        FROM assignments
-       WHERE id = $1 AND clinic_id = $2
-       FOR UPDATE`,
+       INNER JOIN children
+         ON children.id = assignments.child_id
+        AND children.clinic_id = assignments.clinic_id
+        AND children.archived_at IS NULL
+       WHERE assignments.id = $1 AND assignments.clinic_id = $2
+       FOR UPDATE OF assignments, children`,
       [assignmentId, req.user?.clinicId]
     );
 
@@ -428,6 +499,10 @@ router.delete("/:id/games/:gameId", requireAuth, requireRole("admin", "therapist
        RETURNING game_ids`,
       [gameId, assignmentId, req.user?.clinicId]
     );
+
+    if (!updated.rows[0]) {
+      return { status: 404, body: { error: "Assignment or game not found" } };
+    }
 
     await writeAudit(
       req,

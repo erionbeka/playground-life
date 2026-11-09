@@ -41,7 +41,7 @@ const tabs: { key: Tab; label: string; emoji?: string }[] = [
 ];
 
 export default function AdminDashboard() {
-  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, inviteStaffUser, addChild, addFamilyMember, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog, sessionRestoreStatus, retrySessionRestore } = useApp();
+  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, inviteStaffUser, addChild, addFamilyMember, children, archivedChildren, loadArchivedChildren, restoreChild, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog, sessionRestoreStatus, retrySessionRestore } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
   const [email, setEmail] = useState("");
@@ -63,6 +63,38 @@ export default function AdminDashboard() {
   const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
   const [generatedInvites, setGeneratedInvites] = useState<Record<string, string>>({});
   const [showAddChild, setShowAddChild] = useState(false);
+  const [showArchivedChildren, setShowArchivedChildren] = useState(false);
+  const [archivedChildrenLoaded, setArchivedChildrenLoaded] = useState(false);
+  const [loadingArchivedChildren, setLoadingArchivedChildren] = useState(false);
+  const [restoringChildId, setRestoringChildId] = useState<string | null>(null);
+
+  const toggleArchivedChildren = async () => {
+    const opening = !showArchivedChildren;
+    setShowArchivedChildren(opening);
+    if (!opening || archivedChildrenLoaded || loadingArchivedChildren) return;
+
+    setLoadingArchivedChildren(true);
+    try {
+      await loadArchivedChildren();
+      setArchivedChildrenLoaded(true);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Couldn't load archived children.");
+    } finally {
+      setLoadingArchivedChildren(false);
+    }
+  };
+
+  const handleRestoreChild = async (childId: string) => {
+    setRestoringChildId(childId);
+    try {
+      await restoreChild(childId);
+      toast.success("Child profile restored.");
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Couldn't restore this child.");
+    } finally {
+      setRestoringChildId(null);
+    }
+  };
 
   useEffect(() => {
     const API = import.meta.env.VITE_API_URL || "";
@@ -806,6 +838,51 @@ export default function AdminDashboard() {
               ))}
               {children.length === 0 ? <p className="text-sm text-muted-foreground">No children yet. Add a child to get started.</p> : null}
             </div>
+
+            <section className="rounded-2xl border border-border bg-muted/40 p-4">
+              <button
+                type="button"
+                onClick={toggleArchivedChildren}
+                aria-expanded={showArchivedChildren}
+                className="flex w-full items-center justify-between gap-3 text-left"
+              >
+                <span>
+                  <span className="block font-semibold text-foreground">Archived children</span>
+                  <span className="text-xs text-muted-foreground">Archived profiles are excluded from active clinic workflows.</span>
+                </span>
+                <span className="text-sm font-semibold text-primary">
+                  {showArchivedChildren ? "Hide" : "Show"}
+                </span>
+              </button>
+
+              {showArchivedChildren ? (
+                <div className="mt-4 space-y-3">
+                  {loadingArchivedChildren ? (
+                    <p className="text-sm text-muted-foreground">Loading archived profiles...</p>
+                  ) : archivedChildren.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No archived children found.</p>
+                  ) : archivedChildren.map((child) => (
+                    <div key={child.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{child.avatar}</span>
+                        <div>
+                          <p className="font-semibold text-foreground">{child.name}</p>
+                          <p className="text-xs text-muted-foreground">Age {child.age}{child.diagnosis ? ` · ${child.diagnosis}` : ""}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={restoringChildId === child.id}
+                        onClick={() => handleRestoreChild(child.id)}
+                        className="touch-target rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {restoringChildId === child.id ? "Restoring..." : "Restore"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
           </div>
         ) : null}
 

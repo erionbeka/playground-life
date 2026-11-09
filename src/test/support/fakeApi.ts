@@ -272,6 +272,7 @@ function createFakeApi(): FakeApi {
   activeState = state;
   let session: AuthSession | null = null;
   let nextId = 100;
+  const archivedChildIds = new Set<string>();
 
   const id = (prefix: string) => `${prefix}-${nextId++}`;
 
@@ -289,9 +290,12 @@ function createFakeApi(): FakeApi {
 
   const buildFamilySession = () => {
     const childIds = familyChildIds();
+    const activeChildIds = new Set(
+      [...childIds].filter((childId) => !archivedChildIds.has(childId)),
+    );
     return {
-      children: state.children.filter((child) => childIds.has(child.id)).map(childRow),
-      assignments: state.assignments.filter((assignment) => childIds.has(assignment.childId)).map(assignmentRow),
+      children: state.children.filter((child) => activeChildIds.has(child.id)).map(childRow),
+      assignments: state.assignments.filter((assignment) => activeChildIds.has(assignment.childId)).map(assignmentRow),
     };
   };
 
@@ -343,7 +347,21 @@ function createFakeApi(): FakeApi {
       return { staff: [...state.admins, ...state.therapists].map(toStaff) };
     },
     async listChildren() {
-      return { children: state.children.map(childRow) };
+      return { children: state.children.filter((child) => !archivedChildIds.has(child.id)).map(childRow) };
+    },
+    async listArchivedChildren() {
+      return {
+        children: state.children
+          .filter((child) => archivedChildIds.has(child.id))
+          .map((child) => ({
+            ...childRow(child),
+            archived_at: "2026-01-01T00:00:00.000Z",
+          })),
+      };
+    },
+    async restoreChild(childId: string) {
+      archivedChildIds.delete(childId);
+      return { ok: true as const, restored: true as const };
     },
     async createChild(payload: Record<string, unknown>) {
       const childId = id("child");
@@ -377,11 +395,8 @@ function createFakeApi(): FakeApi {
       return { id: childId };
     },
     async deleteChild(childId: string) {
-      state.children = state.children.filter((entry) => entry.id !== childId);
-      // The real schema cascades: assignments for a deleted child go with it.
-      state.assignments = state.assignments.filter((entry) => entry.childId !== childId);
-      state.familyLinks = state.familyLinks.filter((entry) => entry.childId !== childId);
-      state.goals = state.goals.filter((entry) => entry.childId !== childId);
+      // Match production soft-archive behavior; retain all linked history.
+      archivedChildIds.add(childId);
     },
     async listAssignments() {
       return { assignments: state.assignments.map(assignmentRow) };
