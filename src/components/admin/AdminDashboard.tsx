@@ -21,13 +21,39 @@ function generateTemporaryPassword(): string {
   const lower = "abcdefghijkmnopqrstuvwxyz";
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const digits = "23456789";
-  const rest = `${lower}${upper}${digits}`;
-  const pick = (source: string) => source[Math.floor(Math.random() * source.length)];
-  const characters = [pick(lower), pick(upper), pick(digits)];
-  while (characters.length < 16) characters.push(pick(rest));
-  return characters
-    .sort(() => Math.random() - 0.5)
-    .join("");
+  const all = `${lower}${upper}${digits}`;
+
+  // Rejection sampling avoids the modulo bias caused by value % alphabet.length.
+  // Each call draws fresh cryptographic randomness from the Web Crypto API.
+  const randomIndex = (maxExclusive: number): number => {
+    const range = 0x1_0000_0000;
+    const limit = range - (range % maxExclusive);
+    const value = new Uint32Array(1);
+
+    do {
+      crypto.getRandomValues(value);
+    } while (value[0] >= limit);
+
+    return value[0] % maxExclusive;
+  };
+
+  const characters = [
+    lower[randomIndex(lower.length)],
+    upper[randomIndex(upper.length)],
+    digits[randomIndex(digits.length)],
+  ];
+
+  while (characters.length < 16) {
+    characters.push(all[randomIndex(all.length)]);
+  }
+
+  // Fisher-Yates shuffle with independent, unbiased cryptographic draws.
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomIndex(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+  }
+
+  return characters.join("");
 }
 
 const tabs: { key: Tab; label: string; emoji?: string }[] = [
@@ -603,14 +629,15 @@ export default function AdminDashboard() {
                             onClick={async () => {
                               const API = import.meta.env.VITE_API_URL || "";
                               const token = localStorage.getItem("accessToken");
+                              const newPassword = generateTemporaryPassword();
                               const res = await fetch(`${API}/api/auth/staff/${user.id}/reset-password`, {
                                 method: "POST",
                                 credentials: "include",
                                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                                body: JSON.stringify({}),
+                                body: JSON.stringify({ password: newPassword }),
                               });
                               const data = await res.json();
-                              if (res.ok) toast.success(`New password: ${data.temporaryPassword ?? "(emailed)"}`);
+                              if (res.ok) toast.success(`Password reset. Share securely: ${newPassword}`);
                               else toast.error(data.error || "Failed");
                             }}
                             className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
@@ -649,14 +676,15 @@ export default function AdminDashboard() {
                           onClick={async () => {
                             const API = import.meta.env.VITE_API_URL || "";
                             const token = localStorage.getItem("accessToken");
+                            const newPassword = generateTemporaryPassword();
                             const res = await fetch(`${API}/api/auth/staff/${user.id}/reset-password`, {
                               method: "POST",
                               credentials: "include",
                               headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                              body: JSON.stringify({}),
+                              body: JSON.stringify({ password: newPassword }),
                             });
                             const data = await res.json();
-                            if (res.ok) toast.success(`New password: ${data.temporaryPassword ?? "(emailed)"}`);
+                            if (res.ok) toast.success(`Password reset. Share securely: ${newPassword}`);
                             else toast.error(data.error || "Failed");
                           }}
                           className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"

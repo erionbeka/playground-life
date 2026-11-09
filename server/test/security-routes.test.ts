@@ -7,10 +7,12 @@ const queryMock = vi.hoisted(() => vi.fn());
 const hashPasswordMock = vi.hoisted(() => vi.fn(async (password: string) => `hashed-${password}`));
 const verifyTotpMock = vi.hoisted(() => vi.fn((secret: string, token: string) => token === "123456"));
 const writeAuditMock = vi.hoisted(() => vi.fn());
+const transactionQueryMock = vi.hoisted(() => vi.fn());
+const poolConnectMock = vi.hoisted(() => vi.fn(async () => ({ query: transactionQueryMock, release: vi.fn() })));
 
 vi.mock("../db.ts", () => ({
   query: queryMock,
-  pool: {},
+  pool: { connect: poolConnectMock },
   closePool: vi.fn(),
 }));
 
@@ -65,6 +67,8 @@ beforeEach(() => {
   hashPasswordMock.mockClear();
   verifyTotpMock.mockClear();
   writeAuditMock.mockReset();
+  transactionQueryMock.mockReset();
+  poolConnectMock.mockClear();
 });
 
 describe("security route session invalidation", () => {
@@ -141,26 +145,37 @@ describe("security route session invalidation", () => {
     const { createHash } = await import("node:crypto");
     const tokenHash = createHash("sha256").update(token).digest("hex");
 
-    queryMock
-      .mockResolvedValueOnce({
-        rows: [{
-          id: "reset-1",
-          user_id: "user-1",
-          expires_at: new Date(Date.now() + 60_000),
-          used_at: null,
-        }],
-      })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] });
+    transactionQueryMock
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({ rows: [{ user_id: "user-1" }] }) // find candidate account
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: "user-1" }] }) // lock account
+      .mockResolvedValueOnce({ rows: [{ id: "reset-1", user_id: "user-1" }] }) // revalidate and lock token
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] }) // update password
+      .mockResolvedValueOnce({ rowCount: 1, rows: [] }) // invalidate all outstanding tokens
+      .mockResolvedValueOnce({ rows: [] }) // audit
+      .mockResolvedValueOnce({ rows: [] }); // COMMIT
 
     await request(buildApp())
       .post("/api/security/reset-confirm")
       .send({ token, password: "NewPassword123" })
       .expect(200);
 
-    expect(queryMock.mock.calls[1][0]).toContain("session_version = session_version + 1");
-    expect(queryMock.mock.calls[1][1]).toEqual(["hashed-NewPassword123", "user-1"]);
-    expect(queryMock.mock.calls[0][1]).toEqual([tokenHash]);
+    expect(poolConnectMock).toHaveBeenCalledTimes(1);
+    expect(transactionQueryMock).toHaveBeenCalledTimes(8);
+    expect(transactionQueryMock.mock.calls[0][0]).toBe("BEGIN");
+    expect(transactionQueryMock.mock.calls[1][0]).toContain("SELECT user_id FROM password_reset_tokens");
+    expect(transactionQueryMock.mock.calls[1][0]).not.toContain("FOR UPDATE");
+    expect(transactionQueryMock.mock.calls[1][1]).toEqual([tokenHash]);
+    expect(transactionQueryMock.mock.calls[2][0]).toContain("SELECT id FROM users");
+    expect(transactionQueryMock.mock.calls[2][0]).toContain("FOR UPDATE");
+    expect(transactionQueryMock.mock.calls[2][1]).toEqual(["user-1"]);
+    expect(transactionQueryMock.mock.calls[3][0]).toContain("user_id = $2");
+    expect(transactionQueryMock.mock.calls[3][0]).toContain("FOR UPDATE");
+    expect(transactionQueryMock.mock.calls[3][1]).toEqual([tokenHash, "user-1"]);
+    expect(transactionQueryMock.mock.calls[4][0]).toContain("session_version = session_version + 1");
+    expect(transactionQueryMock.mock.calls[4][1]).toEqual(["hashed-NewPassword123", "user-1"]);
+    expect(transactionQueryMock.mock.calls[5][0]).toContain("user_id = $1 AND used_at IS NULL");
+    expect(transactionQueryMock.mock.calls[5][1]).toEqual(["user-1"]);
+    expect(transactionQueryMock.mock.calls[7][0]).toBe("COMMIT");
   });
 });

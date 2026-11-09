@@ -23,11 +23,11 @@ const caregiverSchema = z.object({
   relationship: z.string().min(2),
   phoneNumber: z.string().min(7),
   email: z.string().email().optional(),
-  temporaryPassword: z.string().min(8).optional(),
+  temporaryPassword: z.string().min(12).max(128),
 });
 
 const resetSchema = z.object({
-  temporaryPassword: z.string().min(8),
+  temporaryPassword: z.string().min(12).max(128),
   credentialStatus: z.enum(["active", "pending"]).default("active"),
 });
 
@@ -57,8 +57,7 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = caregiverSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid caregiver payload" });
 
-  const temporaryPassword = parsed.data.temporaryPassword || `Tmp-${randomBytes(4).toString("hex")}`;
-  const passwordHash = await hashPassword(temporaryPassword);
+  const passwordHash = await hashPassword(parsed.data.temporaryPassword);
   const created = await withTransaction(async (client) => {
     const child = await client.query<{ id: string }>(
       `SELECT id
@@ -97,13 +96,13 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
   if (parsed.data.email) {
     await queueEmail({
       to: parsed.data.email,
-      kind: "invite",
-      subject: "Your Playground Life family access",
-      body: `You can sign in with phone ${parsed.data.phoneNumber} and temporary password ${temporaryPassword}. Sign in at ${appUrl()}.\n\nMund të hyni me telefonin ${parsed.data.phoneNumber} dhe fjalëkalimin e përkohshëm ${temporaryPassword}. Hyni në ${appUrl()}.`,
+      kind: "notice",
+      subject: "Your Playground Life family access is ready",
+      body: `Your family access has been created. Sign in at ${appUrl()} using the phone number provided by your clinic. Contact your clinic administrator if you need help.\n\nQasja juaj familjare është krijuar. Hyni në ${appUrl()} me numrin e telefonit që ju ka dhënë klinika. Kontaktoni administratorin e klinikës nëse keni nevojë për ndihmë.`,
     });
   }
 
-  return res.status(201).json({ id: created.linkId, userId: created.userId, emailed: !!parsed.data.email, temporaryPassword });
+  return res.status(201).json({ id: created.linkId, userId: created.userId, emailed: !!parsed.data.email });
 });
 
 router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
@@ -125,16 +124,8 @@ router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async 
 
   if (!updated.rows[0]) return res.status(404).json({ error: "Caregiver not found" });
 
-  const caregiver = updated.rows[0];
-  if (caregiver.email) {
-    await queueEmail({
-      to: caregiver.email,
-      kind: "reset",
-      subject: "Your Playground Life password was reset",
-      body: `Your temporary password is ${parsed.data.temporaryPassword}. Sign in at ${appUrl()} with phone ${caregiver.phone_number}.\n\nFjalëkalimi juaj i përkohshëm është ${parsed.data.temporaryPassword}. Hyni në ${appUrl()} me telefonin ${caregiver.phone_number}.`,
-    });
-  }
-
+  // Passwords must never be sent through email. The administrator supplies
+  // the new credential and communicates it to the caregiver out of band.
   await writeAudit(req, "caregiver_password_reset", "credential", userId, { credentialStatus: parsed.data.credentialStatus });
   return res.json({ userId, credentialStatus: parsed.data.credentialStatus });
 });

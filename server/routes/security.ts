@@ -21,7 +21,7 @@ const resetRequestSchema = z.object({ email: z.string().email() });
 // Twelve characters, the same rule every other password in the app follows.
 // A weaker rule on the reset path would let anyone who can reach a reset
 // form choose a password weaker than the sign-up form allows.
-const resetConfirmSchema = z.object({ token: z.string().min(20), password: z.string().min(8) });
+const resetConfirmSchema = z.object({ token: z.string().min(20), password: z.string().min(12).max(128) });
 const mfaTokenSchema = z.object({ token: z.string().length(6) });
 
 securityRoutes.post("/reset-request", resetRequestLimiter, async (req: Request, res: Response) => {
@@ -55,32 +55,77 @@ securityRoutes.post("/reset-confirm", resetConfirmLimiter, async (req: Request, 
   const parsed = resetConfirmSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid reset payload" });
 
-  const rows = await query<{ id: string; user_id: string }>(
-    `SELECT id, user_id FROM password_reset_tokens
-     WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
-     LIMIT 1`,
-    [sha256(parsed.data.token)]
-  );
-
-  if (rows.rows.length === 0) return res.status(400).json({ error: "Reset link is invalid or expired" });
-
-  const tokenRow = rows.rows[0];
   const passwordHash = await hashPassword(parsed.data.password);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // First identify the account without locking a token row. Then lock the
+    // account row so concurrent reset attempts for this user serialize.
+    const candidate = await client.query<{ user_id: string }>(
+      `SELECT user_id FROM password_reset_tokens
+       WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+       LIMIT 1`,
+      [sha256(parsed.data.token)]
+    );
+    const candidateUserId = candidate.rows[0]?.user_id;
+    if (!candidateUserId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Reset link is invalid or expired" });
+    }
 
-  await query(
-    `UPDATE users
-     SET password_hash = $1,
-         session_version = session_version + 1,
-         updated_at = now()
-     WHERE id = $2`,
-    [passwordHash, tokenRow.user_id]
-  );
-  await query("UPDATE password_reset_tokens SET used_at = now() WHERE id = $1", [tokenRow.id]);
-  await query(
-    `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, details)
-     VALUES ($1, 'password_reset', 'auth', $2, '{"via":"reset_token"}'::jsonb)`,
-    [tokenRow.user_id, tokenRow.user_id]
-  );
+    const account = await client.query<{ id: string }>(
+      "SELECT id FROM users WHERE id = $1 FOR UPDATE",
+      [candidateUserId]
+    );
+    if (account.rowCount !== 1) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Reset link is invalid or expired" });
+    }
+
+    // Revalidate and lock the token only after acquiring the account lock.
+    // Another reset for this account may have consumed it while we waited.
+    const rows = await client.query<{ id: string; user_id: string }>(
+      `SELECT id, user_id FROM password_reset_tokens
+       WHERE token_hash = $1 AND user_id = $2
+         AND used_at IS NULL AND expires_at > now()
+       LIMIT 1 FOR UPDATE`,
+      [sha256(parsed.data.token), candidateUserId]
+    );
+    const tokenRow = rows.rows[0];
+    if (!tokenRow) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Reset link is invalid or expired" });
+    }
+
+    const updated = await client.query(
+      `UPDATE users SET password_hash = $1,
+         session_version = session_version + 1, updated_at = now()
+       WHERE id = $2`,
+      [passwordHash, tokenRow.user_id]
+    );
+    if (updated.rowCount !== 1) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Reset link is invalid or expired" });
+    }
+
+    // A successful reset invalidates every outstanding reset link for the account.
+    await client.query(
+      `UPDATE password_reset_tokens SET used_at = now()
+       WHERE user_id = $1 AND used_at IS NULL`,
+      [tokenRow.user_id]
+    );
+    await client.query(
+      `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, details)
+       VALUES ($1, 'password_reset', 'auth', $2, '{"via":"reset_token"}'::jsonb)`,
+      [tokenRow.user_id, tokenRow.user_id]
+    );
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 
   return res.json({ ok: true });
 });
@@ -184,13 +229,13 @@ securityRoutes.post("/invitations", requireAuth, requireRole("admin"), async (re
 const acceptInviteSchema = z.object({
   token: z.string().min(20),
   name: z.string().min(2),
-  password: z.string().min(8),
+  password: z.string().min(12).max(128),
 });
 
 securityRoutes.post("/invitations/accept", invitationAcceptLimiter, async (req: Request, res: Response) => {
   const parsed = acceptInviteSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Name (2+ chars) and password (8+ chars) required" });
+    return res.status(400).json({ error: "Name (2+ chars) and password (12+ chars) required" });
   }
 
   const passwordHash = await hashPassword(parsed.data.password);

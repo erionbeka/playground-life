@@ -1,11 +1,9 @@
 import { Router } from "express";
-import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { hashPassword, signAccessToken, verifyPassword } from "../auth.ts";
 import { config, isProduction } from "../config.ts";
 import { pool, query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
-import { appUrl, queueEmail } from "../lib/mailer.ts";
 import { signInLimiter } from "../rateLimit.ts";
 import { writeAudit } from "../audit.ts";
 import type { UserRole } from "../types.ts";
@@ -33,14 +31,14 @@ async function canManageAdminAccounts(userId: string, clinicId: string) {
 
 const loginSchema = z.object({
   identifier: z.string().min(1),
-  password: z.string().min(1),
+  password: z.string().min(1).max(128),
 });
 
 const createStaffSchema = z.object({
   role: z.enum(["admin", "therapist"]),
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().min(12).max(128),
 });
 
 function setSessionCookie(res: import("express").Response, token: string) {
@@ -166,7 +164,7 @@ router.post("/staff", requireAuth, requireRole("admin"), async (req, res) => {
  * appears in the list. Scoped to the caller's clinic; admins only, because the
  * roster exposes staff email addresses and credential state.
  */
-const staffResetSchema = z.object({ password: z.string().min(8).optional() });
+const staffResetSchema = z.object({ password: z.string().min(12).max(128) });
 const staffStatusSchema = z.object({ status: z.enum(["active", "suspended"]) });
 
 router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
@@ -180,8 +178,7 @@ router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), asyn
       !(await canManageAdminAccounts(req.user!.id, req.user!.clinicId))) {
     return res.status(403).json({ error: "Admin-management permission required" });
   }
-  const password = parsed.data.password || `Tmp-${randomBytes(4).toString("hex")}`;
-  const passwordHash = await hashPassword(password);
+  const passwordHash = await hashPassword(parsed.data.password);
   const updated = await query<{ id: string; email: string | null; name: string }>(
     `UPDATE users SET password_hash = $1, credential_status = 'active',
        session_version = session_version + 1, updated_at = now()
@@ -190,17 +187,11 @@ router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), asyn
     [passwordHash, id, req.user?.clinicId]
   );
   if (!updated.rows[0]) return res.status(404).json({ error: "Staff member not found" });
-  const staff = updated.rows[0];
-  if (staff.email) {
-    await queueEmail({
-      to: staff.email,
-      kind: "reset",
-      subject: "Your Playground Life password was reset",
-      body: `Your password was reset. New password: ${password}. Sign in at ${appUrl()}.\n\nFjalëkalimi juaj u rivendos. Fjalëkalimi i ri: ${password}. Hyni në ${appUrl()}.`,
-    });
-  }
   await writeAudit(req, "staff_password_reset", "staff", id, {});
-  return res.json({ userId: id, emailed: !!staff.email, temporaryPassword: password });
+  // Never email or return a password. The administrator supplied the new
+  // password through the authenticated request; communicate it to the staff
+  // member through an approved out-of-band channel.
+  return res.json({ userId: id, reset: true });
 });
 
 router.patch("/staff/:id/status", requireAuth, requireRole("admin"), async (req, res) => {
