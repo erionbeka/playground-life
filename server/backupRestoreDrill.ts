@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -5,7 +6,7 @@ import pg from "pg";
 
 type DrillMode = "backup" | "restore-test" | "drill";
 
-const mode = (process.argv[2] || "drill") as DrillMode;
+const mode = (process.argv[2] || "backup") as DrillMode;
 const backupDir = process.env.BACKUP_DIR || path.resolve(process.cwd(), "backups");
 const backupFile = process.env.BACKUP_FILE || path.join(backupDir, `playground-life-${new Date().toISOString().replace(/[:.]/g, "-")}.dump`);
 

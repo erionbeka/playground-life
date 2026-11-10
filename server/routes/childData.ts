@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { query } from "../db.ts";
+import { query, withTransaction } from "../db.ts";
+import type { PoolClient } from "pg";
 import { requireAuth } from "../middleware.ts";
 import type { AuthUser } from "../types.ts";
 
@@ -43,22 +44,56 @@ function rowLimit(raw: unknown, fallback: number, maximum: number): number {
  * was not found, and the mood, event and preference endpoints could only
  * ever be used by a caregiver.
  */
-async function clinicIdForChild(childId: string, user?: AuthUser): Promise<string | null> {
+async function lockActiveChild(
+  client: PoolClient,
+  childId: string,
+  user?: AuthUser
+): Promise<string | null> {
+  if (!user) return null;
+
+  if (user.role === "parent") {
+    const result = await client.query<{ clinic_id: string }>(
+      `SELECT c.clinic_id
+       FROM children c
+       JOIN family_child_links fcl ON fcl.child_id = c.id
+       WHERE c.id = $1
+         AND fcl.user_id = $2
+         AND fcl.clinic_id = c.clinic_id
+         AND c.archived_at IS NULL
+       FOR UPDATE OF c, fcl`,
+      [childId, user.id]
+    );
+    return result.rows[0]?.clinic_id ?? null;
+  }
+
+  const result = await client.query<{ clinic_id: string }>(
+    `SELECT clinic_id
+     FROM children
+     WHERE id = $1 AND clinic_id = $2 AND archived_at IS NULL
+     FOR UPDATE`,
+    [childId, user.clinicId]
+  );
+  return result.rows[0]?.clinic_id ?? null;
+}
+
+async function clinicIdForChild(childId: string, user?: AuthUser, includeArchived = false): Promise<string | null> {
   if (!user) return null;
 
   if (user.role === "parent") {
     const rows = await query<{ clinic_id: string }>(
       `SELECT c.clinic_id FROM children c
        JOIN family_child_links fcl ON fcl.child_id = c.id
-       WHERE c.id = $1 AND fcl.user_id = $2 AND fcl.clinic_id = c.clinic_id LIMIT 1`,
-      [childId, user.id],
+       WHERE c.id = $1 AND fcl.user_id = $2 AND fcl.clinic_id = c.clinic_id
+         AND ($3::boolean OR c.archived_at IS NULL)
+       LIMIT 1`,
+      [childId, user.id, includeArchived],
     );
     return rows.rows[0]?.clinic_id ?? null;
   }
 
   const rows = await query<{ clinic_id: string }>(
-    "SELECT clinic_id FROM children WHERE id = $1 AND clinic_id = $2 LIMIT 1",
-    [childId, user.clinicId],
+    "SELECT clinic_id FROM children WHERE id = $1 AND clinic_id = $2 AND ($3::boolean OR archived_at IS NULL) LIMIT 1",
+    [childId, user.clinicId, includeArchived],
   );
   return rows.rows[0]?.clinic_id ?? null;
 }
@@ -67,19 +102,24 @@ childDataRoutes.post("/children/:childId/moods", async (req, res) => {
   const parsed = moodSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid mood" });
 
-  const clinicId = await clinicIdForChild(req.params.childId, req.user);
-  if (!clinicId) return res.status(404).json({ error: "Child not found or access denied" });
+  const saved = await withTransaction(async (client) => {
+    const clinicId = await lockActiveChild(client, req.params.childId, req.user);
+    if (!clinicId) return false;
 
-  await query(
-    "INSERT INTO child_moods (clinic_id, child_id, mood) VALUES ($1, $2, $3)",
-    [clinicId, req.params.childId, parsed.data.mood]
-  );
+    await client.query(
+      "INSERT INTO child_moods (clinic_id, child_id, mood) VALUES ($1, $2, $3)",
+      [clinicId, req.params.childId, parsed.data.mood]
+    );
+    return true;
+  });
+
+  if (!saved) return res.status(404).json({ error: "Child not found or access denied" });
   return res.status(201).json({ ok: true });
 });
 
 childDataRoutes.get("/children/:childId/moods", async (req, res) => {
   const limit = rowLimit(req.query.limit, 20, 100);
-  const clinicId = await clinicIdForChild(req.params.childId, req.user);
+  const clinicId = await clinicIdForChild(req.params.childId, req.user, true);
   if (!clinicId) return res.status(404).json({ error: "Child not found or access denied" });
   
   const rows = await query(
@@ -94,20 +134,25 @@ childDataRoutes.post("/children/:childId/events", async (req, res) => {
   const parsed = eventSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid event" });
 
-  const clinicId = await clinicIdForChild(req.params.childId, req.user);
-  if (!clinicId) return res.status(404).json({ error: "Child not found or access denied" });
+  const saved = await withTransaction(async (client) => {
+    const clinicId = await lockActiveChild(client, req.params.childId, req.user);
+    if (!clinicId) return false;
 
-  await query(
-    "INSERT INTO child_events (clinic_id, child_id, event_type, detail) VALUES ($1, $2, $3, $4)",
-    [clinicId, req.params.childId, parsed.data.type, parsed.data.detail]
-  );
+    await client.query(
+      "INSERT INTO child_events (clinic_id, child_id, event_type, detail) VALUES ($1, $2, $3, $4)",
+      [clinicId, req.params.childId, parsed.data.type, parsed.data.detail]
+    );
+    return true;
+  });
+
+  if (!saved) return res.status(404).json({ error: "Child not found or access denied" });
   return res.status(201).json({ ok: true });
 });
 
 childDataRoutes.get("/children/:childId/events", async (req, res) => {
   const type = typeof req.query.type === "string" ? req.query.type : undefined;
   const limit = rowLimit(req.query.limit, 50, 200);
-  const clinicId = await clinicIdForChild(req.params.childId, req.user);
+  const clinicId = await clinicIdForChild(req.params.childId, req.user, true);
   if (!clinicId) return res.status(404).json({ error: "Child not found or access denied" });
   
   const params: unknown[] = [req.params.childId];
@@ -125,7 +170,7 @@ childDataRoutes.get("/children/:childId/events", async (req, res) => {
 });
 
 childDataRoutes.get("/children/:childId/preferences", async (req, res) => {
-  const clinicId = await clinicIdForChild(req.params.childId, req.user);
+  const clinicId = await clinicIdForChild(req.params.childId, req.user, true);
   if (!clinicId) return res.status(404).json({ error: "Child not found or access denied" });
   
   const rows = await query(
@@ -140,19 +185,36 @@ childDataRoutes.put("/children/:childId/preferences", async (req, res) => {
   const parsed = prefsSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid preferences" });
 
-  const clinicId = await clinicIdForChild(req.params.childId, req.user);
-  if (!clinicId) return res.status(404).json({ error: "Child not found or access denied" });
+  const saved = await withTransaction(async (client) => {
+    const clinicId = await lockActiveChild(client, req.params.childId, req.user);
+    if (!clinicId) return false;
 
-  const p = parsed.data;
-  await query(
-    `INSERT INTO child_preferences (child_id, clinic_id, sound_on, voice_on, calm_mode)
-     VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (child_id) DO UPDATE SET
-       sound_on = COALESCE(EXCLUDED.sound_on, child_preferences.sound_on),
-       voice_on = COALESCE(EXCLUDED.voice_on, child_preferences.voice_on),
-       calm_mode = COALESCE(EXCLUDED.calm_mode, child_preferences.calm_mode),
-       updated_at = now()`,
-    [req.params.childId, clinicId, p.soundOn ?? true, p.voiceOn ?? true, p.calmMode ?? false]
-  );
+    const p = parsed.data;
+    await client.query(
+      `INSERT INTO child_preferences (child_id, clinic_id, sound_on, voice_on, calm_mode)
+       VALUES (
+         $1,
+         $2,
+         COALESCE($3::boolean, TRUE),
+         COALESCE($4::boolean, TRUE),
+         COALESCE($5::boolean, FALSE)
+       )
+       ON CONFLICT (child_id) DO UPDATE SET
+         sound_on = COALESCE($3::boolean, child_preferences.sound_on),
+         voice_on = COALESCE($4::boolean, child_preferences.voice_on),
+         calm_mode = COALESCE($5::boolean, child_preferences.calm_mode),
+         updated_at = now()`,
+      [
+        req.params.childId,
+        clinicId,
+        p.soundOn ?? null,
+        p.voiceOn ?? null,
+        p.calmMode ?? null,
+      ]
+    );
+    return true;
+  });
+
+  if (!saved) return res.status(404).json({ error: "Child not found or access denied" });
   return res.json({ ok: true });
 });

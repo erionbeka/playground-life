@@ -1,7 +1,7 @@
 ﻿import { Router } from "express";
 import { z } from "zod";
 import { writeAudit } from "../audit.ts";
-import { query } from "../db.ts";
+import { query, withTransaction } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 
 const router = Router();
@@ -35,20 +35,29 @@ router.get("/", requireAuth, async (req, res) => {
     const result = await query(
       `SELECT children.id, children.first_name, children.display_name, children.avatar, children.birth_date, children.diagnosis, children.notes, children.personalization_profile, children.skill_profile, children.progression_settings, children.created_at, children.updated_at
        FROM children
-       INNER JOIN family_child_links ON family_child_links.child_id = children.id
-       WHERE children.clinic_id = $1 AND family_child_links.user_id = $2
+       INNER JOIN family_child_links
+         ON family_child_links.child_id = children.id
+        AND family_child_links.clinic_id = children.clinic_id
+       WHERE children.clinic_id = $1
+         AND children.archived_at IS NULL
+         AND family_child_links.user_id = $2
        ORDER BY children.created_at DESC`,
       [req.user.clinicId, req.user.id]
     );
     return res.json({ children: result.rows });
   }
 
+  if (req.query.includeArchived === "true" && req.user?.role !== "admin") {
+    return res.status(403).json({ error: "Insufficient permissions" });
+  }
+
   const result = await query(
-    `SELECT id, first_name, display_name, avatar, birth_date, diagnosis, notes, personalization_profile, skill_profile, progression_settings, created_at, updated_at
+    `SELECT id, first_name, display_name, avatar, birth_date, diagnosis, notes, personalization_profile, skill_profile, progression_settings, created_at, updated_at, archived_at
      FROM children
      WHERE clinic_id = $1
+       AND ($2::boolean OR archived_at IS NULL)
      ORDER BY created_at DESC`,
-    [req.user?.clinicId]
+    [req.user?.clinicId, req.query.includeArchived === "true"]
   );
   return res.json({ children: result.rows });
 });
@@ -97,7 +106,7 @@ router.patch("/:id", requireAuth, requireRole("admin", "therapist"), async (req,
        skill_profile = COALESCE($8, skill_profile),
        progression_settings = COALESCE($9, progression_settings),
        updated_at = now()
-     WHERE id = $10 AND clinic_id = $11
+     WHERE id = $10 AND clinic_id = $11 AND archived_at IS NULL
      RETURNING id`,
     [
       data.firstName ?? null,
@@ -124,14 +133,46 @@ router.patch("/:id", requireAuth, requireRole("admin", "therapist"), async (req,
 
 router.delete("/:id", requireAuth, requireRole("admin"), async (req, res) => {
   const childId = String(req.params.id);
-  const deleted = await query<{ id: string }>(
-    `DELETE FROM children WHERE id = $1 AND clinic_id = $2 RETURNING id`,
-    [childId, req.user?.clinicId]
-  );
-  if (!deleted.rows[0]) return res.status(404).json({ error: "Child not found" });
 
-  await writeAudit(req, "child_deleted", "child", childId, {});
-  return res.json({ ok: true });
+  const archived = await withTransaction(async (client) => {
+    const result = await client.query<{ id: string }>(
+      `UPDATE children
+       SET archived_at = now(), updated_at = now()
+       WHERE id = $1 AND clinic_id = $2 AND archived_at IS NULL
+       RETURNING id`,
+      [childId, req.user?.clinicId]
+    );
+
+    if (!result.rows[0]) return false;
+
+    await writeAudit(req, "child_archived", "child", childId, {}, client);
+    return true;
+  });
+
+  if (!archived) return res.status(404).json({ error: "Active child not found" });
+  return res.json({ ok: true, archived: true });
+});
+
+router.post("/:id/restore", requireAuth, requireRole("admin"), async (req, res) => {
+  const childId = String(req.params.id);
+
+  const restored = await withTransaction(async (client) => {
+    const result = await client.query<{ id: string }>(
+      `UPDATE children
+       SET archived_at = NULL, updated_at = now()
+       WHERE id = $1 AND clinic_id = $2 AND archived_at IS NOT NULL
+       RETURNING id`,
+      [childId, req.user?.clinicId]
+    );
+
+    if (!result.rows[0]) return false;
+
+    await writeAudit(req, "child_restored", "child", childId, {}, client);
+    return true;
+  });
+
+  if (!restored) return res.status(404).json({ error: "Archived child not found" });
+  return res.json({ ok: true, restored: true });
 });
 
 export default router;

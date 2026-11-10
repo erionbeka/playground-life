@@ -75,7 +75,8 @@ researchRoutes.post("/export", async (req: Request, res: Response) => {
   // itself de-identified.
   const childrenResult = await query<{ id: string; birth_date: string | null; notes: string | null; diagnosis: string | null }>(
     `SELECT c.id, c.birth_date, c.notes, c.diagnosis FROM children c
-     WHERE c.clinic_id = $1 AND c.research_consent = true AND c.research_consent_version IS NOT NULL`,
+     WHERE c.clinic_id = $1 AND c.archived_at IS NULL
+       AND c.research_consent = true AND c.research_consent_version IS NOT NULL`,
     [clinicId],
   );
 

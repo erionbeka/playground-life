@@ -1,4 +1,4 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { query } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 
@@ -11,8 +11,10 @@ router.get("/session", requireAuth, requireRole("parent"), async (req, res) => {
      FROM children
      JOIN family_child_links links
        ON links.child_id = children.id
+      AND links.clinic_id = children.clinic_id
       AND links.user_id = $2
      WHERE children.clinic_id = $1
+       AND children.archived_at IS NULL
      ORDER BY children.created_at DESC`,
     [req.user?.clinicId, req.user?.id]
   );
@@ -30,10 +32,15 @@ router.get("/session", requireAuth, requireRole("parent"), async (req, res) => {
         FROM game_results gr WHERE gr.assignment_id = assignments.id
       ), '[]'::json) AS results
      FROM assignments
+     JOIN children
+       ON children.id = assignments.child_id
+      AND children.clinic_id = assignments.clinic_id
      JOIN family_child_links links
        ON links.child_id = assignments.child_id
+      AND links.clinic_id = assignments.clinic_id
       AND links.user_id = $2
      WHERE assignments.clinic_id = $1
+       AND children.archived_at IS NULL
        AND (
          assignments.assigned_family_user_id IS NULL
          OR assignments.assigned_family_user_id = $2

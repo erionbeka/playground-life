@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { hashPassword, signAccessToken, verifyPassword } from "../auth.ts";
 import { config, isProduction } from "../config.ts";
-import { pool, query } from "../db.ts";
+import { pool, query, withTransaction } from "../db.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
-import { appUrl, queueEmail } from "../lib/mailer.ts";
 import { signInLimiter } from "../rateLimit.ts";
 import { writeAudit } from "../audit.ts";
+import { randomToken, sha256 } from "../lib/compliance.ts";
+import { appUrl, queueEmail } from "../lib/mailer.ts";
 import type { UserRole } from "../types.ts";
 
 interface UserRow {
@@ -33,14 +33,14 @@ async function canManageAdminAccounts(userId: string, clinicId: string) {
 
 const loginSchema = z.object({
   identifier: z.string().min(1),
-  password: z.string().min(1),
+  password: z.string().min(1).max(128),
 });
 
 const createStaffSchema = z.object({
   role: z.enum(["admin", "therapist"]),
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().min(12).max(128),
 });
 
 function setSessionCookie(res: import("express").Response, token: string) {
@@ -166,41 +166,96 @@ router.post("/staff", requireAuth, requireRole("admin"), async (req, res) => {
  * appears in the list. Scoped to the caller's clinic; admins only, because the
  * roster exposes staff email addresses and credential state.
  */
-const staffResetSchema = z.object({ password: z.string().min(8).optional() });
 const staffStatusSchema = z.object({ status: z.enum(["active", "suspended"]) });
 
 router.post("/staff/:id/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
-  const parsed = staffResetSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid reset payload" });
   const id = String(req.params.id);
-  const target = await query<{ role: string }>(`SELECT role FROM users WHERE id = $1 AND clinic_id = $2`, [id, req.user?.clinicId]);
-  if (!target.rows[0]) return res.status(404).json({ error: "Staff member not found" });
-  if (target.rows[0].role === "superadmin") return res.status(403).json({ error: "Legacy superadmin accounts cannot be managed here" });
-  if (target.rows[0].role === "admin" &&
+
+  const target = await query<{ role: string; email: string | null; name: string }>(
+    `SELECT role, email, name FROM users
+     WHERE id = $1 AND clinic_id = $2`,
+    [id, req.user?.clinicId]
+  );
+
+  const staff = target.rows[0];
+
+  if (!staff) return res.status(404).json({ error: "Staff member not found" });
+  if (staff.role === "superadmin") {
+    return res.status(403).json({ error: "Superadmin accounts cannot be reset here" });
+  }
+  if (!["admin", "therapist"].includes(staff.role)) {
+    return res.status(403).json({ error: "This account cannot be reset here" });
+  }
+  if (staff.role === "admin" &&
       !(await canManageAdminAccounts(req.user!.id, req.user!.clinicId))) {
     return res.status(403).json({ error: "Admin-management permission required" });
   }
-  const password = parsed.data.password || `Tmp-${randomBytes(4).toString("hex")}`;
-  const passwordHash = await hashPassword(password);
-  const updated = await query<{ id: string; email: string | null; name: string }>(
-    `UPDATE users SET password_hash = $1, credential_status = 'active',
-       session_version = session_version + 1, updated_at = now()
-     WHERE id = $2 AND clinic_id = $3 AND role IN ('admin','therapist')
-     RETURNING id, email, name`,
-    [passwordHash, id, req.user?.clinicId]
-  );
-  if (!updated.rows[0]) return res.status(404).json({ error: "Staff member not found" });
-  const staff = updated.rows[0];
-  if (staff.email) {
+  if (!staff.email) {
+    return res.status(400).json({ error: "Staff member has no registered email address" });
+  }
+
+  const token = randomToken();
+  const tokenHash = sha256(token);
+
+  const accountExists = await withTransaction(async (client) => {
+    // Serialize reset requests and confirm the account still exists in this clinic.
+    const locked = await client.query<{ id: string }>(
+      `SELECT id FROM users
+       WHERE id = $1 AND clinic_id = $2
+       FOR UPDATE`,
+      [id, req.user?.clinicId]
+    );
+
+    if (!locked.rows[0]) return false;
+
+    // Only the newest outstanding reset link remains valid.
+    await client.query(
+      `UPDATE password_reset_tokens
+       SET used_at = now()
+       WHERE user_id = $1 AND used_at IS NULL`,
+      [id]
+    );
+
+    await client.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, now() + interval '60 minutes')`,
+      [id, tokenHash]
+    );
+
+    return true;
+  });
+
+  if (!accountExists) return res.status(404).json({ error: "Staff member not found" });
+
+  const resetUrl = `${appUrl().replace(/\/+$/, "")}/reset?token=${token}`;
+
+  try {
     await queueEmail({
       to: staff.email,
       kind: "reset",
-      subject: "Your Playground Life password was reset",
-      body: `Your password was reset. New password: ${password}. Sign in at ${appUrl()}.\n\nFjalëkalimi juaj u rivendos. Fjalëkalimi i ri: ${password}. Hyni në ${appUrl()}.`,
+      subject: "Reset your Playground Life password / Rivendosni fjalëkalimin",
+      body:
+        `Hello ${staff.name},\n\n` +
+        `An administrator requested a password reset for your Playground Life account.\n\n` +
+        `Reset your password using this link (valid for 60 minutes):\n${resetUrl}\n\n` +
+        `If you did not expect this email, contact your clinic administrator.`,
     });
+  } catch (error) {
+    // Do not leave a valid token when email queuing itself fails.
+    await query(
+      `UPDATE password_reset_tokens
+       SET used_at = now()
+       WHERE user_id = $1 AND token_hash = $2 AND used_at IS NULL`,
+      [id, tokenHash]
+    );
+    throw error;
   }
-  await writeAudit(req, "staff_password_reset", "staff", id, {});
-  return res.json({ userId: id, emailed: !!staff.email, temporaryPassword: password });
+
+  await writeAudit(req, "staff_password_reset_requested", "staff", id, {
+    method: "email_link",
+  });
+
+  return res.json({ userId: id, resetRequested: true, emailQueued: true });
 });
 
 router.patch("/staff/:id/status", requireAuth, requireRole("admin"), async (req, res) => {

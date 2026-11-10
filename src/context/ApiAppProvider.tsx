@@ -165,6 +165,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
 
   const [session, setSession] = useState<AuthSession | null>(null);
   const [children, setChildren] = useState<Child[]>([]);
+  const [archivedChildren, setArchivedChildren] = useState<Child[]>([]);
   const [assignments, setAssignments] = useState<HomeworkAssignment[]>([]);
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
@@ -196,6 +197,34 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       })
     );
     setAssignments(assignmentResponse.assignments.map((entry) => mapAssignment(entry as Record<string, unknown>)));
+  }, []);
+
+  const refreshArchivedChildren = useCallback(async () => {
+    const [childResponse, familyResponse, goalResponse] = await Promise.all([
+      productionApi.listArchivedChildren(),
+      productionApi.listFamilyLinks(),
+      productionApi.listGoals(),
+    ]);
+    const familyLinks = familyResponse.familyLinks as Array<Record<string, unknown>>;
+    const goals = goalResponse.goals as Array<Record<string, unknown>>;
+
+    const archived = childResponse.children
+      .map((entry) => entry as Record<string, unknown>)
+      .filter((row) => Boolean(row.archived_at || row.archivedAt))
+      .map((row) => {
+        const child = mapChild(row);
+        return {
+          ...child,
+          familyMembers: familyLinks
+            .filter((link) => String(link.child_id || link.childId) === child.id)
+            .map((link) => mapFamilyMember(link)),
+          therapyGoals: goals
+            .filter((goal) => String(goal.child_id || goal.childId) === child.id)
+            .map((goal) => mapGoal(goal)),
+        };
+      });
+
+    setArchivedChildren(archived);
   }, []);
 
   const refreshAudit = useCallback(async () => {
@@ -355,27 +384,89 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
   }, [sessionRestoreAttempt, loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
   useEffect(() => {
+    // Retry queued results only after an authenticated session is ready.
+    // The API remains responsible for checking ownership and permissions.
+    if (!session || sessionRestoreStatus !== "ready") return;
+
+    let retrying = false;
+
     const retry = async () => {
-      const queue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
-      if (!Array.isArray(queue) || queue.length === 0) return;
-      const remaining = [];
-      for (const item of queue) {
+      if (retrying || !navigator.onLine) return;
+
+      retrying = true;
+      try {
+        let queue: unknown;
         try {
-          await productionApi.recordGameResult(item.assignmentId, item);
+          queue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
         } catch {
-          remaining.push(item);
+          console.error("Pending game results could not be parsed; preserving the stored queue.");
+          return;
         }
-      }
-      localStorage.setItem("pendingGameResults", JSON.stringify(remaining));
-      if (remaining.length === 0) {
-        await refreshClinicData().catch(() => undefined);
-        await refreshAudit().catch(() => undefined);
+
+        if (!Array.isArray(queue) || queue.length === 0) return;
+
+        const remaining: unknown[] = [];
+        let completedAny = false;
+
+        for (let index = 0; index < queue.length; index += 1) {
+          const item = queue[index] as Record<string, unknown> | null;
+
+          if (!item || typeof item.assignmentId !== "string") {
+            console.warn("Discarding an invalid pending game result.");
+            continue;
+          }
+
+          try {
+            await productionApi.recordGameResult(item.assignmentId, item as ApiGameResultPayload);
+            completedAny = true;
+          } catch (error) {
+            if (error instanceof ApiError) {
+              const status = error.status;
+
+              // The session may have expired. Keep this and all later items;
+              // retry only after the parent has authenticated again.
+              if (status === 401) {
+                remaining.push(...queue.slice(index));
+                break;
+              }
+
+              // Network failures and temporary server/rate-limit failures
+              // are retryable. Permanent 4xx responses are not.
+              if (
+                error.code === "network" ||
+                status === 408 ||
+                status === 429 ||
+                status >= 500
+              ) {
+                remaining.push(item);
+              } else {
+                console.warn(
+                  "Discarding a pending game result rejected permanently by the API.",
+                  status
+                );
+              }
+            } else {
+              // Unknown failures are retained rather than risking data loss.
+              remaining.push(item);
+            }
+          }
+        }
+
+        localStorage.setItem("pendingGameResults", JSON.stringify(remaining));
+
+        if (completedAny) {
+          await refreshClinicData().catch(() => undefined);
+          await refreshAudit().catch(() => undefined);
+        }
+      } finally {
+        retrying = false;
       }
     };
+
     void retry();
     window.addEventListener("online", retry);
     return () => window.removeEventListener("online", retry);
-  }, [refreshAudit, refreshClinicData]);
+  }, [refreshAudit, refreshClinicData, session?.role, sessionRestoreStatus]);
 
   const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
     let user: ApiSessionUser;
@@ -469,6 +560,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       setRole("none");
       setSessionRestoreStatus("idle");
       setChildren([]);
+      setArchivedChildren([]);
       setAssignments([]);
       setAuditLog([]);
       setStaffUsers([]);
@@ -486,6 +578,14 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       await refreshAudit();
     },
     children,
+    archivedChildren,
+    loadArchivedChildren: refreshArchivedChildren,
+    restoreChild: async (id) => {
+      await productionApi.restoreChild(id);
+      await refreshClinicData();
+      await refreshArchivedChildren();
+      await refreshAudit();
+    },
     addChild: async (child) => {
       await productionApi.createChild({
         firstName: child.name,
@@ -515,7 +615,12 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     },
     removeChild: async (id) => {
       await productionApi.deleteChild(id);
+      if (selectedChildId === id) {
+        setSelectedChildId(null);
+        setCurrentAssignment(null);
+      }
       await refreshClinicData();
+      await refreshArchivedChildren();
       await refreshAudit();
     },
     updateChild: async (id, updates) => {
@@ -633,7 +738,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     currentAssignment,
     setCurrentAssignment,
     auditLog,
-  }), [assignments, auditLog, children, currentAssignment, refreshAudit, refreshClinicData, refreshStaff, retrySessionRestore, role, selectedChildId, session, sessionRestoreStatus, signIn, signInFamily, staffUsers, therapistStaffUsers]);
+  }), [assignments, archivedChildren, auditLog, children, currentAssignment, refreshArchivedChildren, refreshAudit, refreshClinicData, refreshStaff, retrySessionRestore, role, selectedChildId, session, sessionRestoreStatus, signIn, signInFamily, staffUsers, therapistStaffUsers]);
 
   return <AppContext.Provider value={value}>{childrenNodes}</AppContext.Provider>;
 }

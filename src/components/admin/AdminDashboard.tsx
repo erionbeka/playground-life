@@ -21,13 +21,39 @@ function generateTemporaryPassword(): string {
   const lower = "abcdefghijkmnopqrstuvwxyz";
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const digits = "23456789";
-  const rest = `${lower}${upper}${digits}`;
-  const pick = (source: string) => source[Math.floor(Math.random() * source.length)];
-  const characters = [pick(lower), pick(upper), pick(digits)];
-  while (characters.length < 16) characters.push(pick(rest));
-  return characters
-    .sort(() => Math.random() - 0.5)
-    .join("");
+  const all = `${lower}${upper}${digits}`;
+
+  // Rejection sampling avoids the modulo bias caused by value % alphabet.length.
+  // Each call draws fresh cryptographic randomness from the Web Crypto API.
+  const randomIndex = (maxExclusive: number): number => {
+    const range = 0x1_0000_0000;
+    const limit = range - (range % maxExclusive);
+    const value = new Uint32Array(1);
+
+    do {
+      crypto.getRandomValues(value);
+    } while (value[0] >= limit);
+
+    return value[0] % maxExclusive;
+  };
+
+  const characters = [
+    lower[randomIndex(lower.length)],
+    upper[randomIndex(upper.length)],
+    digits[randomIndex(digits.length)],
+  ];
+
+  while (characters.length < 16) {
+    characters.push(all[randomIndex(all.length)]);
+  }
+
+  // Fisher-Yates shuffle with independent, unbiased cryptographic draws.
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomIndex(index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+  }
+
+  return characters.join("");
 }
 
 const tabs: { key: Tab; label: string; emoji?: string }[] = [
@@ -41,7 +67,7 @@ const tabs: { key: Tab; label: string; emoji?: string }[] = [
 ];
 
 export default function AdminDashboard() {
-  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, inviteStaffUser, addChild, addFamilyMember, children, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog, sessionRestoreStatus, retrySessionRestore } = useApp();
+  const { setRole, session, signInAdmin, signOut, adminUsers, therapistUsers, addStaffUser, inviteStaffUser, addChild, addFamilyMember, children, archivedChildren, loadArchivedChildren, restoreChild, assignments, issueFamilyInvite, resetFamilyCredentials, auditLog, sessionRestoreStatus, retrySessionRestore } = useApp();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
   const [email, setEmail] = useState("");
@@ -63,6 +89,38 @@ export default function AdminDashboard() {
   const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
   const [generatedInvites, setGeneratedInvites] = useState<Record<string, string>>({});
   const [showAddChild, setShowAddChild] = useState(false);
+  const [showArchivedChildren, setShowArchivedChildren] = useState(false);
+  const [archivedChildrenLoaded, setArchivedChildrenLoaded] = useState(false);
+  const [loadingArchivedChildren, setLoadingArchivedChildren] = useState(false);
+  const [restoringChildId, setRestoringChildId] = useState<string | null>(null);
+
+  const toggleArchivedChildren = async () => {
+    const opening = !showArchivedChildren;
+    setShowArchivedChildren(opening);
+    if (!opening || archivedChildrenLoaded || loadingArchivedChildren) return;
+
+    setLoadingArchivedChildren(true);
+    try {
+      await loadArchivedChildren();
+      setArchivedChildrenLoaded(true);
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Couldn't load archived children.");
+    } finally {
+      setLoadingArchivedChildren(false);
+    }
+  };
+
+  const handleRestoreChild = async (childId: string) => {
+    setRestoringChildId(childId);
+    try {
+      await restoreChild(childId);
+      toast.success("Child profile restored.");
+    } catch (cause) {
+      toast.error(cause instanceof Error ? cause.message : "Couldn't restore this child.");
+    } finally {
+      setRestoringChildId(null);
+    }
+  };
 
   useEffect(() => {
     const API = import.meta.env.VITE_API_URL || "";
@@ -578,7 +636,7 @@ export default function AdminDashboard() {
                                 body: JSON.stringify({}),
                               });
                               const data = await res.json();
-                              if (res.ok) toast.success(`New password: ${data.temporaryPassword ?? "(emailed)"}`);
+                              if (res.ok) toast.success(`Password reset link queued for ${user.email}. Delivery is not yet confirmed.`);
                               else toast.error(data.error || "Failed");
                             }}
                             className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
@@ -624,7 +682,7 @@ export default function AdminDashboard() {
                               body: JSON.stringify({}),
                             });
                             const data = await res.json();
-                            if (res.ok) toast.success(`New password: ${data.temporaryPassword ?? "(emailed)"}`);
+                            if (res.ok) toast.success(`Password reset link queued for ${user.email}. Delivery is not yet confirmed.`);
                             else toast.error(data.error || "Failed");
                           }}
                           className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
@@ -806,6 +864,51 @@ export default function AdminDashboard() {
               ))}
               {children.length === 0 ? <p className="text-sm text-muted-foreground">No children yet. Add a child to get started.</p> : null}
             </div>
+
+            <section className="rounded-2xl border border-border bg-muted/40 p-4">
+              <button
+                type="button"
+                onClick={toggleArchivedChildren}
+                aria-expanded={showArchivedChildren}
+                className="flex w-full items-center justify-between gap-3 text-left"
+              >
+                <span>
+                  <span className="block font-semibold text-foreground">Archived children</span>
+                  <span className="text-xs text-muted-foreground">Archived profiles are excluded from active clinic workflows.</span>
+                </span>
+                <span className="text-sm font-semibold text-primary">
+                  {showArchivedChildren ? "Hide" : "Show"}
+                </span>
+              </button>
+
+              {showArchivedChildren ? (
+                <div className="mt-4 space-y-3">
+                  {loadingArchivedChildren ? (
+                    <p className="text-sm text-muted-foreground">Loading archived profiles...</p>
+                  ) : archivedChildren.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No archived children found.</p>
+                  ) : archivedChildren.map((child) => (
+                    <div key={child.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{child.avatar}</span>
+                        <div>
+                          <p className="font-semibold text-foreground">{child.name}</p>
+                          <p className="text-xs text-muted-foreground">Age {child.age}{child.diagnosis ? ` · ${child.diagnosis}` : ""}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={restoringChildId === child.id}
+                        onClick={() => handleRestoreChild(child.id)}
+                        className="touch-target rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {restoringChildId === child.id ? "Restoring..." : "Restore"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </section>
           </div>
         ) : null}
 

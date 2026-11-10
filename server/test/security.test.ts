@@ -149,7 +149,7 @@ describe("child data access", () => {
 
     const accessCall = queryMock.mock.calls[0];
     expect(accessCall[0]).toContain("clinic_id = $2");
-    expect(accessCall[1]).toEqual(["child-1", "clinic-1"]);
+    expect(accessCall[1]).toEqual(["child-1", "clinic-1", true]);
   });
 
   it("keeps a caregiver inside the children they are linked to", async () => {
@@ -163,7 +163,7 @@ describe("child data access", () => {
 
     const accessCall = queryMock.mock.calls[0];
     expect(accessCall[0]).toContain("family_child_links");
-    expect(accessCall[1]).toEqual(["child-1", "user-parent"]);
+    expect(accessCall[1]).toEqual(["child-1", "user-parent", true]);
   });
 
   it("answers with not found when the caller may not reach the child", async () => {
