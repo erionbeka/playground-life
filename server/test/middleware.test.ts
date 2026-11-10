@@ -249,6 +249,33 @@ describe("requireRole", () => {
       .expect(200);
   });
 
+  it("blocks a superadmin when parent is required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "superadmin" }] });
+    const app = buildRoleApp(["parent"]);
+    await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(403);
+  });
+
+  it("blocks an admin when parent is required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "admin" }] });
+    const app = buildRoleApp(["parent"]);
+    await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(403);
+  });
+
+  it("allows a parent when parent is required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "parent" }] });
+    const app = buildRoleApp(["parent"]);
+    await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(200);
+  });
+
   it("blocks an unauthenticated user", async () => {
     const app = buildRoleApp(["admin"]);
     await request(app).get("/admin").expect(401);

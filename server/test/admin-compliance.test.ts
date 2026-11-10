@@ -18,6 +18,25 @@ vi.mock("../middleware.ts", () => ({
   },
 }));
 
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...actual,
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockResolvedValue({}),
+  };
+});
+
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  return {
+    ...actual,
+    execFile: vi.fn((_file: string, _args: string[], _opts: unknown, callback: (err: unknown, stdout: string) => void) => {
+      callback(null, "backup-output");
+    }),
+  };
+});
+
 const { adminComplianceRoutes } = await import("../routes/admin-compliance.ts");
 
 function buildApp(clinicId: string | undefined) {
@@ -84,5 +103,34 @@ describe("retention run clinic scoping", () => {
 
     const [, params] = queryMock.mock.calls.find(([sql]) => sql.includes("DELETE FROM email_outbox"))!;
     expect(params[1]).toBe("clinic-4");
+  });
+
+  it("records clinic_id on the retention_runs insert", async () => {
+    await request(buildApp("clinic-5")).post("/api/admin/compliance/retention/run").expect(200);
+
+    const [, params] = queryMock.mock.calls.find(([sql]) => sql.includes("INSERT INTO retention_runs"))!;
+    expect(params).toContain("clinic-5");
+  });
+});
+
+describe("backup status clinic scoping", () => {
+  it("queries backup_runs filtered by the requester's clinic", async () => {
+    await request(buildApp("clinic-1")).get("/api/admin/compliance/backup/status").expect(200);
+
+    const [sql, params] = queryMock.mock.calls.find(([s]) => s.includes("FROM backup_runs"))!;
+    expect(sql).toContain("WHERE clinic_id = $1");
+    expect(params).toEqual(["clinic-1"]);
+  });
+});
+
+describe("backup run clinic scoping", () => {
+  it("rejects backup run when ALLOW_BACKUP is not set", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    delete process.env.ALLOW_BACKUP;
+    try {
+      await request(buildApp("clinic-6")).post("/api/admin/compliance/backup/run").expect(403);
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
   });
 });

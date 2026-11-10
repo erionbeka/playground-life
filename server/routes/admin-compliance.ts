@@ -102,18 +102,22 @@ adminComplianceRoutes.post("/retention/run", async (req: Request, res: Response)
   };
 
   await query(
-    `INSERT INTO retention_runs (audit_deleted, traces_scrubbed, outbox_deleted)
-     VALUES ($1, $2, $3)`,
-    [counts.auditDeleted, counts.tracesScrubbed, counts.outboxDeleted]
+    `INSERT INTO retention_runs (audit_deleted, traces_scrubbed, outbox_deleted, clinic_id)
+     VALUES ($1, $2, $3, $4)`,
+    [counts.auditDeleted, counts.tracesScrubbed, counts.outboxDeleted, clinicId]
   );
 
   return res.json({ ok: true, retention: RETENTION_DEFAULTS, ...counts });
 });
 
-adminComplianceRoutes.get("/backup/status", async (_req: Request, res: Response) => {
+adminComplianceRoutes.get("/backup/status", async (req: Request, res: Response) => {
+  const clinicId = req.user?.clinicId;
   const runs = await query(
-    `SELECT started_at, finished_at, status, location, size_bytes, checksum
-     FROM backup_runs ORDER BY started_at DESC LIMIT 10`
+    `SELECT started_at, finished_at, status, location, size_bytes, checksum, clinic_id
+     FROM backup_runs
+     WHERE clinic_id = $1
+     ORDER BY started_at DESC LIMIT 10`,
+    [clinicId]
   );
   const policy = {
     schedule: process.env.BACKUP_SCHEDULE || "daily 02:00 clinic-local",
@@ -124,7 +128,7 @@ adminComplianceRoutes.get("/backup/status", async (_req: Request, res: Response)
   return res.json({ policy, runs: runs.rows });
 });
 
-adminComplianceRoutes.post("/backup/run", async (_req: Request, res: Response) => {
+adminComplianceRoutes.post("/backup/run", async (req: Request, res: Response) => {
   if (process.env.ALLOW_BACKUP !== "true") {
     return res.status(403).json({ error: "Backups are operator-controlled. Set ALLOW_BACKUP=true on the API host." });
   }
@@ -134,8 +138,8 @@ adminComplianceRoutes.post("/backup/run", async (_req: Request, res: Response) =
   await mkdir(path.dirname(file), { recursive: true });
 
   const inserted = await query<{ id: string }>(
-    "INSERT INTO backup_runs (location) VALUES ($1) RETURNING id",
-    [file]
+    "INSERT INTO backup_runs (location, clinic_id) VALUES ($1, $2) RETURNING id",
+    [file, req.user?.clinicId]
   );
   const runId = inserted.rows[0].id;
 

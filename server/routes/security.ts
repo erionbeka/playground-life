@@ -123,10 +123,14 @@ securityRoutes.post("/reset-confirm", resetConfirmLimiter, async (req: Request, 
 
     // Revalidate and lock the token only after acquiring the account lock.
     // Another reset for this account may have consumed it while we waited.
-    const rows = await client.query<{ id: string; user_id: string }>(
-      `SELECT id, user_id FROM password_reset_tokens
-       WHERE token_hash = $1 AND user_id = $2
-         AND used_at IS NULL AND expires_at > now()
+    // Join users to capture the target account's clinic_id for audit scoping,
+    // since this endpoint is public (no requireAuth) and req.user is not set.
+    const rows = await client.query<{ id: string; user_id: string; clinic_id: string }>(
+      `SELECT prt.id, prt.user_id, u.clinic_id
+       FROM password_reset_tokens prt
+       JOIN users u ON u.id = prt.user_id
+       WHERE prt.token_hash = $1 AND prt.user_id = $2
+         AND prt.used_at IS NULL AND prt.expires_at > now()
        LIMIT 1 FOR UPDATE`,
       [sha256(parsed.data.token), candidateUserId]
     );
@@ -156,7 +160,7 @@ securityRoutes.post("/reset-confirm", resetConfirmLimiter, async (req: Request, 
     await client.query(
       `INSERT INTO audit_log (clinic_id, actor_user_id, action, entity_type, entity_id, details)
        VALUES ($1, $2, 'password_reset', 'auth', $2, '{"via":"reset_token"}'::jsonb)`,
-      [req.user?.clinicId ?? null, tokenRow.user_id]
+      [tokenRow.clinic_id, tokenRow.user_id]
     );
     await client.query("COMMIT");
   } catch (error) {
@@ -388,13 +392,10 @@ securityRoutes.post("/invitations/accept", invitationAcceptLimiter, async (req: 
     );
 
     await client.query(
-      `INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, details)
-       VALUES ($1, 'invitation_accepted', 'staff', $2, $3::jsonb)`,
-      [
-        inserted.rows[0].id,
-        inserted.rows[0].id,
-        JSON.stringify({ role: invite.role, email: invite.email }),
-      ]
+      `INSERT INTO audit_log (clinic_id, actor_user_id, action, entity_type, entity_id, details)
+       VALUES ($1, $2, 'invitation_accepted', 'staff', $3, $4::jsonb)`,
+      [invite.clinic_id, inserted.rows[0].id, inserted.rows[0].id,
+       JSON.stringify({ role: invite.role, email: invite.email })]
     );
 
     await client.query("COMMIT");
