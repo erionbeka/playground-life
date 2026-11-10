@@ -28,8 +28,8 @@ adminComplianceRoutes.get("/audit/export", async (req: Request, res: Response) =
   const parsed = exportSchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Invalid export filters" });
 
-  const params: unknown[] = [];
-  const conditions: string[] = [];
+  const params: unknown[] = [req.user?.clinicId];
+  const conditions: string[] = ["clinic_id = $1"];
   if (parsed.data.since) {
     params.push(parsed.data.since);
     conditions.push(`created_at >= $${params.length}`);
@@ -38,11 +38,11 @@ adminComplianceRoutes.get("/audit/export", async (req: Request, res: Response) =
     params.push(parsed.data.until);
     conditions.push(`created_at <= $${params.length}`);
   }
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const where = `WHERE ${conditions.join(" AND ")}`;
 
   const rows = await query(
     `SELECT id, actor_role, action, entity_type, entity_id, details, ip_address, created_at
-     FROM audit_log ${where} ORDER BY created_at ASC`,
+      FROM audit_log ${where} ORDER BY created_at ASC`,
     params
   );
 
@@ -66,28 +66,33 @@ const RETENTION_DEFAULTS = {
   outboxDays: Number(process.env.RETENTION_OUTBOX_DAYS || 90),
 };
 
-adminComplianceRoutes.post("/retention/run", async (_req: Request, res: Response) => {
+adminComplianceRoutes.post("/retention/run", async (req: Request, res: Response) => {
+  const clinicId = req.user?.clinicId;
   const audit = await query<{ count: string }>(
-    `WITH deleted AS (DELETE FROM audit_log WHERE created_at < now() - ($1 || ' days')::interval RETURNING 1)
+    `WITH deleted AS (DELETE FROM audit_log WHERE created_at < now() - ($1 || ' days')::interval AND clinic_id = $2 RETURNING 1)
      SELECT count(*) FROM deleted`,
-    [RETENTION_DEFAULTS.auditDays]
+    [RETENTION_DEFAULTS.auditDays, clinicId]
   );
 
   // Scrub bulky trial traces from results but keep the clinical summary intact.
   const traces = await query<{ count: string }>(
     `WITH updated AS (
-       UPDATE game_results
+       UPDATE game_results gr
        SET metrics = metrics - 'trace'
-       WHERE metrics ? 'trace' AND completed_at < now() - ($1 || ' days')::interval
+       FROM assignments a
+       WHERE a.id = gr.assignment_id
+         AND a.clinic_id = $2
+         AND metrics ? 'trace'
+         AND completed_at < now() - ($1 || ' days')::interval
        RETURNING 1
      ) SELECT count(*) FROM updated`,
-    [RETENTION_DEFAULTS.traceDays]
+    [RETENTION_DEFAULTS.traceDays, clinicId]
   );
 
   const outbox = await query<{ count: string }>(
-    `WITH deleted AS (DELETE FROM email_outbox WHERE created_at < now() - ($1 || ' days')::interval RETURNING 1)
+    `WITH deleted AS (DELETE FROM email_outbox WHERE created_at < now() - ($1 || ' days')::interval AND clinic_id = $2 RETURNING 1)
      SELECT count(*) FROM deleted`,
-    [RETENTION_DEFAULTS.outboxDays]
+    [RETENTION_DEFAULTS.outboxDays, clinicId]
   );
 
   const counts = {

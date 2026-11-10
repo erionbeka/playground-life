@@ -1,7 +1,52 @@
 import type { NextFunction, Request, Response } from "express";
 import { verifyAccessToken } from "./auth.ts";
+import { config } from "./config.ts";
 import { query } from "./db.ts";
 import type { AuthUser, UserRole } from "./types.ts";
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+function normalizeOrigin(value: string): string | null {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cookie-authenticated state changes must come from one of the configured
+ * application origins.
+ *
+ * Production cookies use `SameSite=None` because the web app and API are
+ * separate origins. SameSite then provides no CSRF protection at all, and
+ * CORS does not stop a cross-site form POST or a `no-cors` request. Checking
+ * Origin/Referer closes that gap. Bearer-token clients are exempt because the
+ * browser never attaches that header automatically.
+ *
+ * A request with neither header is allowed: non-browser clients and some
+ * privacy tools omit them, and a browser cannot perform a cross-site
+ * state-changing request without one of them.
+ */
+export function csrfOriginGuard(req: Request, res: Response, next: NextFunction) {
+  if (SAFE_METHODS.has(req.method)) return next();
+
+  const authorization = req.header("authorization");
+  if (authorization?.startsWith("Bearer ")) return next();
+
+  const source = req.header("origin") || req.header("referer");
+  if (!source) return next();
+
+  const origin = normalizeOrigin(source);
+  const allowed = config.CORS_ORIGINS
+    .map(normalizeOrigin)
+    .filter((value): value is string => value !== null);
+  if (!origin || !allowed.includes(origin)) {
+    return res.status(403).json({ error: "Cross-site request blocked" });
+  }
+
+  return next();
+}
 
 function tokenFromRequest(req: Request) {
   const header = req.header("authorization");
@@ -70,7 +115,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Authentication required" });
-    if (!roles.includes(req.user.role)) return res.status(403).json({ error: "Insufficient permissions" });
+    // A superadmin holds every clinic-admin privilege. Routes that require
+    // "admin" must not lock the superadmin out of the admin panel; therapist-
+    // and parent-only routes stay exclusive to those roles.
+    const effectiveRoles = roles.includes("admin") ? [...roles, "superadmin"] : roles;
+    if (!effectiveRoles.includes(req.user.role)) return res.status(403).json({ error: "Insufficient permissions" });
     return next();
   };
 }

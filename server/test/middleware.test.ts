@@ -15,7 +15,7 @@ vi.mock("../auth.ts", () => ({
   verifyAccessToken: verifyAccessTokenMock,
 }));
 
-import { requireAuth } from "../middleware.ts";
+import { csrfOriginGuard, requireAuth, requireRole } from "../middleware.ts";
 
 type UserRow = {
   id: string;
@@ -141,5 +141,116 @@ describe("requireAuth session validation", () => {
       .expect(401);
 
     expect(queryMock).not.toHaveBeenCalled();
+  });
+});
+
+function buildCsrfApp() {
+  const app = express();
+  app.use(csrfOriginGuard);
+  app.post("/change", (_req, res) => res.json({ ok: true }));
+  app.get("/read", (_req, res) => res.json({ ok: true }));
+  return app;
+}
+
+function buildRoleApp(requiredRoles: UserRow["role"][]) {
+  const app = express();
+  app.get("/admin", requireAuth, requireRole(...requiredRoles), (_req, res) => res.json({ ok: true }));
+  return app;
+}
+
+describe("csrfOriginGuard", () => {
+  it("allows a state change from a configured origin", async () => {
+    await request(buildCsrfApp())
+      .post("/change")
+      .set("Origin", "http://localhost:8080")
+      .expect(200);
+  });
+
+  it("blocks a state change from a foreign origin", async () => {
+    const response = await request(buildCsrfApp())
+      .post("/change")
+      .set("Origin", "https://evil.example")
+      .expect(403);
+
+    expect(response.body.error).toBe("Cross-site request blocked");
+  });
+
+  it("blocks a state change whose referer is foreign", async () => {
+    await request(buildCsrfApp())
+      .post("/change")
+      .set("Referer", "https://evil.example/attack")
+      .expect(403);
+  });
+
+  it("allows requests with no origin or referer", async () => {
+    await request(buildCsrfApp()).post("/change").expect(200);
+  });
+
+  it("exempts bearer-token clients", async () => {
+    await request(buildCsrfApp())
+      .post("/change")
+      .set("Origin", "https://evil.example")
+      .set("Authorization", "Bearer mobile-token")
+      .expect(200);
+  });
+
+  it("does not affect safe methods", async () => {
+    await request(buildCsrfApp())
+      .get("/read")
+      .set("Origin", "https://evil.example")
+      .expect(200);
+  });
+});
+
+describe("requireRole", () => {
+  it("allows an admin when admin is required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "admin" }] });
+    const app = buildRoleApp(["admin"]);
+    await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(200);
+  });
+
+  it("allows a superadmin when admin is required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "superadmin" }] });
+    const app = buildRoleApp(["admin"]);
+    const response = await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(200);
+    expect(response.body.ok).toBe(true);
+  });
+
+  it("blocks an admin when therapist is required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "admin" }] });
+    const app = buildRoleApp(["therapist"]);
+    await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(403);
+  });
+
+  it("blocks a superadmin when therapist is required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "superadmin" }] });
+    const app = buildRoleApp(["therapist"]);
+    await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(403);
+  });
+
+  it("allows a therapist when therapist is required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "therapist" }] });
+    const app = buildRoleApp(["therapist"]);
+    await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(200);
+  });
+
+  it("blocks an unauthenticated user", async () => {
+    const app = buildRoleApp(["admin"]);
+    await request(app).get("/admin").expect(401);
   });
 });
