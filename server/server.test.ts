@@ -2,6 +2,10 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { queueEmailMock } = vi.hoisted(() => ({
+  queueEmailMock: vi.fn(),
+}));
+
 const queryMock = vi.fn();
 const transactionQueryMock = vi.fn();
 const withTransactionMock = vi.fn();
@@ -37,6 +41,11 @@ vi.mock("./audit.ts", () => ({
   writeAudit: writeAuditMock,
 }));
 
+vi.mock("./lib/mailer.ts", () => ({
+  appUrl: vi.fn(() => "https://playground-life.test"),
+  queueEmail: queueEmailMock,
+}));
+
 vi.mock("./auth.ts", () => ({
   hashPassword: vi.fn(async (password: string) => `hashed-${password}`),
   verifyPassword: vi.fn(async (_hash: string, password: string) => password === "CorrectHorseBatteryStaple1"),
@@ -66,6 +75,8 @@ beforeEach(() => {
     operation({ query: transactionQueryMock })
   );
   writeAuditMock.mockReset();
+  queueEmailMock.mockReset();
+  queueEmailMock.mockResolvedValue("outbox-1");
 });
 
 describe("production API", () => {
@@ -186,6 +197,88 @@ describe("production API", () => {
       .get("/api/auth/staff")
       .set("Authorization", "Bearer therapist-token")
       .expect(403);
+  });
+
+  it("queues a single-use staff password reset link without changing the password directly", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{ role: "therapist", email: "therapist@example.com", name: "Therapist" }],
+    });
+    transactionQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: "user-therapist" }] })
+      .mockResolvedValue({ rows: [] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/auth/staff/user-therapist/reset-password")
+      .set("Authorization", "Bearer admin-token")
+      .send({})
+      .expect(200);
+
+    expect(response.body).toEqual({
+      userId: "user-therapist",
+      resetRequested: true,
+      emailQueued: true,
+    });
+    expect(withTransactionMock).toHaveBeenCalledOnce();
+    expect(transactionQueryMock).toHaveBeenCalledTimes(3);
+
+    const [insertSql, insertParams] = transactionQueryMock.mock.calls[2];
+    expect(insertSql).toContain("INSERT INTO password_reset_tokens");
+    expect(insertParams[0]).toBe("user-therapist");
+    expect(insertParams[1]).toMatch(/^[a-f0-9]{64}$/);
+
+    expect(queueEmailMock).toHaveBeenCalledOnce();
+    const email = queueEmailMock.mock.calls[0][0];
+    expect(email.to).toBe("therapist@example.com");
+    expect(email.kind).toBe("reset");
+    expect(email.body).toContain("https://playground-life.test/reset?token=");
+    expect(email.body).toContain("valid for 60 minutes");
+
+    const plaintextToken = email.body.match(/token=([^\s]+)/)?.[1];
+    expect(plaintextToken).toBeTruthy();
+    expect(insertParams[1]).not.toBe(plaintextToken);
+
+    const transactionSql = transactionQueryMock.mock.calls
+      .map(([sql]) => String(sql))
+      .join("\n");
+    expect(transactionSql).not.toMatch(/UPDATE\s+users\s+SET\s+password_hash/i);
+
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "staff_password_reset_requested",
+      "staff",
+      "user-therapist",
+      { method: "email_link" },
+    );
+  });
+
+  it("blocks therapists from requesting staff password reset links", async () => {
+    const app = await loadApp();
+    await request(app)
+      .post("/api/auth/staff/user-therapist/reset-password")
+      .set("Authorization", "Bearer therapist-token")
+      .send({})
+      .expect(403);
+
+    expect(queueEmailMock).not.toHaveBeenCalled();
+    expect(withTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("explicitly rejects superadmin password reset requests", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{ role: "superadmin", email: "root@example.com", name: "Superadmin" }],
+    });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/auth/staff/superadmin-1/reset-password")
+      .set("Authorization", "Bearer admin-token")
+      .send({})
+      .expect(403);
+
+    expect(response.body.error).toBe("Superadmin accounts cannot be reset here");
+    expect(queueEmailMock).not.toHaveBeenCalled();
+    expect(withTransactionMock).not.toHaveBeenCalled();
   });
 
   it("lets admins create clinic-scoped child records", async () => {

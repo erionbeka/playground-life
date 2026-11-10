@@ -629,15 +629,14 @@ export default function AdminDashboard() {
                             onClick={async () => {
                               const API = import.meta.env.VITE_API_URL || "";
                               const token = localStorage.getItem("accessToken");
-                              const newPassword = generateTemporaryPassword();
                               const res = await fetch(`${API}/api/auth/staff/${user.id}/reset-password`, {
                                 method: "POST",
                                 credentials: "include",
                                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                                body: JSON.stringify({ password: newPassword }),
+                                body: JSON.stringify({}),
                               });
                               const data = await res.json();
-                              if (res.ok) toast.success(`Password reset. Share securely: ${newPassword}`);
+                              if (res.ok) toast.success(`Password reset link queued for ${user.email}. Delivery is not yet confirmed.`);
                               else toast.error(data.error || "Failed");
                             }}
                             className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
@@ -676,15 +675,14 @@ export default function AdminDashboard() {
                           onClick={async () => {
                             const API = import.meta.env.VITE_API_URL || "";
                             const token = localStorage.getItem("accessToken");
-                            const newPassword = generateTemporaryPassword();
                             const res = await fetch(`${API}/api/auth/staff/${user.id}/reset-password`, {
                               method: "POST",
                               credentials: "include",
                               headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                              body: JSON.stringify({ password: newPassword }),
+                              body: JSON.stringify({}),
                             });
                             const data = await res.json();
-                            if (res.ok) toast.success(`Password reset. Share securely: ${newPassword}`);
+                            if (res.ok) toast.success(`Password reset link queued for ${user.email}. Delivery is not yet confirmed.`);
                             else toast.error(data.error || "Failed");
                           }}
                           className="touch-target rounded-lg bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
