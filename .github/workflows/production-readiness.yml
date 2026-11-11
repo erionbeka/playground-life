@@ -4,11 +4,13 @@ on:
   push:
     branches: [main, fix/security-backup-regressions]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+
     services:
       postgres:
         image: postgres:18
@@ -23,8 +25,11 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+
     env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5433/playground_test
       TEST_DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5433/playground_test
+      JWT_SECRET: ci-only-test-secret-do-not-use-in-production
 
     steps:
       - name: Check out repository
