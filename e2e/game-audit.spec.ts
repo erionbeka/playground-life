@@ -80,12 +80,14 @@ test("AAC and language engines complete from their own controls", async ({ page 
 
   await openLab(page, "game-235");
   const sentenceEngine = page.getByTestId("sentence-builder-engine");
-  const sentenceProgress = sentenceEngine.locator("p").filter({ hasText: /^Step \d+ of \d+$/ });
+  const sentenceProgress = sentenceEngine.locator("p").filter({ hasText: /^Step \\d+ of \\d+$/ });
+  const sentenceFeedback = sentenceEngine.locator('p[aria-live="polite"]').filter({ hasText: /You built:/ });
   for (let round = 0; round < 3; round += 1) {
     await page.locator('[data-testid^="sentence-option-"]').first().click();
-    await expect(page.getByText(/You built:/)).toBeVisible({ timeout: 5_000 });
+    await expect(sentenceFeedback).toContainText("You built:", { timeout: 5_000 });
     if (round < 2) {
-      await expect(sentenceProgress).toHaveText(`Step ${round + 2} of 3`, { timeout: 10_000 });
+      await expect(sentenceFeedback).toBeHidden({ timeout: 5_000 });
+      await expect(sentenceProgress).toHaveText(`Step ${round + 2} of 3`, { timeout: 5_000 });
     }
   }
   await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 10_000 });
@@ -94,16 +96,19 @@ test("AAC and language engines complete from their own controls", async ({ page 
 test("receptive direction and intraverbal engines complete", async ({ page }) => {
   await openLab(page, "game-238");
   const listenEngine = page.getByTestId("listen-engine");
-  const listenProgress = listenEngine.locator('p[aria-live="polite"]').filter({ hasText: /^Step \d+ of \d+$/ });
-  for (let action = 0; action < 5; action += 1) {
+  // RoundProgress reports the direction number; this label reports the step within that direction.
+  const listenProgress = listenEngine.locator("p.text-xs.font-black").filter({ hasText: /^Step \\d+ of \\d+$/ });
+  for (let action = 0; action < 10; action += 1) {
     if (await page.getByText(/completed: score/).isVisible().catch(() => false)) break;
     const instruction = await listenEngine.locator("p.font-display").innerText();
     const stepText = await listenProgress.innerText();
-    const stepIndex = Number(stepText.match(/Step (\d+) of/)?.[1] || 1) - 1;
+    const stepIndex = Number(stepText.match(/Step (\\d+) of/)?.[1] || 1) - 1;
     const expected = instruction.split(", then ")[stepIndex]?.match(/Touch the (.+)/)?.[1];
     expect(expected, `expected target for "${instruction}" at ${stepText}`).toBeTruthy();
+    const feedback = listenEngine.locator('p[aria-live="polite"]').filter({ hasText: `You found ${expected}.` });
     await page.getByRole("button", { name: `Choose ${expected}` }).click();
-    await expect(page.getByText(`You found ${expected}.`)).toBeVisible({ timeout: 5_000 });
+    await expect(feedback).toBeVisible({ timeout: 5_000 });
+    await expect(feedback).toBeHidden({ timeout: 5_000 });
   }
   await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 5_000 });
 
@@ -119,7 +124,7 @@ test("receptive direction and intraverbal engines complete", async ({ page }) =>
     const answer = answers[prompt];
     expect(answer, `missing expected answer for prompt "${prompt}"`).toBeTruthy();
     await page.getByRole("button", { name: `Choose ${answer}` }).click();
-    await expect(page.getByText(`You found ${answer}.`)).toBeVisible({ timeout: 3_000 });
+    await expect(page.getByText(`Yes! ${answer}.`)).toBeVisible({ timeout: 3_000 });
   }
   await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 5_000 });
 });
