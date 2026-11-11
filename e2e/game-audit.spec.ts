@@ -80,7 +80,7 @@ test("AAC and language engines complete from their own controls", async ({ page 
 
   await openLab(page, "game-235");
   const sentenceEngine = page.getByTestId("sentence-builder-engine");
-  const sentenceProgress = sentenceEngine.locator("p").filter({ hasText: /^Step \\d+ of \\d+$/ });
+  const sentenceProgress = sentenceEngine.locator("p").filter({ hasText: /^Step \d+ of \d+$/ });
   for (let round = 0; round < 3; round += 1) {
     await page.locator('[data-testid^="sentence-option-"]').first().click();
     await expect(page.getByText(/You built:/)).toBeVisible({ timeout: 5_000 });
@@ -94,12 +94,12 @@ test("AAC and language engines complete from their own controls", async ({ page 
 test("receptive direction and intraverbal engines complete", async ({ page }) => {
   await openLab(page, "game-238");
   const listenEngine = page.getByTestId("listen-engine");
-  const listenProgress = listenEngine.locator("p").filter({ hasText: /^Step \\d+ of \\d+$/ });
+  const listenProgress = listenEngine.locator("p").filter({ hasText: /^Step \d+ of \d+$/ });
   for (let action = 0; action < 5; action += 1) {
     if (await page.getByText(/completed: score/).isVisible().catch(() => false)) break;
     const instruction = await listenEngine.locator("p.font-display").innerText();
     const stepText = await listenProgress.innerText();
-    const stepIndex = Number(stepText.match(/Step (\\d+) of/)?.[1] || 1) - 1;
+    const stepIndex = Number(stepText.match(/Step (\d+) of/)?.[1] || 1) - 1;
     const expected = instruction.split(", then ")[stepIndex]?.match(/Touch the (.+)/)?.[1];
     expect(expected, `expected target for "${instruction}" at ${stepText}`).toBeTruthy();
     await page.getByRole("button", { name: `Choose ${expected}` }).click();
