@@ -15,8 +15,15 @@
 - Review risk register deltas
 
 ## Backup details
-- `POST /api/admin/compliance/backup/run` (requires `ALLOW_BACKUP=true` on API host) runs `pg_dump`, records location, byte size, and SHA-256 checksum in `backup_runs`
-- Store copies only on encrypted, BAA-covered storage; never on personal devices
+- `POST /api/admin/compliance/backup/run` (requires `ALLOW_BACKUP=true` on API host and an operator-authorized account) runs `pg_dump`, records location, byte size, and SHA-256 checksum in `backup_runs`. Files are written with mode 0600 into a backup directory with mode 0700.
+- Store copies only on encrypted, BAA-covered storage; never on personal devices.
+- **This service does not schedule or monitor backups.** `GET /api/admin/compliance/backup/status` reports `monitored: false`. There is no automated alerting on backup failure.
+- Manual verification: check `GET /api/admin/compliance/backup/status` daily — newest row should have `status: success` within 24h. If the newest row is `failed`, investigate the `error` field and re-run the backup once the issue is resolved.
+- A restore drill should be run monthly: restore the latest backup into a scratch database and run `/health` + spot-check one child's results.
+
+### Scheduled vs manual backups
+- **Manual (API-triggered):** An operator triggers `POST /api/admin/compliance/backup/run` on demand. Returns 202 when accepted, 409 if a backup is already in progress, 403 if the account is not an operator or `ALLOW_BACKUP` is not set.
+- **Scheduled:** No scheduler is built into this service. If scheduled backups are required, an external cron job or orchestrator must call `POST /api/admin/compliance/backup/run` on a schedule and poll `GET /api/admin/compliance/backup/status` for completion. The external scheduler is responsible for its own alerting on failure.
 
 ## MFA enrollment (staff)
 1. Sign in → `POST /api/security/mfa/setup` returns `secret` + `otpauth://` URI
@@ -35,14 +42,38 @@
 
 ## Operator provisioning (backup authorization)
 A whole-database backup touches every clinic's data, so the `admin` role alone is insufficient.
-An operator must be explicitly flagged in the database before they can trigger backups:
+An operator must be explicitly flagged in the database before they can trigger backups.
+Operator status is managed through auditable API endpoints (superadmin only) and recorded in `operator_audit_log`.
 
-1. Identify a staff account that should be a backup operator (must have `role = 'admin'` and `credential_status = 'active'`).
-2. Run in the database:
-   ```sql
-   UPDATE users SET is_operator = true WHERE id = '<operator-user-id>';
-   ```
-3. Set `ALLOW_BACKUP=true` on the API host environment (the backup route returns 403 without it).
-4. Verify: `GET /api/admin/compliance/backup/status` lists backup runs; `POST /api/admin/compliance/backup/run` returns 202 for the operator and 403 for non-operators.
+Grant operator status:
+```http
+POST /api/admin/compliance/operator/grant
+Content-Type: application/json
 
-Revoke operator status by setting `is_operator = false`; the change takes effect on the next backup attempt.
+{
+  "targetUserId": "<uuid-of-staff-account>",
+  "reason": "Backup operator for clinic XYZ"
+}
+```
+
+Revoke operator status:
+```http
+POST /api/admin/compliance/operator/revoke
+Content-Type: application/json
+
+{
+  "targetUserId": "<uuid-of-staff-account>",
+  "reason": "Role change - no longer needs backup access"
+}
+```
+
+Requirements for the target account:
+- `role = 'admin'`
+- `credential_status = 'active'`
+- Cannot be the same account as the actor (no self-grant or self-revocation)
+
+All grant/revoke events are recorded in `operator_audit_log` with the actor's user ID and role, the target user ID, the action (`grant_operator` or `revoke_operator`), an optional reason, and a timestamp.
+
+Clinic admins cannot self-escalate to operator — only superadmins may grant or revoke operator status.
+
+Revoke operator status by calling the revoke endpoint; the change takes effect on the next backup attempt.

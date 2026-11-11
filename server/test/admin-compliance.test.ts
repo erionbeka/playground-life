@@ -4,9 +4,12 @@ import express from "express";
 import request from "supertest";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
-import { mkdir, stat, unlink } from "node:fs/promises";
+import { chmod, mkdir, stat, unlink } from "node:fs/promises";
+import { createReadStream, readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const queryMock = vi.hoisted(() => vi.fn());
 const poolConnectMock = vi.hoisted(() => vi.fn());
@@ -38,11 +41,6 @@ function buildApp(clinicId: string | undefined) {
   return app;
 }
 
-/**
- * Builds a fake ChildProcess whose stdout emits the given chunks and then
- * closes with the given exit code / signal. The close event only fires after
- * the stdout stream has ended, so the pipeline can consume all data first.
- */
 beforeEach(() => {
   queryMock.mockReset();
   queryMock.mockResolvedValue({ rows: [{ count: "0" }], rowCount: 1 });
@@ -144,7 +142,6 @@ describe("backup run operator authorization", () => {
     const prev = process.env.ALLOW_BACKUP;
     process.env.ALLOW_BACKUP = "true";
     try {
-      // Operator check passes, insert succeeds, lock not acquired.
       queryMock
         .mockResolvedValueOnce({ rows: [{ is_operator: true }] })
         .mockResolvedValueOnce({ rows: [{ id: "run-1" }] });
@@ -157,6 +154,38 @@ describe("backup run operator authorization", () => {
       const response = await request(buildApp("clinic-8")).post("/api/admin/compliance/backup/run");
       expect(response.status).toBe(409);
       expect(response.body.error).toBe("A backup is already in progress");
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+
+  it("verifies advisory lock client is released after a failed backup (HTTP route)", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    process.env.ALLOW_BACKUP = "true";
+    try {
+      // The route uses real spawn (pg_dump not installed → ENOENT), so the
+      // backup fails, but the finally block must still release the lock.
+      const lockClient = {
+        query: vi.fn().mockResolvedValue({ rows: [{ lock_acquired: true }] }),
+        release: vi.fn(),
+      };
+      poolConnectMock.mockResolvedValueOnce(lockClient);
+
+      queryMock
+        .mockResolvedValueOnce({ rows: [{ is_operator: true }] }) // operator check
+        .mockResolvedValueOnce({ rows: [{ id: "run-1" }] }) // insert backup_runs
+        .mockResolvedValueOnce({ rows: [{ count: "1" }] }); // UPDATE backup_runs failed
+
+      const file = `/tmp/test-backups/lock-fail-${Date.now()}.sql.gz`;
+      await mkdir(path.dirname(file), { recursive: true });
+
+      const response = await request(buildApp("clinic-7"))
+        .post("/api/admin/compliance/backup/run");
+
+      expect(response.status).toBe(500);
+      expect(lockClient.release.mock.calls.length).toBeGreaterThan(0);
+
+      await unlink(file).catch(() => undefined);
     } finally {
       process.env.ALLOW_BACKUP = prev;
     }
@@ -225,28 +254,60 @@ describe("runStreamingBackup unit tests", () => {
 
     expect(size).toBeGreaterThan(0);
     expect(checksum).toMatch(/^[0-9a-f]{64}$/);
+
+    // Verify file permissions are 0600 (skip exact check on Windows which
+    // simulates Unix modes differently).
     const fileStat = await stat(file);
-    expect(fileStat.size).toBe(size);
+    if (process.platform !== "win32") {
+      expect(fileStat.mode & 0o777).toBe(0o600);
+    } else {
+      // On Windows, owner read/write should still be present.
+      expect(fileStat.mode & 0o600).toBeGreaterThan(0);
+    }
+
+    // Decompress the gzip file and compare contents with original dump output.
+    const gunzipped = await gunzipFile(file);
+    expect(gunzipped).toBe(dumpData.toString("utf8"));
+
+    // Independently calculate SHA-256 from the final file and compare with returned checksum.
+    const independentHash = await sha256File(file);
+    expect(independentHash).toBe(checksum);
+
     await unlink(file);
   });
 
-  it("throws when pg_dump exits non-zero", async () => {
+  it("throws when pg_dump exits non-zero and cleans up temp file", async () => {
     const { spawnFn } = makeMockSpawn({ stdoutData: Buffer.from(""), closeCode: 1, closeSignal: null });
 
+    const file = path.join(tmpDir, `fail-${Date.now()}.sql.gz`);
+    const tmpFile = `${file}.tmp-${process.pid}-${Date.now()}`;
+
     await expect(
-      runStreamingBackup("run-2", path.join(tmpDir, "fail.sql.gz"), "postgres://localhost/db", spawnFn)
+      runStreamingBackup("run-2", file, "postgres://localhost/db", spawnFn)
     ).rejects.toThrow(/pg_dump exited/);
+
+    // Temp file should not remain after failure.
+    await expect(stat(tmpFile)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("throws when pg_dump is terminated by signal", async () => {
-    const { spawnFn } = makeMockSpawn({ stdoutData: Buffer.from("partial\n"), closeCode: null, closeSignal: "SIGTERM" });
+  it("throws when pg_dump is terminated by signal and cleans up temp file", async () => {
+    const { spawnFn } = makeMockSpawn({
+      stdoutData: Buffer.from("partial\n"),
+      closeCode: null,
+      closeSignal: "SIGTERM",
+    });
+
+    const file = path.join(tmpDir, `signal-${Date.now()}.sql.gz`);
+    const tmpFile = `${file}.tmp-${process.pid}-${Date.now()}`;
 
     await expect(
-      runStreamingBackup("run-3", path.join(tmpDir, "signal.sql.gz"), "postgres://localhost/db", spawnFn)
+      runStreamingBackup("run-3", file, "postgres://localhost/db", spawnFn)
     ).rejects.toThrow(/terminated by signal/);
+
+    await expect(stat(tmpFile)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("throws when spawn errors occur", async () => {
+  it("throws when spawn errors occur and cleans up temp file", async () => {
     const { spawnFn } = makeMockSpawn({
       stdoutData: Buffer.from(""),
       closeCode: 0,
@@ -254,8 +315,26 @@ describe("runStreamingBackup unit tests", () => {
       spawnError: new Error("spawn pg_dump ENOENT"),
     });
 
+    const file = path.join(tmpDir, `spawn-err-${Date.now()}.sql.gz`);
+    const tmpFile = `${file}.tmp-${process.pid}-${Date.now()}`;
+
     await expect(
-      runStreamingBackup("run-4", path.join(tmpDir, "spawn-err.sql.gz"), "postgres://localhost/db", spawnFn)
+      runStreamingBackup("run-4", file, "postgres://localhost/db", spawnFn)
     ).rejects.toThrow(/Failed to start pg_dump/);
+
+    await expect(stat(tmpFile)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });
+
+async function gunzipFile(filePath: string): Promise<string> {
+  return gunzipSync(readFileSync(filePath)).toString("utf8");
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  const stream = createReadStream(filePath);
+  for await (const chunk of stream) {
+    hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return hash.digest("hex");
+}

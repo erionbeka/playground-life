@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, stat, unlink } from "node:fs/promises";
+import { chmod, mkdir, stat, unlink } from "node:fs/promises";
 import { createWriteStream as createFileWriteStream, createReadStream } from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -127,10 +127,87 @@ adminComplianceRoutes.get("/backup/status", async (req: Request, res: Response) 
     schedule: process.env.BACKUP_SCHEDULE || "daily 02:00 operator-only",
     retentionDays: Number(process.env.BACKUP_RETENTION_DAYS || 30),
     monitored: false,
-    encryption: "at-rest via disk/volume encryption + pg_dump over TLS connection",
+    encryption: "compression via gzip; transport via pg_dump over TLS; storage encryption is the responsibility of the backup volume/host and is not verified by this service",
     note: "Whole-database backups are operator-controlled. Clinic admins cannot trigger full-database backups.",
   };
   return res.json({ policy, runs: runs.rows });
+});
+
+/**
+ * Grant operator status to a staff account. Superadmin-only; clinic admins
+ * cannot self-escalate to operator. Every grant is recorded in
+ * operator_audit_log with actor, target, and timestamp.
+ */
+adminComplianceRoutes.post("/operator/grant", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
+  const parsed = z.object({
+    targetUserId: z.string().uuid(),
+    reason: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid request body" });
+  const { targetUserId, reason } = parsed.data;
+
+  const actorId = req.user?.id;
+  const actorRole = req.user?.role;
+
+  // Verify the target user exists, is an admin, and has active credentials.
+  const target = await query<{ id: string; role: string; credential_status: string; is_operator: boolean }>(
+    "SELECT id, role, credential_status, is_operator FROM users WHERE id = $1",
+    [targetUserId]
+  );
+  if (!target.rows[0]) return res.status(404).json({ error: "Target user not found" });
+  if (target.rows[0].role !== "admin") return res.status(400).json({ error: "Target user is not a clinic admin" });
+  if (target.rows[0].credential_status !== "active") return res.status(400).json({ error: "Target user credentials are not active" });
+  if (target.rows[0].is_operator) return res.status(400).json({ error: "Target user is already an operator" });
+
+  // Prevent self-grant: an operator must be designated by another superadmin.
+  if (targetUserId === actorId) {
+    return res.status(403).json({ error: "Self-grant of operator status is not permitted" });
+  }
+
+  await query("UPDATE users SET is_operator = true WHERE id = $1", [targetUserId]);
+  await query(
+    `INSERT INTO operator_audit_log (actor_user_id, actor_role, target_user_id, action, reason)
+     VALUES ($1, $2, $3, 'grant_operator', $4)`,
+    [actorId, actorRole, targetUserId, reason ?? null]
+  );
+
+  return res.json({ ok: true, action: "grant_operator", targetUserId });
+});
+
+/**
+ * Revoke operator status from a staff account. Superadmin-only.
+ */
+adminComplianceRoutes.post("/operator/revoke", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
+  const parsed = z.object({
+    targetUserId: z.string().uuid(),
+    reason: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid request body" });
+  const { targetUserId, reason } = parsed.data;
+
+  const actorId = req.user?.id;
+  const actorRole = req.user?.role;
+
+  const target = await query<{ id: string; is_operator: boolean }>(
+    "SELECT id, is_operator FROM users WHERE id = $1",
+    [targetUserId]
+  );
+  if (!target.rows[0]) return res.status(404).json({ error: "Target user not found" });
+  if (!target.rows[0].is_operator) return res.status(400).json({ error: "Target user is not an operator" });
+
+  // Prevent self-revocation to avoid accidental lockout.
+  if (targetUserId === actorId) {
+    return res.status(403).json({ error: "Self-revocation of operator status is not permitted" });
+  }
+
+  await query("UPDATE users SET is_operator = false WHERE id = $1", [targetUserId]);
+  await query(
+    `INSERT INTO operator_audit_log (actor_user_id, actor_role, target_user_id, action, reason)
+     VALUES ($1, $2, $3, 'revoke_operator', $4)`,
+    [actorId, actorRole, targetUserId, reason ?? null]
+  );
+
+  return res.json({ ok: true, action: "revoke_operator", targetUserId });
 });
 
 /**
@@ -160,7 +237,7 @@ export async function runStreamingBackup(
     },
   });
 
-  const fileStream = createFileWriteStream(tmpFile);
+  const fileStream = createFileWriteStream(tmpFile, { mode: 0o600 });
   const gzip = createGzip();
 
   const password = (() => {
@@ -235,6 +312,9 @@ export async function runStreamingBackup(
       import("node:fs/promises").then((fs) => fs.rename(tmpFile, file)).then(resolve).catch(reject);
     });
 
+    // Ensure final file retains restrictive permissions.
+    await chmod(file, 0o600);
+
     const finalStat = await stat(file);
     return { size: finalStat.size, checksum };
   } finally {
@@ -264,7 +344,7 @@ adminComplianceRoutes.post("/backup/run", async (req: Request, res: Response) =>
   }
 
   const dir = process.env.BACKUP_DIR || "./backups";
-  await mkdir(dir, { recursive: true });
+  await mkdir(dir, { recursive: true, mode: 0o700 });
   const file = path.join(dir, `playground-life-${new Date().toISOString().replace(/[:.]/g, "-")}.sql.gz`);
 
   const inserted = await query<{ id: string }>(
