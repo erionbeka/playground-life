@@ -94,7 +94,7 @@ test("AAC and language engines complete from their own controls", async ({ page 
 test("receptive direction and intraverbal engines complete", async ({ page }) => {
   await openLab(page, "game-238");
   const listenEngine = page.getByTestId("listen-engine");
-  const listenProgress = listenEngine.locator("p").filter({ hasText: /^Step \d+ of \d+$/ });
+  const listenProgress = listenEngine.locator('p[aria-live="polite"]').filter({ hasText: /^Step \d+ of \d+$/ });
   for (let action = 0; action < 5; action += 1) {
     if (await page.getByText(/completed: score/).isVisible().catch(() => false)) break;
     const instruction = await listenEngine.locator("p.font-display").innerText();
