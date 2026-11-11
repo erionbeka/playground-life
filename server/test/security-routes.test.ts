@@ -45,6 +45,7 @@ vi.mock("../lib/compliance.ts", async (importOriginal) => {
     ...actual,
     generateTotpSecret: () => "JBSWY3DPEHPK3PXP",
     verifyTotp: verifyTotpMock,
+    verifyTotpStep: (_secret: string, token: string) => (token === "123456" ? 42 : null),
   };
 });
 
@@ -82,7 +83,7 @@ describe("security route session invalidation", () => {
       .send({})
       .expect(200);
 
-    expect(queryMock.mock.calls[0][0]).toContain("SELECT email FROM users");
+    expect(queryMock.mock.calls[0][0]).toContain("SELECT email, mfa_enabled FROM users");
     expect(queryMock.mock.calls[0][1]).toEqual(["user-1"]);
     expect(queryMock.mock.calls[1][0]).toContain("mfa_secret = $1");
     expect(response.body.secret).toBe("JBSWY3DPEHPK3PXP");
@@ -149,7 +150,7 @@ describe("security route session invalidation", () => {
       .mockResolvedValueOnce({ rows: [] }) // BEGIN
       .mockResolvedValueOnce({ rows: [{ user_id: "user-1" }] }) // find candidate account
       .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: "user-1" }] }) // lock account
-      .mockResolvedValueOnce({ rows: [{ id: "reset-1", user_id: "user-1" }] }) // revalidate and lock token
+      .mockResolvedValueOnce({ rows: [{ id: "reset-1", user_id: "user-1", clinic_id: "clinic-1" }] }) // revalidate and lock token
       .mockResolvedValueOnce({ rowCount: 1, rows: [] }) // update password
       .mockResolvedValueOnce({ rowCount: 1, rows: [] }) // invalidate all outstanding tokens
       .mockResolvedValueOnce({ rows: [] }) // audit
@@ -177,5 +178,9 @@ describe("security route session invalidation", () => {
     expect(transactionQueryMock.mock.calls[5][0]).toContain("user_id = $1 AND used_at IS NULL");
     expect(transactionQueryMock.mock.calls[5][1]).toEqual(["user-1"]);
     expect(transactionQueryMock.mock.calls[7][0]).toBe("COMMIT");
+    // Audit record must carry the target user's clinic_id, not null.
+    expect(transactionQueryMock.mock.calls[6][0]).toContain("INSERT INTO audit_log");
+    expect(transactionQueryMock.mock.calls[6][0]).toContain("(clinic_id, actor_user_id, action, entity_type, entity_id, details)");
+    expect(transactionQueryMock.mock.calls[6][1]).toEqual(["clinic-1", "user-1"]);
   });
 });

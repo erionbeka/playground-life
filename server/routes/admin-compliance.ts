@@ -1,10 +1,14 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, stat } from "node:fs/promises";
+import { chmod, mkdir, stat, unlink } from "node:fs/promises";
+import { createWriteStream as createFileWriteStream, createReadStream } from "node:fs";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
+import { spawn, type ChildProcess } from "node:child_process";
+import { createGzip } from "node:zlib";
 import { Router } from "express";
 import { z } from "zod";
-import { query } from "../db.ts";
+import { pool, query, withTransaction } from "../db.ts";
 import { databaseTarget, redactDatabaseUrl } from "../config.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 import type { Request, Response } from "express";
@@ -102,44 +106,144 @@ adminComplianceRoutes.post("/retention/run", async (req: Request, res: Response)
   };
 
   await query(
-    `INSERT INTO retention_runs (audit_deleted, traces_scrubbed, outbox_deleted)
-     VALUES ($1, $2, $3)`,
-    [counts.auditDeleted, counts.tracesScrubbed, counts.outboxDeleted]
+    `INSERT INTO retention_runs (audit_deleted, traces_scrubbed, outbox_deleted, clinic_id)
+     VALUES ($1, $2, $3, $4)`,
+    [counts.auditDeleted, counts.tracesScrubbed, counts.outboxDeleted, clinicId]
   );
 
   return res.json({ ok: true, retention: RETENTION_DEFAULTS, ...counts });
 });
 
-adminComplianceRoutes.get("/backup/status", async (_req: Request, res: Response) => {
+adminComplianceRoutes.get("/backup/status", async (req: Request, res: Response) => {
+  const clinicId = req.user?.clinicId;
   const runs = await query(
-    `SELECT started_at, finished_at, status, location, size_bytes, checksum
-     FROM backup_runs ORDER BY started_at DESC LIMIT 10`
+    `SELECT started_at, finished_at, status, location, size_bytes, checksum, clinic_id
+     FROM backup_runs
+     WHERE clinic_id = $1
+     ORDER BY started_at DESC LIMIT 10`,
+    [clinicId]
   );
   const policy = {
-    schedule: process.env.BACKUP_SCHEDULE || "daily 02:00 clinic-local",
+    schedule: process.env.BACKUP_SCHEDULE || null,
     retentionDays: Number(process.env.BACKUP_RETENTION_DAYS || 30),
-    monitored: true,
-    encryption: "at-rest via disk/volume encryption + pg_dump over TLS connection",
+    monitored: false,
+    encryption: "compression via gzip; transport via pg_dump over TLS; storage encryption is the responsibility of the backup volume/host and is not verified by this service",
+    note: "Whole-database backups are operator-controlled. Clinic admins cannot trigger full-database backups.",
   };
   return res.json({ policy, runs: runs.rows });
 });
 
-adminComplianceRoutes.post("/backup/run", async (_req: Request, res: Response) => {
-  if (process.env.ALLOW_BACKUP !== "true") {
-    return res.status(403).json({ error: "Backups are operator-controlled. Set ALLOW_BACKUP=true on the API host." });
+/**
+ * Grant operator status to a staff account. Superadmin-only; clinic admins
+ * cannot self-escalate to operator. Every grant is recorded in
+ * operator_audit_log with actor, target, and timestamp.
+ */
+adminComplianceRoutes.post("/operator/grant", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
+  const parsed = z.object({
+    targetUserId: z.string().uuid(),
+    reason: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid request body" });
+  const { targetUserId, reason } = parsed.data;
+
+  const actorId = req.user?.id;
+  const actorRole = req.user?.role;
+
+  // Verify the target user exists, is an admin, and has active credentials.
+  const target = await query<{ id: string; role: string; credential_status: string; is_operator: boolean }>(
+    "SELECT id, role, credential_status, is_operator FROM users WHERE id = $1",
+    [targetUserId]
+  );
+  if (!target.rows[0]) return res.status(404).json({ error: "Target user not found" });
+  if (target.rows[0].role !== "admin") return res.status(400).json({ error: "Target user is not a clinic admin" });
+  if (target.rows[0].credential_status !== "active") return res.status(400).json({ error: "Target user credentials are not active" });
+  if (target.rows[0].is_operator) return res.status(400).json({ error: "Target user is already an operator" });
+
+  // Prevent self-grant: an operator must be designated by another superadmin.
+  if (targetUserId === actorId) {
+    return res.status(403).json({ error: "Self-grant of operator status is not permitted" });
   }
 
-  const dir = process.env.BACKUP_DIR || "./backups";
-  const file = path.join(dir, `playground-life-${new Date().toISOString().replace(/[:.]/g, "-")}.sql.gz`);
-  await mkdir(path.dirname(file), { recursive: true });
+  await withTransaction(async (client) => {
+    await client.query("UPDATE users SET is_operator = true WHERE id = $1", [targetUserId]);
+    await client.query(
+      `INSERT INTO operator_audit_log (actor_user_id, actor_role, target_user_id, action, reason)
+       VALUES ($1, $2, $3, 'grant_operator', $4)`,
+      [actorId, actorRole, targetUserId, reason ?? null]
+    );
+  });
 
-  const inserted = await query<{ id: string }>(
-    "INSERT INTO backup_runs (location) VALUES ($1) RETURNING id",
-    [file]
+  return res.json({ ok: true, action: "grant_operator", targetUserId });
+});
+
+/**
+ * Revoke operator status from a staff account. Superadmin-only.
+ */
+adminComplianceRoutes.post("/operator/revoke", requireAuth, requireRole("superadmin"), async (req: Request, res: Response) => {
+  const parsed = z.object({
+    targetUserId: z.string().uuid(),
+    reason: z.string().optional(),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid request body" });
+  const { targetUserId, reason } = parsed.data;
+
+  const actorId = req.user?.id;
+  const actorRole = req.user?.role;
+
+  const target = await query<{ id: string; is_operator: boolean }>(
+    "SELECT id, is_operator FROM users WHERE id = $1",
+    [targetUserId]
   );
-  const runId = inserted.rows[0].id;
+  if (!target.rows[0]) return res.status(404).json({ error: "Target user not found" });
+  if (!target.rows[0].is_operator) return res.status(400).json({ error: "Target user is not an operator" });
 
-  const databaseUrl = process.env.DATABASE_URL || "";
+  // Prevent self-revocation to avoid accidental lockout.
+  if (targetUserId === actorId) {
+    return res.status(403).json({ error: "Self-revocation of operator status is not permitted" });
+  }
+
+  await withTransaction(async (client) => {
+    await client.query("UPDATE users SET is_operator = false WHERE id = $1", [targetUserId]);
+    await client.query(
+      `INSERT INTO operator_audit_log (actor_user_id, actor_role, target_user_id, action, reason)
+       VALUES ($1, $2, $3, 'revoke_operator', $4)`,
+      [actorId, actorRole, targetUserId, reason ?? null]
+    );
+  });
+
+  return res.json({ ok: true, action: "revoke_operator", targetUserId });
+});
+
+/**
+ * Streams pg_dump output through gzip compression directly to a temp file,
+ * then atomically renames it to the final path. The checksum is calculated
+ * from the bytes actually written to disk, never from an in-memory buffer.
+ *
+ * Process completion is determined by the `close` event: only an exit code
+ * of exactly 0 counts as success. Signal termination, spawn errors, and any
+ * other non-zero outcome mark the backup as failed.
+ */
+export async function runStreamingBackup(
+  runId: string,
+  file: string,
+  databaseUrl: string,
+  spawnFn: typeof spawn = spawn
+): Promise<{ size: number; checksum: string }> {
+  const dir = path.dirname(file);
+  const tmpFile = `${file}.tmp-${process.pid}-${Date.now()}`;
+
+  let size = 0;
+
+  const hashStream = new Transform({
+    transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null, data?: Buffer) => void) {
+      size += chunk.length;
+      callback(null, chunk);
+    },
+  });
+
+  const fileStream = createFileWriteStream(tmpFile, { mode: 0o600 });
+  const gzip = createGzip();
+
   const password = (() => {
     try {
       return decodeURIComponent(new URL(databaseUrl).password);
@@ -148,31 +252,142 @@ adminComplianceRoutes.post("/backup/run", async (_req: Request, res: Response) =
     }
   })();
 
-  execFile(
-    "pg_dump",
-    [databaseTarget(databaseUrl)],
-    {
-      maxBuffer: 1024 * 1024 * 512,
-      // The password travels in the environment, not in the argument list,
-      // where any process on the host could read it.
-      env: { ...process.env, PGPASSWORD: password },
-    },
-    async (error, stdout) => {
-      if (error) {
-        await query(
-          "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
-          [redactDatabaseUrl(error.message), runId]
-        );
-        return;
-      }
-      const checksum = createHash("sha256").update(stdout).digest("hex");
-      await stat(file).catch(() => undefined);
+  const child = spawnFn("pg_dump", [databaseTarget(databaseUrl)], {
+    env: { ...process.env, PGPASSWORD: password },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  // Await process completion via the `close` event, which fires after all
+  // stdio streams are flushed. Only exit code exactly 0 counts as success.
+  const closePromise = new Promise<{ code: number | null; signal: string | null; spawnError: Error | null }>((resolve, reject) => {
+    let spawnError: Error | null = null;
+    child.on("error", (err) => {
+      spawnError = err;
+    });
+    child.on("close", (code, signal) => {
+      resolve({ code, signal, spawnError });
+    });
+    // If the stream pipeline rejects before close fires, surface the error.
+    child.stdout!.on("error", (err) => {
+      reject(err);
+    });
+  });
+
+  try {
+    // Stream: pg_dump stdout -> gzip -> hash stream -> file.
+    // pipeline closes fileStream when it completes.
+    await pipeline(child.stdout!, gzip, hashStream, fileStream);
+
+    const { code, signal, spawnError } = await closePromise;
+
+    if (spawnError) {
+      throw new Error(`Failed to start pg_dump: ${spawnError.message}`);
+    }
+
+    if (signal !== null) {
+      throw new Error(`pg_dump terminated by signal ${signal}: ${redactDatabaseUrl(stderr.slice(-500))}`);
+    }
+
+    if (code !== 0) {
+      throw new Error(`pg_dump exited with code ${code}: ${redactDatabaseUrl(stderr.slice(-500))}`);
+    }
+
+    // Verify the temp file exists and is nonempty before renaming.
+    const fileStat = await stat(tmpFile);
+    if (fileStat.size === 0) {
+      throw new Error("Backup file is empty");
+    }
+
+    // Calculate checksum from the actual file on disk (streaming read).
+    const hash = createHash("sha256");
+    const readStream = createReadStream(tmpFile);
+    for await (const chunk of readStream) {
+      hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const checksum = hash.digest("hex");
+
+    // Atomic rename: temp file -> final backup file.
+    await new Promise<void>((resolve, reject) => {
+      import("node:fs/promises").then((fs) => fs.rename(tmpFile, file)).then(resolve).catch(reject);
+    });
+
+    // Ensure final file retains restrictive permissions.
+    await chmod(file, 0o600);
+
+    const finalStat = await stat(file);
+    return { size: finalStat.size, checksum };
+  } finally {
+    // Clean up temp file if it still exists (rename already moved it on success).
+    try {
+      await unlink(tmpFile).catch(() => undefined);
+    } catch {
+      /* ignore */
+    }
+    child.kill();
+  }
+}
+
+adminComplianceRoutes.post("/backup/run", async (req: Request, res: Response) => {
+  if (process.env.ALLOW_BACKUP !== "true") {
+    return res.status(403).json({ error: "Backups are operator-controlled. Set ALLOW_BACKUP=true on the API host." });
+  }
+
+  // Operator authorization: only users explicitly flagged as operators may
+  // trigger a whole-database backup. Clinic admin role alone is insufficient.
+  const operator = await query<{ is_operator: boolean }>(
+    "SELECT is_operator FROM users WHERE id = $1 AND clinic_id = $2 AND role = 'admin' AND credential_status = 'active'",
+    [req.user?.id, req.user?.clinicId]
+  );
+  if (!operator.rows[0]?.is_operator) {
+    return res.status(403).json({ error: "Operator authorization required for full-database backups" });
+  }
+
+  const dir = process.env.BACKUP_DIR || "./backups";
+  await mkdir(dir, { recursive: true, mode: 0o700 });
+  await chmod(dir, 0o700);
+  const file = path.join(dir, `playground-life-${new Date().toISOString().replace(/[:.]/g, "-")}.sql.gz`);
+
+  // Acquire the advisory lock client before creating the running row, so a
+  // connection failure cannot leave an orphaned backup_runs row behind.
+  const lockClient = await pool.connect();
+  try {
+    const lock = await lockClient.query<{ lock_acquired: boolean }>(
+      "SELECT pg_try_advisory_lock(hashtext('playground-life:backup')::bigint) AS lock_acquired"
+    );
+    if (!lock.rows[0]?.lock_acquired) {
+      return res.status(409).json({ error: "A backup is already in progress" });
+    }
+
+    const inserted = await query<{ id: string }>(
+      "INSERT INTO backup_runs (location, clinic_id, status) VALUES ($1, $2, 'running') RETURNING id",
+      [file, req.user?.clinicId]
+    );
+    const runId = inserted.rows[0].id;
+
+    try {
+      const databaseUrl = process.env.DATABASE_URL || "";
+      const { size, checksum } = await runStreamingBackup(runId, file, databaseUrl);
       await query(
         `UPDATE backup_runs SET finished_at = now(), status = 'success', size_bytes = $1, checksum = $2 WHERE id = $3`,
-        [Buffer.byteLength(stdout), checksum, runId]
+        [size, checksum, runId]
       );
+      return res.status(202).json({ ok: true, runId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("BACKUP ERROR DETAIL:", message, error);
+      await query(
+        "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
+        [redactDatabaseUrl(message), runId]
+      );
+      return res.status(500).json({ error: "Backup failed", runId });
     }
-  );
-
-  return res.status(202).json({ ok: true, runId });
+  } finally {
+    await lockClient.query("SELECT pg_advisory_unlock(hashtext('playground-life:backup')::bigint)").catch(() => {});
+    lockClient.release();
+  }
 });
