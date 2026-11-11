@@ -7,10 +7,11 @@ import { Pool } from "pg";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const migrationsDir = path.join(dirname, "..", "sql");
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
-// Test PostgreSQL on port 5433 with trust authentication.
-// The `test` database must exist before running (create with: createdb -h 127.0.0.1 -p 5433 -U postgres test).
-const TEST_DATABASE_URL = "postgres://postgres@127.0.0.1:5433/test";
+if (!TEST_DATABASE_URL) {
+  throw new Error("TEST_DATABASE_URL is required; run against a disposable PostgreSQL database.");
+}
 
 const MIGRATION_NAMES = [
   "020_clinic_link_integrity.sql",
@@ -20,7 +21,7 @@ const MIGRATION_NAMES = [
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
-  return (await readFile(path.join(migrationsDir, name), "utf8")).replace(/^\uFEFF/, "");
+  return (await readFile(path.join(migrationsDir, name), "utf8")).replace(/^\\uFEFF/, "");
 }
 
 let pool: Pool;
@@ -28,63 +29,86 @@ let pool: Pool;
 describe("migrations 020-023", () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: TEST_DATABASE_URL });
+    await pool.query("SELECT 1");
   });
 
   afterAll(async () => {
-    await pool.end();
+    await pool?.end();
   });
 
-  it("applies prerequisite migrations 001-002 then 020-023 in sequence", async () => {
-    for (const name of [
-      "001_init.sql",
-      "002_compliance.sql",
-      ...MIGRATION_NAMES,
-    ]) {
-      const sql = await readMigration(name);
-      await pool.query(sql);
+  it("applies prerequisite migrations and 020-023 in order, then safely reapplies 020-023", async () => {
+    for (const name of ["001_init.sql", "002_compliance.sql", ...MIGRATION_NAMES]) {
+      await pool.query(await readMigration(name));
+    }
+
+    // A second pass verifies that the migrations tolerate being re-run.
+    for (const name of MIGRATION_NAMES) {
+      await pool.query(await readMigration(name));
     }
   });
 
-  it("applies 020_clinic_link_integrity.sql successfully", async () => {
-    const sql = await readMigration("020_clinic_link_integrity.sql");
-    await pool.query(sql);
-  });
-
-  it("applies 021_clinic_operation_accountability.sql successfully", async () => {
-    const sql = await readMigration("021_clinic_operation_accountability.sql");
-    await pool.query(sql);
-  });
-
-  it("applies 022_operator_authorization.sql successfully", async () => {
-    const sql = await readMigration("022_operator_authorization.sql");
-    await pool.query(sql);
-  });
-
-  it("applies 023_operator_audit_log.sql successfully", async () => {
-    const sql = await readMigration("023_operator_audit_log.sql");
-    await pool.query(sql);
-  });
-
-  it("verifies the children unique constraint column order matches the FK reference", async () => {
-    const constraint = await pool.query<{ conname: string; conkey: number[] }>(
-      `SELECT conname, conkey::text[]::int[]
+  it("stores the children unique constraint in (clinic_id, id) order", async () => {
+    const result = await pool.query<{ conkey: number[] }>(
+      `SELECT conkey::text[]::int[] AS conkey
        FROM pg_constraint
-       WHERE conname = 'children_id_clinic_id_key' AND conrelid = 'children'::regclass`
+       WHERE conname = 'children_id_clinic_id_key'
+         AND conrelid = 'children'::regclass`
     );
-    expect(constraint.rows).toHaveLength(1);
-    // children table column order: id(1), clinic_id(2), ...
-    // UNIQUE (clinic_id, id) → conkey [2, 1]
-    expect(constraint.rows[0].conkey).toEqual([2, 1]);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].conkey).toEqual([2, 1]);
   });
 
-  it("verifies the foreign key references children (clinic_id, id)", async () => {
-    const fk = await pool.query<{ conname: string; confkey: number[] }>(
-      `SELECT conname, confkey::text[]::int[]
+  it("references children through (clinic_id, id)", async () => {
+    const result = await pool.query<{ confkey: number[] }>(
+      `SELECT confkey::text[]::int[] AS confkey
        FROM pg_constraint
-       WHERE conname = 'family_child_links_clinic_child_fkey' AND conrelid = 'family_child_links'::regclass`
+       WHERE conname = 'family_child_links_clinic_child_fkey'
+         AND conrelid = 'family_child_links'::regclass`
     );
-    expect(fk.rows).toHaveLength(1);
-    // References children.clinic_id(2), children.id(1)
-    expect(fk.rows[0].confkey).toEqual([2, 1]);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].confkey).toEqual([2, 1]);
+  });
+
+  it("rejects a family-child link that crosses clinic boundaries", async () => {
+    const clinicA = (await pool.query(
+      "INSERT INTO clinics (name) VALUES ('Migration test clinic A') RETURNING id"
+    )).rows[0].id as string;
+    const clinicB = (await pool.query(
+      "INSERT INTO clinics (name) VALUES ('Migration test clinic B') RETURNING id"
+    )).rows[0].id as string;
+
+    const userA = (await pool.query(
+      `INSERT INTO users (clinic_id, role, name, email, password_hash)
+       VALUES ($1, 'parent', 'Test Parent A', 'migration-parent-a@example.test', 'test-hash')
+       RETURNING id`,
+      [clinicA]
+    )).rows[0].id as string;
+    const userB = (await pool.query(
+      `INSERT INTO users (clinic_id, role, name, email, password_hash)
+       VALUES ($1, 'parent', 'Test Parent B', 'migration-parent-b@example.test', 'test-hash')
+       RETURNING id`,
+      [clinicB]
+    )).rows[0].id as string;
+    const childA = (await pool.query(
+      `INSERT INTO children (clinic_id, first_name, display_name)
+       VALUES ($1, 'Test', 'Test child A') RETURNING id`,
+      [clinicA]
+    )).rows[0].id as string;
+
+    // A valid same-clinic link remains allowed.
+    await pool.query(
+      `INSERT INTO family_child_links (clinic_id, child_id, user_id, relationship)
+       VALUES ($1, $2, $3, 'parent')`,
+      [clinicA, childA, userA]
+    );
+
+    // The child's UUID exists, but pairing it with another clinic must fail.
+    await expect(
+      pool.query(
+        `INSERT INTO family_child_links (clinic_id, child_id, user_id, relationship)
+         VALUES ($1, $2, $3, 'parent')`,
+        [clinicB, childA, userB]
+      )
+    ).rejects.toMatchObject({ code: "23503" });
   });
 });
