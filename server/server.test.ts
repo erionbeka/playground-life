@@ -312,20 +312,20 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .patch("/api/children/00000000-0000-0000-0000-000000000001")
+      .patch("/api/children/550e8400-e29b-41d4-a716-446655440001")
       .set("Authorization", "Bearer therapist-token")
       .send({ firstName: "Ava", notes: "Updated notes" })
       .expect(200);
 
-    expect(response.body).toEqual({ id: "00000000-0000-0000-0000-000000000001" });
+    expect(response.body).toEqual({ id: "550e8400-e29b-41d4-a716-446655440001" });
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("UPDATE children"), expect.any(Array));
-    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "child_updated", "child", "00000000-0000-0000-0000-000000000001", expect.any(Object));
+    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "child_updated", "child", "550e8400-e29b-41d4-a716-446655440001", expect.any(Object));
   });
 
   it("blocks parents from updating child records", async () => {
     const app = await loadApp();
     await request(app)
-      .patch("/api/children/00000000-0000-0000-0000-000000000001")
+      .patch("/api/children/550e8400-e29b-41d4-a716-446655440001")
       .set("Authorization", "Bearer parent-token")
       .send({ notes: "nope" })
       .expect(403);
@@ -338,7 +338,7 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .delete("/api/children/00000000-0000-0000-0000-000000000001")
+      .delete("/api/children/550e8400-e29b-41d4-a716-446655440001")
       .set("Authorization", "Bearer admin-token")
       .expect(200);
 
@@ -351,7 +351,7 @@ describe("production API", () => {
       expect.anything(),
       "child_archived",
       "child",
-      "00000000-0000-0000-0000-000000000001",
+      "550e8400-e29b-41d4-a716-446655440001",
       {},
       expect.anything()
     );
@@ -362,7 +362,7 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/children/00000000-0000-0000-0000-000000000001/restore")
+      .post("/api/children/550e8400-e29b-41d4-a716-446655440001/restore")
       .set("Authorization", "Bearer admin-token")
       .expect(200);
 
@@ -373,7 +373,7 @@ describe("production API", () => {
       expect.anything(),
       "child_restored",
       "child",
-      "00000000-0000-0000-0000-000000000001",
+      "550e8400-e29b-41d4-a716-446655440001",
       {},
       expect.anything()
     );
@@ -382,7 +382,7 @@ describe("production API", () => {
   it("blocks therapists from deleting child records", async () => {
     const app = await loadApp();
     await request(app)
-      .delete("/api/children/00000000-0000-0000-0000-000000000001")
+      .delete("/api/children/550e8400-e29b-41d4-a716-446655440001")
       .set("Authorization", "Bearer therapist-token")
       .expect(403);
 
@@ -391,7 +391,7 @@ describe("production API", () => {
 
   it("lets admins create family sign-in credentials", async () => {
     transactionQueryMock
-      .mockResolvedValueOnce({ rows: [{ id: "00000000-0000-0000-0000-000000000001" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "550e8400-e29b-41d4-a716-446655440001" }] })
       .mockResolvedValueOnce({ rows: [{ id: "user-parent-1" }] })
       .mockResolvedValueOnce({ rows: [{ id: "link-1" }] });
 
@@ -400,7 +400,7 @@ describe("production API", () => {
       .post("/api/families")
       .set("Authorization", "Bearer admin-token")
       .send({
-        childId: "00000000-0000-0000-0000-000000000001",
+        childId: "550e8400-e29b-41d4-a716-446655440001",
         name: "Nina",
         relationship: "Mother",
         phoneNumber: "555-0401",
@@ -426,7 +426,7 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/families/00000000-0000-0000-0000-000000000009/invite")
+      .post("/api/families/550e8400-e29b-41d4-a716-446655440009/invite")
       .set("Authorization", "Bearer admin-token")
       .expect(200);
 
@@ -434,7 +434,7 @@ describe("production API", () => {
     expect(transactionQueryMock).toHaveBeenNthCalledWith(
       1,
       expect.stringContaining("children.archived_at IS NULL"),
-      ["00000000-0000-0000-0000-000000000009", "clinic-1"]
+      ["550e8400-e29b-41d4-a716-446655440009", "clinic-1"]
     );
     expect(transactionQueryMock).toHaveBeenNthCalledWith(
       2,
@@ -445,7 +445,7 @@ describe("production API", () => {
       expect.anything(),
       "family_invite_issued",
       "credential",
-      "00000000-0000-0000-0000-000000000009",
+      "550e8400-e29b-41d4-a716-446655440009",
       expect.objectContaining({ activeLinkCount: 1 }),
       expect.anything()
     );
@@ -456,7 +456,7 @@ describe("production API", () => {
 
     const app = await loadApp();
     await request(app)
-      .post("/api/families/00000000-0000-0000-0000-000000000009/invite")
+      .post("/api/families/550e8400-e29b-41d4-a716-446655440009/invite")
       .set("Authorization", "Bearer admin-token")
       .expect(404);
 
@@ -470,7 +470,7 @@ describe("production API", () => {
       .post("/api/families")
       .set("Authorization", "Bearer therapist-token")
       .send({
-        childId: "00000000-0000-0000-0000-000000000001",
+        childId: "550e8400-e29b-41d4-a716-446655440001",
         name: "Nina",
         relationship: "Mother",
         phoneNumber: "555-0401",
@@ -540,7 +540,7 @@ describe("production API", () => {
     await request(app)
       .post("/api/assignments")
       .set("Authorization", "Bearer parent-token")
-      .send({ childId: "00000000-0000-0000-0000-000000000001", type: "homework", gameIds: ["game-001"], difficulty: "easy", mode: "shared", dueDate: "2026-06-01" })
+      .send({ childId: "550e8400-e29b-41d4-a716-446655440001", type: "homework", gameIds: ["game-001"], difficulty: "easy", mode: "shared", dueDate: "2026-06-01" })
       .expect(403);
   });
 
@@ -552,8 +552,8 @@ describe("production API", () => {
       .post("/api/assignments")
       .set("Authorization", "Bearer admin-token")
       .send({
-        childId: "00000000-0000-0000-0000-000000000001",
-        assignedFamilyUserId: "00000000-0000-0000-0000-000000000003",
+        childId: "550e8400-e29b-41d4-a716-446655440001",
+        assignedFamilyUserId: "550e8400-e29b-41d4-a716-446655440003",
         type: "homework",
         gameIds: ["game-001"],
         difficulty: "easy",
@@ -583,8 +583,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: ["game-001"],
           therapist_approval: "approved",
         }],
@@ -592,7 +592,7 @@ describe("production API", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000010",
+          id: "550e8400-e29b-41d4-a716-446655440010",
           review_status: "pending",
         }],
       })
@@ -600,10 +600,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000020",
+        submissionId: "550e8400-e29b-41d4-a716-446655440020",
         gameId: "game-001",
         durationSeconds: 120,
         score: 88,
@@ -612,10 +612,10 @@ describe("production API", () => {
       .expect(201);
 
     expect(response.body).toMatchObject({
-      assignmentId: "00000000-0000-0000-0000-000000000002",
+      assignmentId: "550e8400-e29b-41d4-a716-446655440002",
       gameId: "game-001",
-      resultId: "00000000-0000-0000-0000-000000000010",
-      submissionId: "00000000-0000-0000-0000-000000000020",
+      resultId: "550e8400-e29b-41d4-a716-446655440010",
+      submissionId: "550e8400-e29b-41d4-a716-446655440020",
       reviewStatus: "pending",
       replayed: false,
     });
@@ -627,9 +627,9 @@ describe("production API", () => {
       expect.anything(),
       "game_result_recorded",
       "result",
-      "00000000-0000-0000-0000-000000000010",
+      "550e8400-e29b-41d4-a716-446655440010",
       expect.objectContaining({
-        submissionId: "00000000-0000-0000-0000-000000000020",
+        submissionId: "550e8400-e29b-41d4-a716-446655440020",
         reviewStatus: "pending",
       }),
       expect.objectContaining({ query: expect.any(Function) })
@@ -640,8 +640,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: ["game-001"],
           therapist_approval: "approved",
         }],
@@ -654,10 +654,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000021",
+        submissionId: "550e8400-e29b-41d4-a716-446655440021",
         gameId: "game-001",
         durationSeconds: 60,
         score: 90,
@@ -675,8 +675,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: [],
           therapist_approval: "pending",
         }],
@@ -684,8 +684,8 @@ describe("production API", () => {
       .mockResolvedValueOnce({
         rows: [{
           id: "result-1",
-          assignment_id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          assignment_id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_id: "game-001",
           duration_seconds: 120,
           score: 88,
@@ -699,10 +699,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000020",
+        submissionId: "550e8400-e29b-41d4-a716-446655440020",
         gameId: "game-001",
         durationSeconds: 120,
         score: 88,
@@ -712,7 +712,7 @@ describe("production API", () => {
 
     expect(response.body).toMatchObject({
       resultId: "result-1",
-      submissionId: "00000000-0000-0000-0000-000000000020",
+      submissionId: "550e8400-e29b-41d4-a716-446655440020",
       replayed: true,
     });
     expect(writeAuditMock).not.toHaveBeenCalled();
@@ -722,8 +722,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: ["game-001"],
           therapist_approval: "approved",
         }],
@@ -731,8 +731,8 @@ describe("production API", () => {
       .mockResolvedValueOnce({
         rows: [{
           id: "result-existing",
-          assignment_id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          assignment_id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_id: "game-001",
           duration_seconds: 120,
           score: 87,
@@ -746,10 +746,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000020",
+        submissionId: "550e8400-e29b-41d4-a716-446655440020",
         gameId: "game-001",
         durationSeconds: 120,
         score: 88,
@@ -768,8 +768,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: ["game-001"],
           therapist_approval: "approved",
         }],
@@ -779,8 +779,8 @@ describe("production API", () => {
       .mockResolvedValueOnce({
         rows: [{
           id: "result-concurrent",
-          assignment_id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          assignment_id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_id: "game-001",
           duration_seconds: 120,
           score: 88,
@@ -794,10 +794,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000020",
+        submissionId: "550e8400-e29b-41d4-a716-446655440020",
         gameId: "game-001",
         durationSeconds: 120,
         score: 88,
@@ -807,7 +807,7 @@ describe("production API", () => {
 
     expect(response.body).toMatchObject({
       resultId: "result-concurrent",
-      submissionId: "00000000-0000-0000-0000-000000000020",
+      submissionId: "550e8400-e29b-41d4-a716-446655440020",
       reviewStatus: "pending",
       replayed: true,
     });
@@ -821,8 +821,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: ["game-001"],
           therapist_approval: "approved",
           child_archived: true,
@@ -832,10 +832,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000030",
+        submissionId: "550e8400-e29b-41d4-a716-446655440030",
         gameId: "game-001",
         durationSeconds: 60,
         score: 90,
@@ -854,8 +854,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: [],
           therapist_approval: "pending",
           child_archived: true,
@@ -864,8 +864,8 @@ describe("production API", () => {
       .mockResolvedValueOnce({
         rows: [{
           id: "result-archived-replay",
-          assignment_id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          assignment_id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_id: "game-001",
           duration_seconds: 120,
           score: 88,
@@ -879,10 +879,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000020",
+        submissionId: "550e8400-e29b-41d4-a716-446655440020",
         gameId: "game-001",
         durationSeconds: 120,
         score: 88,
@@ -892,7 +892,7 @@ describe("production API", () => {
 
     expect(response.body).toMatchObject({
       resultId: "result-archived-replay",
-      submissionId: "00000000-0000-0000-0000-000000000020",
+      submissionId: "550e8400-e29b-41d4-a716-446655440020",
       replayed: true,
     });
     expect(transactionQueryMock.mock.calls.some(([sql]) =>
@@ -905,8 +905,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: ["game-001"],
           therapist_approval: "pending",
         }],
@@ -915,10 +915,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000022",
+        submissionId: "550e8400-e29b-41d4-a716-446655440022",
         gameId: "game-001",
         durationSeconds: 60,
         score: 90,
@@ -936,7 +936,7 @@ describe("production API", () => {
   it("rejects a result submission without a valid submission UUID", async () => {
     const app = await loadApp();
     await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({ gameId: "game-001", durationSeconds: 60, score: 90, interactions: 5 })
       .expect(400);
@@ -949,10 +949,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000022",
+        submissionId: "550e8400-e29b-41d4-a716-446655440022",
         gameId: "game-001",
         durationSeconds: 120,
         score: 88,
@@ -968,10 +968,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000023",
+        submissionId: "550e8400-e29b-41d4-a716-446655440023",
         gameId: "game-001",
         durationSeconds: 120,
         score: 88,
@@ -985,7 +985,7 @@ describe("production API", () => {
       "assignments.assigned_family_user_id = $3"
     );
     expect(transactionQueryMock.mock.calls[0][1]).toEqual([
-      "00000000-0000-0000-0000-000000000002",
+      "550e8400-e29b-41d4-a716-446655440002",
       "clinic-1",
       "user-parent",
     ]);
@@ -999,8 +999,8 @@ describe("production API", () => {
     transactionQueryMock
       .mockResolvedValueOnce({
         rows: [{
-          id: "00000000-0000-0000-0000-000000000002",
-          child_id: "00000000-0000-0000-0000-000000000001",
+          id: "550e8400-e29b-41d4-a716-446655440002",
+          child_id: "550e8400-e29b-41d4-a716-446655440001",
           game_ids: ["unknown-game-001"],
           therapist_approval: "approved",
         }],
@@ -1009,10 +1009,10 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .post("/api/assignments/00000000-0000-0000-0000-000000000002/results")
+      .post("/api/assignments/550e8400-e29b-41d4-a716-446655440002/results")
       .set("Authorization", "Bearer parent-token")
       .send({
-        submissionId: "00000000-0000-0000-0000-000000000024",
+        submissionId: "550e8400-e29b-41d4-a716-446655440024",
         gameId: "unknown-game-001",
         durationSeconds: 120,
         score: 88,
@@ -1070,7 +1070,7 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .delete("/api/assignments/00000000-0000-0000-0000-000000000002/games/game-001")
+      .delete("/api/assignments/550e8400-e29b-41d4-a716-446655440002/games/game-001")
       .set("Authorization", "Bearer therapist-token")
       .expect(409);
 
@@ -1084,7 +1084,7 @@ describe("production API", () => {
 
     const app = await loadApp();
     await request(app)
-      .delete("/api/assignments/00000000-0000-0000-0000-000000000002/games/game-999")
+      .delete("/api/assignments/550e8400-e29b-41d4-a716-446655440002/games/game-999")
       .set("Authorization", "Bearer therapist-token")
       .expect(404);
 
@@ -1101,7 +1101,7 @@ describe("production API", () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .get("/api/children/00000000-0000-0000-0000-000000000001/rewards")
+      .get("/api/children/550e8400-e29b-41d4-a716-446655440001/rewards")
       .set("Authorization", "Bearer therapist-token")
       .expect(200);
 
