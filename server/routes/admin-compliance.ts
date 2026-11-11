@@ -1,7 +1,11 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, stat, unlink } from "node:fs/promises";
+import { createWriteStream as createFileWriteStream, createReadStream } from "node:fs";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
+import { spawn } from "node:child_process";
+import { createGzip } from "node:zlib";
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db.ts";
@@ -102,44 +106,59 @@ adminComplianceRoutes.post("/retention/run", async (req: Request, res: Response)
   };
 
   await query(
-    `INSERT INTO retention_runs (audit_deleted, traces_scrubbed, outbox_deleted)
-     VALUES ($1, $2, $3)`,
-    [counts.auditDeleted, counts.tracesScrubbed, counts.outboxDeleted]
+    `INSERT INTO retention_runs (audit_deleted, traces_scrubbed, outbox_deleted, clinic_id)
+     VALUES ($1, $2, $3, $4)`,
+    [counts.auditDeleted, counts.tracesScrubbed, counts.outboxDeleted, clinicId]
   );
 
   return res.json({ ok: true, retention: RETENTION_DEFAULTS, ...counts });
 });
 
-adminComplianceRoutes.get("/backup/status", async (_req: Request, res: Response) => {
+adminComplianceRoutes.get("/backup/status", async (req: Request, res: Response) => {
+  const clinicId = req.user?.clinicId;
   const runs = await query(
-    `SELECT started_at, finished_at, status, location, size_bytes, checksum
-     FROM backup_runs ORDER BY started_at DESC LIMIT 10`
+    `SELECT started_at, finished_at, status, location, size_bytes, checksum, clinic_id
+     FROM backup_runs
+     WHERE clinic_id = $1
+     ORDER BY started_at DESC LIMIT 10`,
+    [clinicId]
   );
   const policy = {
-    schedule: process.env.BACKUP_SCHEDULE || "daily 02:00 clinic-local",
+    schedule: process.env.BACKUP_SCHEDULE || "daily 02:00 operator-only",
     retentionDays: Number(process.env.BACKUP_RETENTION_DAYS || 30),
-    monitored: true,
+    monitored: false,
     encryption: "at-rest via disk/volume encryption + pg_dump over TLS connection",
+    note: "Whole-database backups are operator-controlled. Clinic admins cannot trigger full-database backups.",
   };
   return res.json({ policy, runs: runs.rows });
 });
 
-adminComplianceRoutes.post("/backup/run", async (_req: Request, res: Response) => {
-  if (process.env.ALLOW_BACKUP !== "true") {
-    return res.status(403).json({ error: "Backups are operator-controlled. Set ALLOW_BACKUP=true on the API host." });
-  }
+/**
+ * Streams pg_dump output through gzip compression directly to a temp file,
+ * then atomically renames it to the final path. The checksum is calculated
+ * from the bytes actually written to disk, never from an in-memory buffer.
+ * An advisory lock prevents concurrent backups from colliding.
+ */
+async function runStreamingBackup(
+  runId: string,
+  file: string,
+  databaseUrl: string
+): Promise<{ size: number; checksum: string }> {
+  const dir = path.dirname(file);
+  const tmpFile = `${file}.tmp-${process.pid}-${Date.now()}`;
 
-  const dir = process.env.BACKUP_DIR || "./backups";
-  const file = path.join(dir, `playground-life-${new Date().toISOString().replace(/[:.]/g, "-")}.sql.gz`);
-  await mkdir(path.dirname(file), { recursive: true });
+  let size = 0;
 
-  const inserted = await query<{ id: string }>(
-    "INSERT INTO backup_runs (location) VALUES ($1) RETURNING id",
-    [file]
-  );
-  const runId = inserted.rows[0].id;
+  const hashStream = new Transform({
+    transform(chunk: Buffer, _encoding: string, callback: (error?: Error | null, data?: Buffer) => void) {
+      size += chunk.length;
+      callback(null, chunk);
+    },
+  });
 
-  const databaseUrl = process.env.DATABASE_URL || "";
+  const fileStream = createFileWriteStream(tmpFile);
+  const gzip = createGzip();
+
   const password = (() => {
     try {
       return decodeURIComponent(new URL(databaseUrl).password);
@@ -148,31 +167,134 @@ adminComplianceRoutes.post("/backup/run", async (_req: Request, res: Response) =
     }
   })();
 
-  execFile(
-    "pg_dump",
-    [databaseTarget(databaseUrl)],
-    {
-      maxBuffer: 1024 * 1024 * 512,
-      // The password travels in the environment, not in the argument list,
-      // where any process on the host could read it.
-      env: { ...process.env, PGPASSWORD: password },
-    },
-    async (error, stdout) => {
-      if (error) {
-        await query(
-          "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
-          [redactDatabaseUrl(error.message), runId]
-        );
-        return;
-      }
-      const checksum = createHash("sha256").update(stdout).digest("hex");
-      await stat(file).catch(() => undefined);
-      await query(
-        `UPDATE backup_runs SET finished_at = now(), status = 'success', size_bytes = $1, checksum = $2 WHERE id = $3`,
-        [Buffer.byteLength(stdout), checksum, runId]
-      );
-    }
-  );
+  const child = spawn("pg_dump", [databaseTarget(databaseUrl)], {
+    env: { ...process.env, PGPASSWORD: password },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
 
-  return res.status(202).json({ ok: true, runId });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk.toString();
+  });
+
+  let exitCode: number | null = null;
+  child.on("exit", (code) => {
+    exitCode = code;
+  });
+
+    try {
+      // Capture spawn errors (e.g. pg_dump not installed) so the caller
+      // can distinguish "could not start" from "dump failed".
+      let spawnError: Error | null = null;
+      child.on("error", (err) => {
+        spawnError = err;
+      });
+
+      // Stream: pg_dump stdout -> gzip -> hash stream -> file.
+      // pipeline closes fileStream when it completes.
+      await pipeline(child.stdout!, gzip, hashStream, fileStream);
+
+      if (spawnError) {
+        throw new Error(`Failed to start pg_dump: ${spawnError.message}`);
+      }
+
+      // Wait for the process to exit after the stream ends
+      await new Promise<void>((resolve) => {
+        if (exitCode !== null) {
+          resolve();
+          return;
+        }
+        child.on("exit", () => resolve());
+      });
+
+    if (exitCode !== 0 && exitCode !== null) {
+      throw new Error(`pg_dump exited with code ${exitCode}: ${redactDatabaseUrl(stderr.slice(-500))}`);
+    }
+
+    // Verify the temp file exists and is nonempty before renaming.
+    const fileStat = await stat(tmpFile);
+    if (fileStat.size === 0) {
+      throw new Error("Backup file is empty");
+    }
+
+    // Calculate checksum from the actual file on disk (streaming read).
+    const hash = createHash("sha256");
+    const readStream = createReadStream(tmpFile);
+    for await (const chunk of readStream) {
+      hash.update(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const checksum = hash.digest("hex");
+
+    // Atomic rename: temp file -> final backup file.
+    await new Promise<void>((resolve, reject) => {
+      import("node:fs/promises").then((fs) => fs.rename(tmpFile, file)).then(resolve).catch(reject);
+    });
+
+    const finalStat = await stat(file);
+    return { size: finalStat.size, checksum };
+  } finally {
+    // Clean up temp file if it still exists (rename already moved it on success).
+    try {
+      await unlink(tmpFile).catch(() => undefined);
+    } catch {
+      /* ignore */
+    }
+    child.kill();
+  }
+}
+
+adminComplianceRoutes.post("/backup/run", async (req: Request, res: Response) => {
+  if (process.env.ALLOW_BACKUP !== "true") {
+    return res.status(403).json({ error: "Backups are operator-controlled. Set ALLOW_BACKUP=true on the API host." });
+  }
+
+  // Operator authorization: only users explicitly flagged as operators may
+  // trigger a whole-database backup. Clinic admin role alone is insufficient.
+  const operator = await query<{ is_operator: boolean }>(
+    "SELECT is_operator FROM users WHERE id = $1 AND clinic_id = $2 AND role = 'admin' AND credential_status = 'active'",
+    [req.user?.id, req.user?.clinicId]
+  );
+  if (!operator.rows[0]?.is_operator) {
+    return res.status(403).json({ error: "Operator authorization required for full-database backups" });
+  }
+
+  const dir = process.env.BACKUP_DIR || "./backups";
+  await mkdir(dir, { recursive: true });
+  const file = path.join(dir, `playground-life-${new Date().toISOString().replace(/[:.]/g, "-")}.sql.gz`);
+
+  const inserted = await query<{ id: string }>(
+    "INSERT INTO backup_runs (location, clinic_id, status) VALUES ($1, $2, 'running') RETURNING id",
+    [file, req.user?.clinicId]
+  );
+  const runId = inserted.rows[0].id;
+
+  // Serialize backups with an advisory lock so concurrent requests cannot
+  // create conflicting files or records.
+  const lock = await query<{ lock_acquired: boolean }>(
+    "SELECT pg_try_advisory_xact_lock(hashtext('playground-life:backup')::bigint) AS lock_acquired"
+  );
+  if (!lock.rows[0]?.lock_acquired) {
+    await query(
+      "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
+      ["A backup is already in progress", runId]
+    );
+    return res.status(409).json({ error: "A backup is already in progress" });
+  }
+
+  const databaseUrl = process.env.DATABASE_URL || "";
+  try {
+    const { size, checksum } = await runStreamingBackup(runId, file, databaseUrl);
+    await query(
+      `UPDATE backup_runs SET finished_at = now(), status = 'success', size_bytes = $1, checksum = $2 WHERE id = $3`,
+      [size, checksum, runId]
+    );
+    return res.status(202).json({ ok: true, runId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await query(
+      "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
+      [redactDatabaseUrl(message), runId]
+    );
+    return res.status(500).json({ error: "Backup failed", runId });
+  }
 });

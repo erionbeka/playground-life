@@ -86,3 +86,65 @@ describe("retention run clinic scoping", () => {
     expect(params[1]).toBe("clinic-4");
   });
 });
+
+describe("backup status clinic scoping", () => {
+  it("queries backup_runs filtered by the requester's clinic", async () => {
+    await request(buildApp("clinic-1")).get("/api/admin/compliance/backup/status").expect(200);
+
+    const [sql, params] = queryMock.mock.calls.find(([s]) => s.includes("FROM backup_runs"))!;
+    expect(sql).toContain("WHERE clinic_id = $1");
+    expect(params).toEqual(["clinic-1"]);
+  });
+});
+
+describe("backup run operator authorization", () => {
+  it("rejects backup run when ALLOW_BACKUP is not set", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    delete process.env.ALLOW_BACKUP;
+    try {
+      await request(buildApp("clinic-6")).post("/api/admin/compliance/backup/run").expect(403);
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+
+  it("rejects backup run when user is not an operator", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    process.env.ALLOW_BACKUP = "true";
+    try {
+      queryMock
+        .mockResolvedValueOnce({ rows: [{ is_operator: false }] }) // operator check
+        .mockResolvedValue({ rows: [{ count: "0" }], rowCount: 1 });
+
+      await request(buildApp("clinic-6")).post("/api/admin/compliance/backup/run").expect(403);
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+
+  it("allows backup run when user is an operator", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    process.env.ALLOW_BACKUP = "true";
+    try {
+      queryMock
+        .mockResolvedValueOnce({ rows: [{ is_operator: true }] }) // operator check passes
+        .mockResolvedValueOnce({ rows: [{ id: "run-1" }] }) // insert backup_runs with status='running'
+        .mockResolvedValueOnce({ rows: [{ lock_acquired: true }] }); // advisory lock
+
+      // pg_dump is not available in the test environment, so the backup
+      // execution fails, but authorization succeeds (we get past the
+      // operator check and the advisory lock).
+      const response = await request(buildApp("clinic-7")).post("/api/admin/compliance/backup/run");
+      expect(response.status).not.toBe(403);
+
+      // Verify the backup run record was created with clinic_id and status.
+      const insertCall = queryMock.mock.calls.find(([sql]) => sql.includes("INSERT INTO backup_runs"))!;
+      expect(insertCall[0]).toContain("'running'");
+      expect(insertCall[0]).toContain("clinic_id");
+      // Check the params: [file, clinicId]
+      expect(insertCall[1][1]).toBe("clinic-7");
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+});

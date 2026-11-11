@@ -1,4 +1,5 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { config } from "../config.ts";
 
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
@@ -77,4 +78,50 @@ export function verifyTotp(secret: string, token: string, window = 1): boolean {
 
 export function otpauthUri(secret: string, email: string, issuer = "Playground Life"): string {
   return `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+}
+
+/**
+ * Encrypt an MFA secret at rest. Returns a `v1:`-prefixed ciphertext so the
+ * plaintext secret never persists in the database. Uses AES-256-GCM with a
+ * fresh random IV per encryption, so identical secrets produce different
+ * ciphertexts.
+ */
+export function encryptMfaSecret(secret: string): string {
+  const key = Buffer.from(config.RESEARCH_KEY, "utf8").slice(0, 32);
+  const iv = randomBytes(16);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
+  return `v1:${iv.toString("base64url")}:${cipher.getAuthTag().toString("base64url")}:${ciphertext.toString("base64url")}`;
+}
+
+/**
+ * Decrypt an MFA secret. Plaintext values (legacy, pre-encryption) are
+ * returned unchanged. `v1:` ciphertexts are decrypted and authenticated;
+ * tampered ciphertexts throw.
+ */
+export function decryptMfaSecret(encrypted: string): string {
+  if (!encrypted.startsWith("v1:")) return encrypted;
+  const parts = encrypted.split(":");
+  if (parts.length !== 4) throw new Error("Invalid MFA secret format");
+  const key = Buffer.from(config.RESEARCH_KEY, "utf8").slice(0, 32);
+  const iv = Buffer.from(parts[1], "base64url");
+  const authTag = Buffer.from(parts[2], "base64url");
+  const ciphertext = Buffer.from(parts[3], "base64url");
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(authTag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+}
+
+/**
+ * Verify a TOTP code and return the matched time-step counter, or null if no
+ * code in the allowed window matches. The counter lets callers record
+ * `mfa_last_used_step` so the same code cannot be replayed at sign-in.
+ */
+export function verifyTotpStep(secret: string, token: string, window = 1): number | null {
+  if (!/^\d{6}$/.test(token)) return null;
+  const counter = Math.floor(Date.now() / 30_000);
+  for (let drift = -window; drift <= window; drift += 1) {
+    if (safeEqual(totpAt(secret, counter + drift), token)) return counter + drift;
+  }
+  return null;
 }
