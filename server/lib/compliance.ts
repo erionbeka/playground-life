@@ -87,11 +87,26 @@ export function otpauthUri(secret: string, email: string, issuer = "Playground L
  * ciphertexts.
  */
 export function encryptMfaSecret(secret: string): string {
-  const key = Buffer.from(config.RESEARCH_KEY, "utf8").slice(0, 32);
+  const key = Buffer.from(config.MFA_KEY, "utf8").slice(0, 32);
   const iv = randomBytes(16);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const ciphertext = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
   return `v1:${iv.toString("base64url")}:${cipher.getAuthTag().toString("base64url")}:${ciphertext.toString("base64url")}`;
+}
+
+function decryptWithKey(encrypted: string, key: Buffer): string | null {
+  const parts = encrypted.split(":");
+  if (parts.length !== 4) return null;
+  const iv = Buffer.from(parts[1], "base64url");
+  const authTag = Buffer.from(parts[2], "base64url");
+  const ciphertext = Buffer.from(parts[3], "base64url");
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -103,13 +118,14 @@ export function decryptMfaSecret(encrypted: string): string {
   if (!encrypted.startsWith("v1:")) return encrypted;
   const parts = encrypted.split(":");
   if (parts.length !== 4) throw new Error("Invalid MFA secret format");
-  const key = Buffer.from(config.RESEARCH_KEY, "utf8").slice(0, 32);
-  const iv = Buffer.from(parts[1], "base64url");
-  const authTag = Buffer.from(parts[2], "base64url");
-  const ciphertext = Buffer.from(parts[3], "base64url");
-  const decipher = createDecipheriv("aes-256-gcm", key, iv);
-  decipher.setAuthTag(authTag);
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+
+  const primaryKey = Buffer.from(config.MFA_KEY, "utf8").slice(0, 32);
+  const fallbackKey = Buffer.from(config.RESEARCH_KEY, "utf8").slice(0, 32);
+
+  const plaintext = decryptWithKey(encrypted, primaryKey) ?? decryptWithKey(encrypted, fallbackKey);
+  if (plaintext !== null) return plaintext;
+
+  throw new Error("Failed to decrypt MFA secret");
 }
 
 /**

@@ -8,6 +8,15 @@ import {
   verifyTotpStep,
 } from "../lib/compliance.ts";
 
+const configMock = vi.hoisted(() => ({
+  MFA_KEY: "dedicated-mfa-encryption-key-that-is-at-least-32-chars-long",
+  RESEARCH_KEY: "research-deid-key-that-is-at-least-32-characters-long",
+}));
+
+vi.mock("../config.ts", () => ({
+  config: configMock,
+}));
+
 // RFC 6238 reference vector: secret is base32("12345678901234567890")
 const RFC_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 
@@ -83,5 +92,47 @@ describe("compliance primitives", () => {
     expect(() => decryptMfaSecret("v1:notenough")).toThrow("Invalid MFA secret format");
     // Non-v1: values are returned unchanged (legacy plaintext)
     expect(decryptMfaSecret("v2:invalid:version:here")).toBe("v2:invalid:version:here");
+  });
+
+  describe("MFA encryption key isolation", () => {
+    it("uses the dedicated MFA key when MFA_ENCRYPTION_KEY is set", () => {
+      configMock.MFA_KEY = "dedicated-mfa-encryption-key-that-is-at-least-32-chars-long";
+      configMock.RESEARCH_KEY = "different-research-key-that-is-at-least-32-characters-long";
+
+      const secret = "isolated-mfa-secret";
+      const encrypted = encryptMfaSecret(secret);
+
+      // Decrypts correctly with the dedicated key.
+      expect(decryptMfaSecret(encrypted)).toBe(secret);
+    });
+
+    it("decrypts secrets encrypted under RESEARCH_KEY via fallback", async () => {
+      // Simulate a secret that was encrypted before the dedicated key existed.
+      configMock.MFA_KEY = "new-dedicated-key-that-is-at-least-32-characters-long";
+      configMock.RESEARCH_KEY = "old-research-key-that-is-at-least-32-characters-long";
+
+      // Manually encrypt with the old RESEARCH_KEY.
+      const { createCipheriv, randomBytes } = await import("node:crypto");
+      const oldKey = Buffer.from(configMock.RESEARCH_KEY, "utf8").slice(0, 32);
+      const iv = randomBytes(16);
+      const cipher = createCipheriv("aes-256-gcm", oldKey, iv);
+      const ciphertext = Buffer.concat([cipher.update("legacy-secret", "utf8"), cipher.final()]);
+      const legacy = `v1:${iv.toString("base64url")}:${cipher.getAuthTag().toString("base64url")}:${ciphertext.toString("base64url")}`;
+
+      expect(decryptMfaSecret(legacy)).toBe("legacy-secret");
+    });
+
+    it("throws when neither the dedicated key nor RESEARCH_KEY can decrypt", () => {
+      configMock.MFA_KEY = "dedicated-mfa-encryption-key-that-is-at-least-32-chars-long";
+      configMock.RESEARCH_KEY = "research-deid-key-that-is-at-least-32-characters-long";
+
+      const encrypted = encryptMfaSecret("my-secret");
+      // Tamper with the ciphertext so neither key can authenticate it.
+      const parts = encrypted.split(":");
+      const ciphertextBuf = Buffer.from(parts[3], "base64url");
+      ciphertextBuf[0] ^= 0xff;
+      const tampered = `v1:${parts[1]}:${parts[2]}:${ciphertextBuf.toString("base64url")}`;
+      expect(() => decryptMfaSecret(tampered)).toThrow("Failed to decrypt MFA secret");
+    });
   });
 });

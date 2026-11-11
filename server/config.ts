@@ -51,6 +51,12 @@ const configSchema = z.object({
    * session secret is ever rotated.
    */
   RESEARCH_DEIDENTIFICATION_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(32).optional()),
+  /**
+   * The key used to encrypt MFA secrets at rest. Dedicated so MFA secrets can
+   * be rotated independently of the research de-identification key. Falls back
+   * to RESEARCH_KEY for backward compatibility with already-encrypted secrets.
+   */
+  MFA_ENCRYPTION_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(32).optional()),
 });
 
 const parsed = configSchema.parse(process.env);
@@ -63,6 +69,8 @@ export const config = {
     .filter(Boolean),
   /** The key used to de-identify research exports. Never written to a log. */
   RESEARCH_KEY: parsed.RESEARCH_DEIDENTIFICATION_KEY || parsed.JWT_SECRET,
+  /** The key used to encrypt MFA secrets at rest. Falls back to RESEARCH_KEY. */
+  MFA_KEY: parsed.MFA_ENCRYPTION_KEY || parsed.RESEARCH_DEIDENTIFICATION_KEY || parsed.JWT_SECRET,
 };
 export const isProduction = config.NODE_ENV === "production";
 
