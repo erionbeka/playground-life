@@ -79,37 +79,44 @@ test("AAC and language engines complete from their own controls", async ({ page 
   await expect(page.getByText(/completed: score/)).toBeVisible();
 
   await openLab(page, "game-235");
-  for (let round = 0; round < 4; round += 1) {
+  for (let round = 0; round < 3; round += 1) {
     await page.locator('[data-testid^="sentence-option-"]').first().click();
-    await page.waitForTimeout(1200);
+    if (round < 2) {
+      await expect(page.getByText(`Step ${round + 2} of 3`)).toBeVisible({ timeout: 5_000 });
+    }
   }
-  await expect(page.getByText(/completed: score/)).toBeVisible();
+  await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 5_000 });
 });
 
 test("receptive direction and intraverbal engines complete", async ({ page }) => {
   await openLab(page, "game-238");
-  for (let safety = 0; safety < 30; safety += 1) {
+  for (let action = 0; action < 5; action += 1) {
     if (await page.getByText(/completed: score/).isVisible().catch(() => false)) break;
-    const options = page.locator('[data-testid^="listen-option-"]');
-    const count = await options.count();
-    for (let index = 0; index < count; index += 1) {
-      await options.nth(index).click();
-      await page.waitForTimeout(800);
-    }
+    const instruction = await page.getByTestId("listen-engine").locator("p.font-display").innerText();
+    const stepText = await page.getByTestId("listen-engine").locator("p").filter({ hasText: /^Step \\d+ of \\d+$/ }).innerText();
+    const stepIndex = Number(stepText.match(/Step (\\d+) of/)?.[1] || 1) - 1;
+    const expected = instruction.split(", then ")[stepIndex]?.match(/Touch the (.+)/)?.[1];
+    expect(expected, `expected target for "${instruction}" at ${stepText}`).toBeTruthy();
+    await page.getByRole("button", { name: `Choose ${expected}` }).click();
+    await expect(page.getByText(`You found ${expected}.`)).toBeVisible({ timeout: 3_000 });
   }
-  await expect(page.getByText(/completed: score/)).toBeVisible();
+  await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 5_000 });
 
   await openLab(page, "game-233");
-  for (let safety = 0; safety < 30; safety += 1) {
-    if (await page.getByText(/completed: score/).isVisible().catch(() => false)) break;
-    const options = page.locator('[data-testid^="intraverbal-option-"]');
-    const count = await options.count();
-    for (let index = 0; index < count; index += 1) {
-      await options.nth(index).click();
-      await page.waitForTimeout(900);
-    }
+  const answers: Record<string, string> = {
+    "Twinkle, twinkle, little ___": "star",
+    "The itsy bitsy ___ climbed up the water spout": "spider",
+    "Old MacDonald had a ___": "farm",
+    "If you're happy and you know it, ___ your hands": "clap",
+  };
+  for (let round = 0; round < 4; round += 1) {
+    const prompt = await page.getByTestId("intraverbal-engine").locator("p.font-display").innerText();
+    const answer = answers[prompt];
+    expect(answer, `missing expected answer for prompt "${prompt}"`).toBeTruthy();
+    await page.getByRole("button", { name: `Choose ${answer}` }).click();
+    await expect(page.getByText(`You found ${answer}.`)).toBeVisible({ timeout: 3_000 });
   }
-  await expect(page.getByText(/completed: score/)).toBeVisible();
+  await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 5_000 });
 });
 
 test("scanning game exposes forced switch access", async ({ page }) => {
