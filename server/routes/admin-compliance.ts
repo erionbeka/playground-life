@@ -8,7 +8,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { createGzip } from "node:zlib";
 import { Router } from "express";
 import { z } from "zod";
-import { pool, query } from "../db.ts";
+import { pool, query, withTransaction } from "../db.ts";
 import { databaseTarget, redactDatabaseUrl } from "../config.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 import type { Request, Response } from "express";
@@ -124,7 +124,7 @@ adminComplianceRoutes.get("/backup/status", async (req: Request, res: Response) 
     [clinicId]
   );
   const policy = {
-    schedule: process.env.BACKUP_SCHEDULE || "daily 02:00 operator-only",
+    schedule: process.env.BACKUP_SCHEDULE || null,
     retentionDays: Number(process.env.BACKUP_RETENTION_DAYS || 30),
     monitored: false,
     encryption: "compression via gzip; transport via pg_dump over TLS; storage encryption is the responsibility of the backup volume/host and is not verified by this service",
@@ -164,12 +164,14 @@ adminComplianceRoutes.post("/operator/grant", requireAuth, requireRole("superadm
     return res.status(403).json({ error: "Self-grant of operator status is not permitted" });
   }
 
-  await query("UPDATE users SET is_operator = true WHERE id = $1", [targetUserId]);
-  await query(
-    `INSERT INTO operator_audit_log (actor_user_id, actor_role, target_user_id, action, reason)
-     VALUES ($1, $2, $3, 'grant_operator', $4)`,
-    [actorId, actorRole, targetUserId, reason ?? null]
-  );
+  await withTransaction(async (client) => {
+    await client.query("UPDATE users SET is_operator = true WHERE id = $1", [targetUserId]);
+    await client.query(
+      `INSERT INTO operator_audit_log (actor_user_id, actor_role, target_user_id, action, reason)
+       VALUES ($1, $2, $3, 'grant_operator', $4)`,
+      [actorId, actorRole, targetUserId, reason ?? null]
+    );
+  });
 
   return res.json({ ok: true, action: "grant_operator", targetUserId });
 });
@@ -200,12 +202,14 @@ adminComplianceRoutes.post("/operator/revoke", requireAuth, requireRole("superad
     return res.status(403).json({ error: "Self-revocation of operator status is not permitted" });
   }
 
-  await query("UPDATE users SET is_operator = false WHERE id = $1", [targetUserId]);
-  await query(
-    `INSERT INTO operator_audit_log (actor_user_id, actor_role, target_user_id, action, reason)
-     VALUES ($1, $2, $3, 'revoke_operator', $4)`,
-    [actorId, actorRole, targetUserId, reason ?? null]
-  );
+  await withTransaction(async (client) => {
+    await client.query("UPDATE users SET is_operator = false WHERE id = $1", [targetUserId]);
+    await client.query(
+      `INSERT INTO operator_audit_log (actor_user_id, actor_role, target_user_id, action, reason)
+       VALUES ($1, $2, $3, 'revoke_operator', $4)`,
+      [actorId, actorRole, targetUserId, reason ?? null]
+    );
+  });
 
   return res.json({ ok: true, action: "revoke_operator", targetUserId });
 });
@@ -345,31 +349,25 @@ adminComplianceRoutes.post("/backup/run", async (req: Request, res: Response) =>
 
   const dir = process.env.BACKUP_DIR || "./backups";
   await mkdir(dir, { recursive: true, mode: 0o700 });
+  await chmod(dir, 0o700);
   const file = path.join(dir, `playground-life-${new Date().toISOString().replace(/[:.]/g, "-")}.sql.gz`);
 
-  const inserted = await query<{ id: string }>(
-    "INSERT INTO backup_runs (location, clinic_id, status) VALUES ($1, $2, 'running') RETURNING id",
-    [file, req.user?.clinicId]
-  );
-  const runId = inserted.rows[0].id;
-
-  // Serialize backups with a session-level advisory lock so concurrent
-  // requests cannot both enter the backup critical section. Use try-lock so
-  // a second request immediately gets 409 instead of blocking. The lock is
-  // acquired on a dedicated client connection and released in finally, so
-  // it remains held for the entire backup operation including failure paths.
+  // Acquire the advisory lock client before creating the running row, so a
+  // connection failure cannot leave an orphaned backup_runs row behind.
   const lockClient = await pool.connect();
   try {
     const lock = await lockClient.query<{ lock_acquired: boolean }>(
       "SELECT pg_try_advisory_lock(hashtext('playground-life:backup')::bigint) AS lock_acquired"
     );
     if (!lock.rows[0]?.lock_acquired) {
-      await query(
-        "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
-        ["A backup is already in progress", runId]
-      );
       return res.status(409).json({ error: "A backup is already in progress" });
     }
+
+    const inserted = await query<{ id: string }>(
+      "INSERT INTO backup_runs (location, clinic_id, status) VALUES ($1, $2, 'running') RETURNING id",
+      [file, req.user?.clinicId]
+    );
+    const runId = inserted.rows[0].id;
 
     try {
       const databaseUrl = process.env.DATABASE_URL || "";
@@ -379,15 +377,15 @@ adminComplianceRoutes.post("/backup/run", async (req: Request, res: Response) =>
         [size, checksum, runId]
       );
       return res.status(202).json({ ok: true, runId });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("BACKUP ERROR DETAIL:", message, error);
-    await query(
-      "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
-      [redactDatabaseUrl(message), runId]
-    );
-    return res.status(500).json({ error: "Backup failed", runId });
-  }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("BACKUP ERROR DETAIL:", message, error);
+      await query(
+        "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
+        [redactDatabaseUrl(message), runId]
+      );
+      return res.status(500).json({ error: "Backup failed", runId });
+    }
   } finally {
     await lockClient.query("SELECT pg_advisory_unlock(hashtext('playground-life:backup')::bigint)").catch(() => {});
     lockClient.release();

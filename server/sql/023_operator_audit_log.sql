@@ -9,9 +9,9 @@
 
 CREATE TABLE IF NOT EXISTS operator_audit_log (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  actor_user_id uuid NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  actor_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   actor_role user_role NOT NULL,
-  target_user_id uuid NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+  target_user_id uuid REFERENCES users(id) ON DELETE SET NULL,
   action text NOT NULL CHECK (action IN ('grant_operator', 'revoke_operator')),
   reason text,
   created_at timestamptz NOT NULL DEFAULT now()

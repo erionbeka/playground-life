@@ -18,6 +18,20 @@ vi.mock("../db.ts", () => ({
   query: queryMock,
   pool: { connect: poolConnectMock },
   closePool: vi.fn(),
+  withTransaction: async (operation: (client: { query: ReturnType<typeof vi.fn>; release: ReturnType<typeof vi.fn> }) => Promise<unknown>) => {
+    const client = await poolConnectMock();
+    try {
+      await client.query("BEGIN");
+      const result = await operation(client);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
 }));
 
 vi.mock("../middleware.ts", () => ({
@@ -33,8 +47,9 @@ const { adminComplianceRoutes, runStreamingBackup } = await import("../routes/ad
 
 function buildApp(clinicId: string | undefined) {
   const app = express();
+  app.use(express.json());
   app.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
-    req.user = { clinicId, id: "user-1", role: "admin" } as express.Request["user"];
+    req.user = { clinicId, id: "550e8400-e29b-41d4-a716-446655440000", role: "admin" } as express.Request["user"];
     next();
   });
   app.use("/api/admin/compliance", adminComplianceRoutes);
@@ -186,6 +201,131 @@ describe("backup run operator authorization", () => {
       expect(lockClient.release.mock.calls.length).toBeGreaterThan(0);
 
       await unlink(file).catch(() => undefined);
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+});
+
+describe("operator grant/revoke", () => {
+  it("grants operator status and records audit log atomically", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    process.env.ALLOW_BACKUP = "true";
+    try {
+      const txClient = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        release: vi.fn(),
+      };
+      poolConnectMock.mockResolvedValueOnce(txClient);
+      queryMock.mockResolvedValueOnce({ rows: [{ id: "550e8400-e29b-41d4-a716-446655440001", role: "admin", credential_status: "active", is_operator: false }] });
+
+      const response = await request(buildApp("clinic-1"))
+        .post("/api/admin/compliance/operator/grant")
+        .send({ targetUserId: "550e8400-e29b-41d4-a716-446655440001", reason: "Backup operator" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.action).toBe("grant_operator");
+      expect(response.body.targetUserId).toBe("550e8400-e29b-41d4-a716-446655440001");
+
+      // Verify UPDATE and INSERT ran within the transaction.
+      const updateCall = txClient.query.mock.calls.find(([sql]) => typeof sql === "string" && sql.includes("UPDATE users SET is_operator = true"));
+      expect(updateCall).toBeDefined();
+      const insertCall = txClient.query.mock.calls.find(([sql]) => typeof sql === "string" && sql.includes("INSERT INTO operator_audit_log"));
+      expect(insertCall).toBeDefined();
+      expect(insertCall[1][0]).toBe("550e8400-e29b-41d4-a716-446655440000"); // actor_user_id
+      expect(insertCall[1][2]).toBe("550e8400-e29b-41d4-a716-446655440001"); // target_user_id
+      expect(insertCall[0]).toContain("'grant_operator'"); // action
+      expect(insertCall[1][3]).toBe("Backup operator"); // reason
+
+      // Verify transaction lifecycle.
+      expect(txClient.query.mock.calls.some(([sql]) => typeof sql === "string" && sql.trim() === "BEGIN")).toBe(true);
+      expect(txClient.query.mock.calls.some(([sql]) => typeof sql === "string" && sql.trim() === "COMMIT")).toBe(true);
+      expect(txClient.release.mock.calls.length).toBeGreaterThan(0);
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+
+  it("revokes operator status and records audit log atomically", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    process.env.ALLOW_BACKUP = "true";
+    try {
+      const txClient = {
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+        release: vi.fn(),
+      };
+      poolConnectMock.mockResolvedValueOnce(txClient);
+      queryMock.mockResolvedValueOnce({ rows: [{ id: "550e8400-e29b-41d4-a716-446655440002", is_operator: true }] });
+
+      const response = await request(buildApp("clinic-1"))
+        .post("/api/admin/compliance/operator/revoke")
+        .send({ targetUserId: "550e8400-e29b-41d4-a716-446655440002", reason: "Role change" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.action).toBe("revoke_operator");
+      expect(response.body.targetUserId).toBe("550e8400-e29b-41d4-a716-446655440002");
+
+      const updateCall = txClient.query.mock.calls.find(([sql]) => typeof sql === "string" && sql.includes("UPDATE users SET is_operator = false"));
+      expect(updateCall).toBeDefined();
+      const insertCall = txClient.query.mock.calls.find(([sql]) => typeof sql === "string" && sql.includes("INSERT INTO operator_audit_log"));
+      expect(insertCall).toBeDefined();
+      expect(insertCall[0]).toContain("'revoke_operator'"); // action
+      expect(insertCall[1][3]).toBe("Role change"); // reason
+
+      expect(txClient.query.mock.calls.some(([sql]) => typeof sql === "string" && sql.trim() === "BEGIN")).toBe(true);
+      expect(txClient.query.mock.calls.some(([sql]) => typeof sql === "string" && sql.trim() === "COMMIT")).toBe(true);
+      expect(txClient.release.mock.calls.length).toBeGreaterThan(0);
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+
+  it("rejects self-grant of operator status", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    process.env.ALLOW_BACKUP = "true";
+    try {
+      queryMock.mockResolvedValueOnce({ rows: [{ id: "550e8400-e29b-41d4-a716-446655440000", role: "admin", credential_status: "active", is_operator: false }] });
+
+      const response = await request(buildApp("clinic-1"))
+        .post("/api/admin/compliance/operator/grant")
+        .send({ targetUserId: "550e8400-e29b-41d4-a716-446655440000" }); // same as actor id
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe("Self-grant of operator status is not permitted");
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+
+  it("rejects grant when target is not a clinic admin", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    process.env.ALLOW_BACKUP = "true";
+    try {
+      queryMock.mockResolvedValueOnce({ rows: [{ id: "550e8400-e29b-41d4-a716-446655440003", role: "therapist", credential_status: "active", is_operator: false }] });
+
+      const response = await request(buildApp("clinic-1"))
+        .post("/api/admin/compliance/operator/grant")
+        .send({ targetUserId: "550e8400-e29b-41d4-a716-446655440003" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("Target user is not a clinic admin");
+    } finally {
+      process.env.ALLOW_BACKUP = prev;
+    }
+  });
+
+  it("rejects grant when target is already an operator", async () => {
+    const prev = process.env.ALLOW_BACKUP;
+    process.env.ALLOW_BACKUP = "true";
+    try {
+      queryMock.mockResolvedValueOnce({ rows: [{ id: "550e8400-e29b-41d4-a716-446655440004", role: "admin", credential_status: "active", is_operator: true }] });
+
+      const response = await request(buildApp("clinic-1"))
+        .post("/api/admin/compliance/operator/grant")
+        .send({ targetUserId: "550e8400-e29b-41d4-a716-446655440004" });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe("Target user is already an operator");
     } finally {
       process.env.ALLOW_BACKUP = prev;
     }
