@@ -31,6 +31,19 @@
 3. `POST /api/security/mfa/enable { token }` — server verifies and enforces at next login
 4. Login now requires `mfa_token`; the web form shows a code field when the API replies `mfa_required`
 
+## MFA encryption key provisioning
+MFA secrets are encrypted at rest before being stored. The service uses a dedicated key:
+
+- `MFA_ENCRYPTION_KEY` — dedicated key used to encrypt/decrypt MFA secrets. Must be a secret of at least 32 ASCII characters.
+- If `MFA_ENCRYPTION_KEY` is not set, the service falls back to `RESEARCH_KEY` (then `JWT_SECRET`) so existing encrypted secrets remain decryptable, but this defeats key separation.
+
+Deployment prerequisite:
+1. Generate `MFA_ENCRYPTION_KEY` (e.g., `openssl rand -base64 32` or equivalent).
+2. Set it in the API host environment on every instance; keep it stable across restarts.
+3. Store it in the same secret store as `JWT_SECRET` and `RESEARCH_KEY`; never log or commit it.
+4. Preserve the old `RESEARCH_KEY` value while any ciphertexts encrypted under it may still need decryption.
+5. Rotate `MFA_ENCRYPTION_KEY` only after re-encrypting all existing MFA secrets under the new key; otherwise staff MFA secrets become undecryptable.
+
 ## Password reset flow
 1. `POST /api/security/reset-request { email }` — always generic response
 2. Outbox queues email with single-use link (`/reset?token=…`), valid 60 min
