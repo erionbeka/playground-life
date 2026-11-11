@@ -12,7 +12,7 @@ BEGIN
     SELECT 1 FROM pg_constraint
     WHERE conname = 'children_id_clinic_id_key' AND conrelid = 'children'::regclass
   ) THEN
-    ALTER TABLE children ADD CONSTRAINT children_id_clinic_id_key UNIQUE (id, clinic_id);
+    ALTER TABLE children ADD CONSTRAINT children_id_clinic_id_key UNIQUE (clinic_id, id);
   END IF;
 END $$;
 
