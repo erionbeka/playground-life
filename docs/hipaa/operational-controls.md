@@ -32,3 +32,17 @@
 ## Staff invitations
 1. `POST /api/security/invitations { email, role }` (admin) queues invite email with 7-day token
 2. Acceptance page creates the staff account under the clinic; invitation marked accepted
+
+## Operator provisioning (backup authorization)
+A whole-database backup touches every clinic's data, so the `admin` role alone is insufficient.
+An operator must be explicitly flagged in the database before they can trigger backups:
+
+1. Identify a staff account that should be a backup operator (must have `role = 'admin'` and `credential_status = 'active'`).
+2. Run in the database:
+   ```sql
+   UPDATE users SET is_operator = true WHERE id = '<operator-user-id>';
+   ```
+3. Set `ALLOW_BACKUP=true` on the API host environment (the backup route returns 403 without it).
+4. Verify: `GET /api/admin/compliance/backup/status` lists backup runs; `POST /api/admin/compliance/backup/run` returns 202 for the operator and 403 for non-operators.
+
+Revoke operator status by setting `is_operator = false`; the change takes effect on the next backup attempt.

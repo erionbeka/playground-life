@@ -4,11 +4,11 @@ import { createWriteStream as createFileWriteStream, createReadStream } from "no
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Transform } from "node:stream";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { createGzip } from "node:zlib";
 import { Router } from "express";
 import { z } from "zod";
-import { query } from "../db.ts";
+import { pool, query } from "../db.ts";
 import { databaseTarget, redactDatabaseUrl } from "../config.ts";
 import { requireAuth, requireRole } from "../middleware.ts";
 import type { Request, Response } from "express";
@@ -137,12 +137,16 @@ adminComplianceRoutes.get("/backup/status", async (req: Request, res: Response) 
  * Streams pg_dump output through gzip compression directly to a temp file,
  * then atomically renames it to the final path. The checksum is calculated
  * from the bytes actually written to disk, never from an in-memory buffer.
- * An advisory lock prevents concurrent backups from colliding.
+ *
+ * Process completion is determined by the `close` event: only an exit code
+ * of exactly 0 counts as success. Signal termination, spawn errors, and any
+ * other non-zero outcome mark the backup as failed.
  */
-async function runStreamingBackup(
+export async function runStreamingBackup(
   runId: string,
   file: string,
-  databaseUrl: string
+  databaseUrl: string,
+  spawnFn: typeof spawn = spawn
 ): Promise<{ size: number; checksum: string }> {
   const dir = path.dirname(file);
   const tmpFile = `${file}.tmp-${process.pid}-${Date.now()}`;
@@ -167,7 +171,7 @@ async function runStreamingBackup(
     }
   })();
 
-  const child = spawn("pg_dump", [databaseTarget(databaseUrl)], {
+  const child = spawnFn("pg_dump", [databaseTarget(databaseUrl)], {
     env: { ...process.env, PGPASSWORD: password },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -177,38 +181,39 @@ async function runStreamingBackup(
     stderr += chunk.toString();
   });
 
-  let exitCode: number | null = null;
-  child.on("exit", (code) => {
-    exitCode = code;
+  // Await process completion via the `close` event, which fires after all
+  // stdio streams are flushed. Only exit code exactly 0 counts as success.
+  const closePromise = new Promise<{ code: number | null; signal: string | null; spawnError: Error | null }>((resolve, reject) => {
+    let spawnError: Error | null = null;
+    child.on("error", (err) => {
+      spawnError = err;
+    });
+    child.on("close", (code, signal) => {
+      resolve({ code, signal, spawnError });
+    });
+    // If the stream pipeline rejects before close fires, surface the error.
+    child.stdout!.on("error", (err) => {
+      reject(err);
+    });
   });
 
-    try {
-      // Capture spawn errors (e.g. pg_dump not installed) so the caller
-      // can distinguish "could not start" from "dump failed".
-      let spawnError: Error | null = null;
-      child.on("error", (err) => {
-        spawnError = err;
-      });
+  try {
+    // Stream: pg_dump stdout -> gzip -> hash stream -> file.
+    // pipeline closes fileStream when it completes.
+    await pipeline(child.stdout!, gzip, hashStream, fileStream);
 
-      // Stream: pg_dump stdout -> gzip -> hash stream -> file.
-      // pipeline closes fileStream when it completes.
-      await pipeline(child.stdout!, gzip, hashStream, fileStream);
+    const { code, signal, spawnError } = await closePromise;
 
-      if (spawnError) {
-        throw new Error(`Failed to start pg_dump: ${spawnError.message}`);
-      }
+    if (spawnError) {
+      throw new Error(`Failed to start pg_dump: ${spawnError.message}`);
+    }
 
-      // Wait for the process to exit after the stream ends
-      await new Promise<void>((resolve) => {
-        if (exitCode !== null) {
-          resolve();
-          return;
-        }
-        child.on("exit", () => resolve());
-      });
+    if (signal !== null) {
+      throw new Error(`pg_dump terminated by signal ${signal}: ${redactDatabaseUrl(stderr.slice(-500))}`);
+    }
 
-    if (exitCode !== 0 && exitCode !== null) {
-      throw new Error(`pg_dump exited with code ${exitCode}: ${redactDatabaseUrl(stderr.slice(-500))}`);
+    if (code !== 0) {
+      throw new Error(`pg_dump exited with code ${code}: ${redactDatabaseUrl(stderr.slice(-500))}`);
     }
 
     // Verify the temp file exists and is nonempty before renaming.
@@ -268,33 +273,43 @@ adminComplianceRoutes.post("/backup/run", async (req: Request, res: Response) =>
   );
   const runId = inserted.rows[0].id;
 
-  // Serialize backups with an advisory lock so concurrent requests cannot
-  // create conflicting files or records.
-  const lock = await query<{ lock_acquired: boolean }>(
-    "SELECT pg_try_advisory_xact_lock(hashtext('playground-life:backup')::bigint) AS lock_acquired"
-  );
-  if (!lock.rows[0]?.lock_acquired) {
-    await query(
-      "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
-      ["A backup is already in progress", runId]
-    );
-    return res.status(409).json({ error: "A backup is already in progress" });
-  }
-
-  const databaseUrl = process.env.DATABASE_URL || "";
+  // Serialize backups with a session-level advisory lock so concurrent
+  // requests cannot both enter the backup critical section. Use try-lock so
+  // a second request immediately gets 409 instead of blocking. The lock is
+  // acquired on a dedicated client connection and released in finally, so
+  // it remains held for the entire backup operation including failure paths.
+  const lockClient = await pool.connect();
   try {
-    const { size, checksum } = await runStreamingBackup(runId, file, databaseUrl);
-    await query(
-      `UPDATE backup_runs SET finished_at = now(), status = 'success', size_bytes = $1, checksum = $2 WHERE id = $3`,
-      [size, checksum, runId]
+    const lock = await lockClient.query<{ lock_acquired: boolean }>(
+      "SELECT pg_try_advisory_lock(hashtext('playground-life:backup')::bigint) AS lock_acquired"
     );
-    return res.status(202).json({ ok: true, runId });
+    if (!lock.rows[0]?.lock_acquired) {
+      await query(
+        "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
+        ["A backup is already in progress", runId]
+      );
+      return res.status(409).json({ error: "A backup is already in progress" });
+    }
+
+    try {
+      const databaseUrl = process.env.DATABASE_URL || "";
+      const { size, checksum } = await runStreamingBackup(runId, file, databaseUrl);
+      await query(
+        `UPDATE backup_runs SET finished_at = now(), status = 'success', size_bytes = $1, checksum = $2 WHERE id = $3`,
+        [size, checksum, runId]
+      );
+      return res.status(202).json({ ok: true, runId });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.error("BACKUP ERROR DETAIL:", message, error);
     await query(
       "UPDATE backup_runs SET finished_at = now(), status = 'failed', error = $1 WHERE id = $2",
       [redactDatabaseUrl(message), runId]
     );
     return res.status(500).json({ error: "Backup failed", runId });
+  }
+  } finally {
+    await lockClient.query("SELECT pg_advisory_unlock(hashtext('playground-life:backup')::bigint)").catch(() => {});
+    lockClient.release();
   }
 });

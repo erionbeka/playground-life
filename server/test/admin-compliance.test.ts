@@ -2,11 +2,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import { mkdir, stat, unlink } from "node:fs/promises";
+import path from "node:path";
+import { spawn } from "node:child_process";
 
 const queryMock = vi.hoisted(() => vi.fn());
+const poolConnectMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../db.ts", () => ({
   query: queryMock,
+  pool: { connect: poolConnectMock },
+  closePool: vi.fn(),
 }));
 
 vi.mock("../middleware.ts", () => ({
@@ -18,7 +26,7 @@ vi.mock("../middleware.ts", () => ({
   },
 }));
 
-const { adminComplianceRoutes } = await import("../routes/admin-compliance.ts");
+const { adminComplianceRoutes, runStreamingBackup } = await import("../routes/admin-compliance.ts");
 
 function buildApp(clinicId: string | undefined) {
   const app = express();
@@ -30,13 +38,23 @@ function buildApp(clinicId: string | undefined) {
   return app;
 }
 
+/**
+ * Builds a fake ChildProcess whose stdout emits the given chunks and then
+ * closes with the given exit code / signal. The close event only fires after
+ * the stdout stream has ended, so the pipeline can consume all data first.
+ */
 beforeEach(() => {
   queryMock.mockReset();
   queryMock.mockResolvedValue({ rows: [{ count: "0" }], rowCount: 1 });
+  poolConnectMock.mockReset();
+  poolConnectMock.mockResolvedValue({
+    query: vi.fn().mockResolvedValue({ rows: [] }),
+    release: vi.fn(),
+  });
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 describe("audit export clinic scoping", () => {
@@ -122,29 +140,122 @@ describe("backup run operator authorization", () => {
     }
   });
 
-  it("allows backup run when user is an operator", async () => {
+  it("rejects backup run when lock is not acquired (concurrent backup)", async () => {
     const prev = process.env.ALLOW_BACKUP;
     process.env.ALLOW_BACKUP = "true";
     try {
+      // Operator check passes, insert succeeds, lock not acquired.
       queryMock
-        .mockResolvedValueOnce({ rows: [{ is_operator: true }] }) // operator check passes
-        .mockResolvedValueOnce({ rows: [{ id: "run-1" }] }) // insert backup_runs with status='running'
-        .mockResolvedValueOnce({ rows: [{ lock_acquired: true }] }); // advisory lock
+        .mockResolvedValueOnce({ rows: [{ is_operator: true }] })
+        .mockResolvedValueOnce({ rows: [{ id: "run-1" }] });
 
-      // pg_dump is not available in the test environment, so the backup
-      // execution fails, but authorization succeeds (we get past the
-      // operator check and the advisory lock).
-      const response = await request(buildApp("clinic-7")).post("/api/admin/compliance/backup/run");
-      expect(response.status).not.toBe(403);
+      poolConnectMock.mockResolvedValueOnce({
+        query: vi.fn().mockResolvedValue({ rows: [{ lock_acquired: false }] }),
+        release: vi.fn(),
+      });
 
-      // Verify the backup run record was created with clinic_id and status.
-      const insertCall = queryMock.mock.calls.find(([sql]) => sql.includes("INSERT INTO backup_runs"))!;
-      expect(insertCall[0]).toContain("'running'");
-      expect(insertCall[0]).toContain("clinic_id");
-      // Check the params: [file, clinicId]
-      expect(insertCall[1][1]).toBe("clinic-7");
+      const response = await request(buildApp("clinic-8")).post("/api/admin/compliance/backup/run");
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe("A backup is already in progress");
     } finally {
       process.env.ALLOW_BACKUP = prev;
     }
+  });
+});
+
+describe("runStreamingBackup unit tests", () => {
+  const tmpDir = "/tmp/test-backups";
+
+  beforeEach(async () => {
+    await mkdir(tmpDir, { recursive: true });
+  });
+
+  afterEach(async () => {
+    await unlink(tmpDir).catch(() => undefined);
+  });
+
+  function makeMockSpawn(opts: {
+    stdoutData: Buffer;
+    closeCode: number | null;
+    closeSignal: string | null;
+    spawnError?: Error;
+  }): { spawnFn: typeof spawn; child: ReturnType<typeof spawn> } {
+    const stdout = new PassThrough();
+    const stderr = new EventEmitter();
+    let closeListener: ((code: number | null, signal: string | null) => void) | null = null;
+    let errorListener: ((err: Error) => void) | null = null;
+
+    const child = {
+      stdout,
+      stderr,
+      on: (event: string | symbol, listener: unknown) => {
+        if (event === "close") closeListener = listener as (code: number | null, signal: string | null) => void;
+        if (event === "error") errorListener = listener as (err: Error) => void;
+        return child;
+      },
+      kill: () => {},
+    } as unknown as ReturnType<typeof spawn>;
+
+    const spawnFn: typeof spawn = ((_cmd: string, _args: string[], _opts: unknown) => {
+      if (opts.spawnError) {
+        setImmediate(() => {
+          errorListener?.(opts.spawnError);
+        });
+      }
+      setImmediate(() => {
+        stdout.write(opts.stdoutData);
+        stdout.end(() => {
+          setImmediate(() => {
+            closeListener?.(opts.closeCode, opts.closeSignal);
+          });
+        });
+      });
+      return child;
+    }) as unknown as typeof spawn;
+
+    return { spawnFn, child };
+  }
+
+  it("streams pg_dump output through gzip to file and returns checksum", async () => {
+    const dumpData = Buffer.from("CREATE TABLE test (id int);\n");
+    const { spawnFn } = makeMockSpawn({ stdoutData: dumpData, closeCode: 0, closeSignal: null });
+
+    const file = path.join(tmpDir, `test-${Date.now()}.sql.gz`);
+    const { size, checksum } = await runStreamingBackup("run-1", file, "postgres://user:pass@localhost/db", spawnFn);
+
+    expect(size).toBeGreaterThan(0);
+    expect(checksum).toMatch(/^[0-9a-f]{64}$/);
+    const fileStat = await stat(file);
+    expect(fileStat.size).toBe(size);
+    await unlink(file);
+  });
+
+  it("throws when pg_dump exits non-zero", async () => {
+    const { spawnFn } = makeMockSpawn({ stdoutData: Buffer.from(""), closeCode: 1, closeSignal: null });
+
+    await expect(
+      runStreamingBackup("run-2", path.join(tmpDir, "fail.sql.gz"), "postgres://localhost/db", spawnFn)
+    ).rejects.toThrow(/pg_dump exited/);
+  });
+
+  it("throws when pg_dump is terminated by signal", async () => {
+    const { spawnFn } = makeMockSpawn({ stdoutData: Buffer.from("partial\n"), closeCode: null, closeSignal: "SIGTERM" });
+
+    await expect(
+      runStreamingBackup("run-3", path.join(tmpDir, "signal.sql.gz"), "postgres://localhost/db", spawnFn)
+    ).rejects.toThrow(/terminated by signal/);
+  });
+
+  it("throws when spawn errors occur", async () => {
+    const { spawnFn } = makeMockSpawn({
+      stdoutData: Buffer.from(""),
+      closeCode: 0,
+      closeSignal: null,
+      spawnError: new Error("spawn pg_dump ENOENT"),
+    });
+
+    await expect(
+      runStreamingBackup("run-4", path.join(tmpDir, "spawn-err.sql.gz"), "postgres://localhost/db", spawnFn)
+    ).rejects.toThrow(/Failed to start pg_dump/);
   });
 });
