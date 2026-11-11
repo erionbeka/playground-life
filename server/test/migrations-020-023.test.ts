@@ -21,7 +21,7 @@ const MIGRATION_NAMES = [
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
-  return (await readFile(path.join(migrationsDir, name), "utf8")).replace(/^\\uFEFF/, "");
+  return (await readFile(path.join(migrationsDir, name), "utf8")).replace(/^\uFEFF/, "");
 }
 
 let pool: Pool;
