@@ -371,10 +371,11 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         if (cancelled) return;
 
         if (error instanceof ApiError && error.status === 401) {
+          // An unauthenticated visitor on a role-specific route should see
+          // that route's sign-in form, not be redirected away from it.
           setSession(null);
           setRole("none");
           setSessionRestoreStatus("ready");
-          window.location.assign("/enter");
           return;
         }
 
