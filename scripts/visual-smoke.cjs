@@ -17,6 +17,8 @@ async function clearIndexedDB(page) {
   }));
 }
 
+const apiMockResetters = new WeakMap();
+
 // The visual smoke test exercises the browser UI, not the production API.
 // Give each page a deterministic, isolated API fixture so it never needs a
 // live database, real credentials, or a running API process.
@@ -50,6 +52,8 @@ function installApiMocks(page) {
       return Array.isArray(data.assignments) ? data.assignments : [];
     });
   }
+
+  apiMockResetters.set(page, () => { authenticatedRole = null; });
 
   page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -120,6 +124,7 @@ function installApiMocks(page) {
 }
 
 async function loginAndPatch(page, gameId) {
+  apiMockResetters.get(page)?.();
   await page.goto(`${base}/family`, { waitUntil: "networkidle" });
   await page.evaluate((gameIds) => {
     const KEY = "playground-life.backend.v2";
@@ -427,6 +432,7 @@ function assertChecks(result) {
 }
 
 async function runFamilyQA(page) {
+  apiMockResetters.get(page)?.();
   await page.goto(`${base}/family`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     const KEY = "playground-life.backend.v2";
