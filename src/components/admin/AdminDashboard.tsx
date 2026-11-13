@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { FamilyMember, useApp } from "@/context/AppContext";
-import { ApiError, productionApi, type ApiPlatformUser } from "@/lib/productionApi";
+import { ApiError, productionApi, type ApiPlatformClinic, type ApiPlatformUser } from "@/lib/productionApi";
 import { emptySkillProfile } from "@/lib/skills";
 import { toast } from "@/components/ui/sonner";
 import GameApprovals from "./GameApprovals";
@@ -88,6 +88,7 @@ export default function AdminDashboard() {
   const [loadingArchivedChildren, setLoadingArchivedChildren] = useState(false);
   const [restoringChildId, setRestoringChildId] = useState<string | null>(null);
   const [platformUsers, setPlatformUsers] = useState<ApiPlatformUser[]>([]);
+  const [platformClinics, setPlatformClinics] = useState<ApiPlatformClinic[]>([]);
   const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
   const [platformUsersError, setPlatformUsersError] = useState("");
 
@@ -97,8 +98,11 @@ export default function AdminDashboard() {
     setPlatformUsersLoading(true);
     setPlatformUsersError("");
     productionApi.listPlatformUsers()
-      .then(({ users }) => {
-        if (active) setPlatformUsers(users);
+      .then(({ users, clinics }) => {
+        if (active) {
+          setPlatformUsers(users);
+          setPlatformClinics(clinics);
+        }
       })
       .catch((cause) => {
         if (active) setPlatformUsersError(cause instanceof Error ? cause.message : "Couldn't load platform accounts.");
@@ -407,7 +411,22 @@ export default function AdminDashboard() {
           </button>
         </header>
         <main className="mx-3 my-6 rounded-xl border border-border bg-card/88 p-4 sm:mx-6 sm:p-6">
-          <h2 className="mb-4 font-display text-lg font-bold text-foreground">Accounts</h2>
+          <section className="mb-8">
+            <h2 className="mb-3 font-display text-lg font-bold text-foreground">Clinics ({platformClinics.length})</h2>
+            {platformClinics.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No clinics found.</p>
+            ) : (
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {platformClinics.map((clinic) => (
+                  <li key={clinic.id} className="rounded-xl border border-border bg-muted/50 p-3">
+                    <p className="font-semibold text-foreground">{clinic.name}</p>
+                    <p className="text-xs text-muted-foreground">{clinic.user_count} accounts</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+                    <h2 className="mb-4 font-display text-lg font-bold text-foreground">Accounts</h2>
           {platformUsersLoading ? <p className="text-sm text-muted-foreground">Loading accounts…</p> : null}
           {platformUsersError ? <p role="alert" className="text-sm text-destructive">{platformUsersError}</p> : null}
           {!platformUsersLoading && !platformUsersError ? (
