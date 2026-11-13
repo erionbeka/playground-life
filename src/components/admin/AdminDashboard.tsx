@@ -151,7 +151,7 @@ export default function AdminDashboard() {
       .then((r) => r.json())
       .then((d) => { if (d?.clinic?.name) setClinicName(d.clinic.name); })
       .catch(() => {});
-  }, [session?.isSuperadmin, session?.userId]);
+  }, [session]);
   const [childName, setChildName] = useState("");
   const [childAvatar, setChildAvatar] = useState("🧒");
   const [childAge, setChildAge] = useState("6");
