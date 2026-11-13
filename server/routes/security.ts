@@ -38,7 +38,7 @@ securityRoutes.post("/reset-request", resetRequestLimiter, async (req: Request, 
   if (!parsed.success) return res.status(400).json({ error: "A valid email is required" });
 
   const users = await query<{ id: string }>(
-    "SELECT id FROM users WHERE lower(email) = lower($1) LIMIT 1",
+    "SELECT id FROM users WHERE lower(email) = lower($1) AND role = 'therapist' LIMIT 1",
     [parsed.data.email]
   );
 
@@ -51,7 +51,12 @@ securityRoutes.post("/reset-request", resetRequestLimiter, async (req: Request, 
     // before the new one is inserted. Otherwise a mailbox full of old links
     // all remain valid until they expire.
     const tokenId = await withTransaction(async (client) => {
-      await client.query("SELECT id FROM users WHERE id = $1 FOR UPDATE", [userId]);
+      const account = await client.query<{ id: string }>(
+        "SELECT id FROM users WHERE id = $1 AND role = 'therapist' FOR UPDATE",
+        [userId]
+      );
+      if (!account.rows[0]) return null;
+
       await client.query(
         `UPDATE password_reset_tokens SET used_at = now()
          WHERE user_id = $1 AND used_at IS NULL`,
@@ -66,24 +71,24 @@ securityRoutes.post("/reset-request", resetRequestLimiter, async (req: Request, 
       return inserted.rows[0]?.id ?? null;
     });
 
-    try {
-      await queueEmail({
-        to: parsed.data.email,
-        kind: "reset",
-        subject: "Reset your Playground Life password / Rivendosni fjalëkalimin",
-        body: `Reset link (valid 60 minutes): ${appUrl()}/reset?token=${token}\n\nLinku për rivendosje (i vlefshëm 60 minuta): ${appUrl()}/reset?token=${token}`,
-      });
-    } catch (error) {
-      // A link whose email never reached the outbox must not stay usable.
-      console.error("Password reset email could not be queued; invalidating the new link.", error);
-      if (tokenId) {
+    if (tokenId) {
+      try {
+        await queueEmail({
+          to: parsed.data.email,
+          kind: "reset",
+          subject: "Reset your Playground Life password / Rivendosni fjalëkalimin",
+          body: `Reset link (valid 60 minutes): ${appUrl()}/reset?token=${token}\n\nLinku për rivendosje (i vlefshëm 60 minuta): ${appUrl()}/reset?token=${token}`,
+        });
+      } catch (error) {
+        // A link whose email never reached the outbox must not stay usable.
+        console.error("Password reset email could not be queued; invalidating the new link.", error);
         await query(
           `UPDATE password_reset_tokens SET used_at = now() WHERE id = $1`,
           [tokenId]
         ).catch(() => undefined);
+        // Fall through to the same neutral response: the caller must not learn
+        // whether the address exists or whether delivery is configured.
       }
-      // Fall through to the same neutral response: the caller must not learn
-      // whether the address exists or whether delivery is configured.
     }
   }
 
