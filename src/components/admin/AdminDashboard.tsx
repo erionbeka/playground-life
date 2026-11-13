@@ -145,13 +145,13 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (session?.isSuperadmin) return;
+    if (!session || session.isSuperadmin) return;
     const API = import.meta.env.VITE_API_URL || "";
     fetch(`${API}/api/auth/clinic`)
       .then((r) => r.json())
       .then((d) => { if (d?.clinic?.name) setClinicName(d.clinic.name); })
       .catch(() => {});
-  }, [session?.isSuperadmin]);
+  }, [session?.isSuperadmin, session?.userId]);
   const [childName, setChildName] = useState("");
   const [childAvatar, setChildAvatar] = useState("🧒");
   const [childAge, setChildAge] = useState("6");
