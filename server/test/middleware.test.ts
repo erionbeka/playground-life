@@ -212,14 +212,22 @@ describe("requireRole", () => {
       .expect(200);
   });
 
-  it("allows a superadmin when admin is required", async () => {
+  it("blocks a superadmin when a clinic admin role is required", async () => {
     queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "superadmin" }] });
     const app = buildRoleApp(["admin"]);
-    const response = await request(app)
+    await request(app)
+      .get("/admin")
+      .set("Authorization", "Bearer valid-token")
+      .expect(403);
+  });
+
+  it("allows a superadmin only when superadmin is explicitly required", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ ...currentUser, role: "superadmin" }] });
+    const app = buildRoleApp(["superadmin"]);
+    await request(app)
       .get("/admin")
       .set("Authorization", "Bearer valid-token")
       .expect(200);
-    expect(response.body.ok).toBe(true);
   });
 
   it("blocks an admin when therapist is required", async () => {

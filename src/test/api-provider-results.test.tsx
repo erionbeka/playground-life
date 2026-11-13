@@ -14,6 +14,7 @@ vi.mock("@/lib/productionApi", async () => {
       ...actual.productionApi,
       me: vi.fn(),
       login: vi.fn(),
+      logout: vi.fn(),
       listChildren: vi.fn(),
       listAssignments: vi.fn(),
       listAuditLog: vi.fn(),
@@ -27,7 +28,7 @@ vi.mock("@/lib/productionApi", async () => {
 });
 
 function CompletionProbe() {
-  const { signInTherapist, completeGame } = useApp();
+  const { session, signInTherapist, signOut, completeGame } = useApp();
   const [ready, setReady] = useState(false);
   const signInStarted = useRef(false);
 
@@ -39,20 +40,24 @@ function CompletionProbe() {
   }, [signInTherapist]);
 
   return (
-    <button
-      disabled={!ready}
-      onClick={() => {
-        void completeGame("assignment-1", {
-          gameId: "game-020",
-          completedAt: "2026-11-07",
-          durationSeconds: 90,
-          score: 85,
-          interactions: 12,
-        });
-      }}
-    >
-      Complete game
-    </button>
+    <>
+      <span>{session ? "Signed in" : "Signed out"}</span>
+      <button
+        disabled={!ready}
+        onClick={() => {
+          void completeGame("assignment-1", {
+            gameId: "game-020",
+            completedAt: "2026-11-07",
+            durationSeconds: 90,
+            score: 85,
+            interactions: 12,
+          });
+        }}
+      >
+        Complete game
+      </button>
+      <button onClick={() => void signOut()}>Sign out</button>
+    </>
   );
 }
 
@@ -70,6 +75,7 @@ describe("ApiAppProvider game-result submission retries", () => {
     localStorage.clear();
 
     vi.mocked(productionApi.me).mockRejectedValue(new Error("No existing session"));
+    vi.mocked(productionApi.logout).mockResolvedValue({} as never);
     vi.mocked(productionApi.login).mockResolvedValue({
       user: {
         id: "therapist-1",
@@ -119,10 +125,12 @@ describe("ApiAppProvider game-result submission retries", () => {
     const [queuedSubmission] = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
 
     expect(queuedSubmission).toEqual(expect.objectContaining({
+      userId: "therapist-1",
       assignmentId: "assignment-1",
-      gameId: "game-020",
+      status: "pending",
+      payload: expect.objectContaining({ gameId: "game-020" }),
     }));
-    expect(queuedSubmission.submissionId).toMatch(
+    expect(queuedSubmission.payload.submissionId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     );
 
@@ -137,7 +145,7 @@ describe("ApiAppProvider game-result submission retries", () => {
     expect(productionApi.recordGameResult).toHaveBeenNthCalledWith(
       2,
       "assignment-1",
-      queuedSubmission
+      queuedSubmission.payload
     );
   });
 
@@ -170,6 +178,156 @@ describe("ApiAppProvider game-result submission retries", () => {
     const [remainingSubmission] = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
 
     expect(remainingSubmission).toEqual(originalSubmission);
-    expect(remainingSubmission.submissionId).toBe(originalSubmission.submissionId);
+    expect(remainingSubmission.payload.submissionId).toBe(originalSubmission.payload.submissionId);
   });
+
+  it("preserves another account's and legacy queue entries without submitting them", async () => {
+    const otherAccountEntry = {
+      userId: "therapist-2",
+      assignmentId: "assignment-2",
+      status: "pending",
+      payload: { submissionId: "other-submission", gameId: "game-020" },
+    };
+    const legacyEntry = {
+      assignmentId: "assignment-legacy",
+      submissionId: "legacy-submission",
+      gameId: "game-020",
+    };
+    localStorage.setItem("pendingGameResults", JSON.stringify([otherAccountEntry, legacyEntry]));
+
+    renderProvider();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Complete game" })).toBeEnabled());
+    expect(productionApi.recordGameResult).not.toHaveBeenCalled();
+    expect(JSON.parse(localStorage.getItem("pendingGameResults") || "[]")).toEqual([
+      otherAccountEntry,
+      legacyEntry,
+    ]);
+  });
+
+  it("retains a permanently rejected result as blocked instead of deleting it", async () => {
+    const queuedEntry = {
+      userId: "therapist-1",
+      assignmentId: "assignment-1",
+      status: "pending",
+      payload: { submissionId: "rejected-submission", gameId: "game-020" },
+    };
+    localStorage.setItem("pendingGameResults", JSON.stringify([queuedEntry]));
+    vi.mocked(productionApi.recordGameResult).mockRejectedValueOnce(
+      new ApiError("Submission rejected", { status: 409, code: "http" })
+    );
+
+    renderProvider();
+
+    await waitFor(() => {
+      const [stored] = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
+      expect(stored?.status).toBe("blocked");
+      expect(stored?.lastErrorStatus).toBe(409);
+      expect(stored?.payload?.submissionId).toBe("rejected-submission");
+    });
+
+    expect(productionApi.recordGameResult).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels an in-flight retry before the server logout request resolves", async () => {
+    const queuedEntry = {
+      userId: "therapist-1",
+      assignmentId: "assignment-1",
+      status: "pending",
+      payload: { submissionId: "in-flight-submission", gameId: "game-020" },
+    };
+    localStorage.setItem("pendingGameResults", JSON.stringify([queuedEntry]));
+
+    let resolveRequest!: (value: never) => void;
+    vi.mocked(productionApi.recordGameResult).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolveRequest = resolve as (value: never) => void;
+      }) as never
+    );
+
+    let resolveLogout!: (value: never) => void;
+    vi.mocked(productionApi.logout).mockImplementationOnce(
+      () => new Promise((resolve) => {
+        resolveLogout = resolve as (value: never) => void;
+      }) as never
+    );
+
+    renderProvider();
+
+    await waitFor(() => {
+      expect(productionApi.recordGameResult).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    await waitFor(() => {
+      expect(productionApi.logout).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByText("Signed out")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRequest({} as never);
+    });
+
+    expect(JSON.parse(localStorage.getItem("pendingGameResults") || "[]")).toEqual([
+      queuedEntry,
+    ]);
+
+    await act(async () => {
+      resolveLogout({} as never);
+    });
+  });
+
+  it("preserves a new result queued while an older result retry is in flight", async () => {
+    const olderEntry = {
+      userId: "therapist-1",
+      assignmentId: "assignment-1",
+      status: "pending",
+      payload: { submissionId: "older-submission", gameId: "game-020" },
+    };
+    localStorage.setItem("pendingGameResults", JSON.stringify([olderEntry]));
+
+    let resolveOlderRequest!: (value: never) => void;
+    vi.mocked(productionApi.recordGameResult)
+      .mockImplementationOnce(
+        () => new Promise((resolve) => {
+          resolveOlderRequest = resolve as (value: never) => void;
+        }) as never
+      )
+      .mockRejectedValueOnce(
+        new ApiError("Network unavailable", { status: null, code: "network" })
+      );
+
+    renderProvider();
+
+    await waitFor(() => {
+      expect(productionApi.recordGameResult).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Complete game" }));
+
+    await waitFor(() => {
+      expect(productionApi.recordGameResult).toHaveBeenCalledTimes(2);
+      expect(JSON.parse(localStorage.getItem("pendingGameResults") || "[]")).toHaveLength(2);
+    });
+
+    const [, newlyQueuedEntry] = JSON.parse(
+      localStorage.getItem("pendingGameResults") || "[]"
+    );
+
+    expect(newlyQueuedEntry.payload.submissionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    );
+
+    await act(async () => {
+      resolveOlderRequest({} as never);
+    });
+
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem("pendingGameResults") || "[]")).toEqual([
+        newlyQueuedEntry,
+      ]);
+    });
+  });
+
 });

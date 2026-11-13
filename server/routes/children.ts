@@ -30,7 +30,7 @@ const childUpdateSchema = z.object({
   progressionSettings: z.record(z.string(), z.unknown()).optional(),
 });
 
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, requireRole("admin", "therapist", "parent"), async (req, res) => {
   if (req.user?.role === "parent") {
     const result = await query(
       `SELECT children.id, children.first_name, children.display_name, children.avatar, children.birth_date, children.diagnosis, children.notes, children.personalization_profile, children.skill_profile, children.progression_settings, children.created_at, children.updated_at

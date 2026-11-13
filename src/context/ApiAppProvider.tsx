@@ -257,7 +257,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
           passwordHash: "",
           canManageAdmins: entry.can_manage_admins === true,
         };
-        if (entry.role === "admin" || entry.role === "superadmin") admins.push(mapped);
+        if (entry.role === "admin") admins.push(mapped);
         else if (entry.role === "therapist") therapists.push(mapped);
       }
       setStaffUsers(admins);
@@ -350,6 +350,13 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         setSession(nextSession);
         setRole(resolvedRole as AppState["role"]);
 
+        // Platform superadmins receive account-directory access only. Do not
+        // load clinic caseload, audit, staff, or game data into their session.
+        if (user.role === "superadmin") {
+          setSessionRestoreStatus("ready");
+          return;
+        }
+
         // Ancillary dashboard data must not invalidate an authenticated session.
         await Promise.allSettled([
           refreshClinicData(),
@@ -364,10 +371,11 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         if (cancelled) return;
 
         if (error instanceof ApiError && error.status === 401) {
+          // An unauthenticated visitor on a role-specific route should see
+          // that route's sign-in form, not be redirected away from it.
           setSession(null);
           setRole("none");
           setSessionRestoreStatus("ready");
-          window.location.assign("/enter");
           return;
         }
 
@@ -383,17 +391,19 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     };
   }, [sessionRestoreAttempt, loadCustomGames, refreshAudit, refreshClinicData, refreshStaff]);
 
+  const currentUserId = session?.userId;
+
   useEffect(() => {
-    // Retry queued results only after an authenticated session is ready.
-    // The API remains responsible for checking ownership and permissions.
-    if (!session || sessionRestoreStatus !== "ready") return;
+    // Retry only submissions created by the currently authenticated account.
+    if (!currentUserId || sessionRestoreStatus !== "ready") return;
 
     let retrying = false;
+    let cancelled = false;
 
     const retry = async () => {
-      if (retrying || !navigator.onLine) return;
-
+      if (cancelled || retrying || !navigator.onLine) return;
       retrying = true;
+
       try {
         let queue: unknown;
         try {
@@ -409,50 +419,105 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         let completedAny = false;
 
         for (let index = 0; index < queue.length; index += 1) {
-          const item = queue[index] as Record<string, unknown> | null;
+          if (cancelled) return;
+          const item = queue[index];
 
-          if (!item || typeof item.assignmentId !== "string") {
-            console.warn("Discarding an invalid pending game result.");
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            remaining.push(item);
+            continue;
+          }
+
+          const queued = item as Record<string, unknown>;
+          const payload = queued.payload;
+
+          // Preserve legacy entries: their original account cannot be established.
+          if (
+            typeof queued.userId !== "string" ||
+            !payload ||
+            typeof payload !== "object" ||
+            Array.isArray(payload)
+          ) {
+            remaining.push(item);
+            continue;
+          }
+
+          // Never submit another account's entries or retry blocked entries.
+          if (queued.userId !== currentUserId || queued.status === "blocked") {
+            remaining.push(item);
+            continue;
+          }
+
+          const resultPayload = payload as ApiGameResultPayload;
+          if (
+            typeof queued.assignmentId !== "string" ||
+            typeof resultPayload.submissionId !== "string"
+          ) {
+            remaining.push({ ...queued, status: "blocked", lastError: "invalid_queue_record" });
             continue;
           }
 
           try {
-            await productionApi.recordGameResult(item.assignmentId, item as ApiGameResultPayload);
+            await productionApi.recordGameResult(queued.assignmentId, resultPayload);
+            if (cancelled) return;
             completedAny = true;
           } catch (error) {
+            if (cancelled) return;
             if (error instanceof ApiError) {
               const status = error.status;
 
-              // The session may have expired. Keep this and all later items;
-              // retry only after the parent has authenticated again.
               if (status === 401) {
                 remaining.push(...queue.slice(index));
                 break;
               }
 
-              // Network failures and temporary server/rate-limit failures
-              // are retryable. Permanent 4xx responses are not.
               if (
                 error.code === "network" ||
                 status === 408 ||
                 status === 429 ||
-                status >= 500
+                (status !== null && status >= 500)
               ) {
                 remaining.push(item);
               } else {
-                console.warn(
-                  "Discarding a pending game result rejected permanently by the API.",
-                  status
-                );
+                // Retain rejected data, but do not retry it automatically.
+                remaining.push({ ...queued, status: "blocked", lastErrorStatus: status });
+                console.warn("A pending game result was blocked after an API rejection.", status);
               }
             } else {
-              // Unknown failures are retained rather than risking data loss.
               remaining.push(item);
             }
           }
         }
 
-        localStorage.setItem("pendingGameResults", JSON.stringify(remaining));
+        if (cancelled) return;
+
+        // Do not overwrite results appended while this retry was awaiting the API.
+        let latestQueue: unknown;
+        try {
+          latestQueue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
+        } catch {
+          console.error("Pending game results changed to unreadable data; preserving the stored queue.");
+          return;
+        }
+
+        if (!Array.isArray(latestQueue)) {
+          console.error("Pending game results changed to an invalid format; preserving the stored queue.");
+          return;
+        }
+
+        const originalQueueUnchanged =
+          latestQueue.length >= queue.length &&
+          queue.every((entry, index) => JSON.stringify(latestQueue[index]) === JSON.stringify(entry));
+
+        if (!originalQueueUnchanged) {
+          console.warn("Pending game results changed during retry; preserving the stored queue.");
+          return;
+        }
+
+        const concurrentlyAdded = latestQueue.slice(queue.length);
+        localStorage.setItem(
+          "pendingGameResults",
+          JSON.stringify([...remaining, ...concurrentlyAdded])
+        );
 
         if (completedAny) {
           await refreshClinicData().catch(() => undefined);
@@ -465,8 +530,11 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
 
     void retry();
     window.addEventListener("online", retry);
-    return () => window.removeEventListener("online", retry);
-  }, [refreshAudit, refreshClinicData, session?.role, sessionRestoreStatus]);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", retry);
+    };
+  }, [refreshAudit, refreshClinicData, currentUserId, sessionRestoreStatus]);
 
   const signIn = useCallback(async (identifier: string, password: string, expectedRole: AuthSession["role"]) => {
     let user: ApiSessionUser;
@@ -488,6 +556,9 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name, isSuperadmin: user.role === "superadmin", canManageAdmins: user.canManageAdmins === true });
     setRole(resolvedRole as AppState["role"]);
     setSessionRestoreStatus("ready");
+
+    // A superadmin gets the platform account directory, not clinic clinical data.
+    if (user.role === "superadmin") return true;
 
     // The credential was accepted. A refresh that fails afterwards is a
     // separate problem - the API status banner reports an unreachable server,
@@ -554,7 +625,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     signInTherapist: (email, password) => signIn(email, password, "therapist"),
     signInFamily,
     signOut: async () => {
-      await productionApi.logout().catch(() => undefined);
+      // Clear local authentication immediately so account-scoped effects cancel.
       clearCustomGames();
       setSession(null);
       setRole("none");
@@ -567,6 +638,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
       setTherapistStaffUsers([]);
       setSelectedChildId(null);
       setCurrentAssignment(null);
+      await productionApi.logout().catch(() => undefined);
     },
     addStaffUser: async (user) => {
       await productionApi.createStaff({ role: user.role, name: user.name, email: user.email, password: user.password });
@@ -713,8 +785,27 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         await refreshAudit();
       } catch (error) {
         if (error instanceof ApiError && error.code === "network") {
-          const queue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
-          queue.push(payload);
+          if (!session?.userId) {
+            throw new Error("Cannot queue a game result without an authenticated user.");
+          }
+
+          let queue: unknown;
+          try {
+            queue = JSON.parse(localStorage.getItem("pendingGameResults") || "[]");
+          } catch {
+            throw new Error("The pending game-result queue is unreadable; the result was not safely queued.");
+          }
+
+          if (!Array.isArray(queue)) {
+            throw new Error("The pending game-result queue has an invalid format; the result was not safely queued.");
+          }
+
+          queue.push({
+            userId: session.userId,
+            assignmentId,
+            payload,
+            status: "pending",
+          });
           localStorage.setItem("pendingGameResults", JSON.stringify(queue));
           return;
         }

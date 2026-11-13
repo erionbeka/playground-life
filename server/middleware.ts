@@ -115,11 +115,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Authentication required" });
-    // A superadmin holds every clinic-admin privilege. Routes that require
-    // "admin" must not lock the superadmin out of the admin panel; therapist-
-    // and parent-only routes stay exclusive to those roles.
-    const effectiveRoles = roles.includes("admin") ? [...roles, "superadmin"] : roles;
-    if (!effectiveRoles.includes(req.user.role)) return res.status(403).json({ error: "Insufficient permissions" });
+    // Roles are exact by default. A superadmin must use explicitly superadmin-
+    // gated platform routes and must not inherit clinic-level clinical access.
+    if (!roles.includes(req.user.role)) return res.status(403).json({ error: "Insufficient permissions" });
     return next();
   };
 }

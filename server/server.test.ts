@@ -25,6 +25,7 @@ vi.mock("./db.ts", () => ({
           "user-admin": { id: "user-admin", clinic_id: "clinic-1", role: "admin", name: "Admin", credential_status: "active", session_version: 0 },
           "user-therapist": { id: "user-therapist", clinic_id: "clinic-1", role: "therapist", name: "Therapist", credential_status: "active", session_version: 0 },
           "user-parent": { id: "user-parent", clinic_id: "clinic-1", role: "parent", name: "Parent", credential_status: "active", session_version: 0 },
+          "user-superadmin": { id: "user-superadmin", clinic_id: "platform-clinic", role: "superadmin", name: "Platform Admin", credential_status: "active", session_version: 0 },
         };
       const row = users[String(params?.[0])];
       return Promise.resolve({ rows: row ? [row] : [] });
@@ -54,6 +55,7 @@ vi.mock("./auth.ts", () => ({
     if (token === "admin-token") return { id: "user-admin", clinicId: "clinic-1", role: "admin", name: "Admin", sessionVersion: 0 };
     if (token === "therapist-token") return { id: "user-therapist", clinicId: "clinic-1", role: "therapist", name: "Therapist", sessionVersion: 0 };
     if (token === "parent-token") return { id: "user-parent", clinicId: "clinic-1", role: "parent", name: "Parent", sessionVersion: 0 };
+    if (token === "superadmin-token") return { id: "user-superadmin", clinicId: "platform-clinic", role: "superadmin", name: "Platform Admin", sessionVersion: 0 };
     throw new Error("bad token");
   }),
 }));
@@ -138,6 +140,7 @@ describe("production API", () => {
       "/api/goals",
       "/api/family/session",
       "/api/admin/compliance/backup/status",
+      "/api/superadmin/users",
       "/api/children/child-1/rewards",
     ];
     const postPaths = ["/api/research/export", "/api/children/child-1/moods", "/api/security/reset-request"];
@@ -185,10 +188,71 @@ describe("production API", () => {
 
     expect(response.body.staff).toHaveLength(2);
     expect(response.body.staff[1].email).toBe("new@example.com");
-    expect(queryMock).toHaveBeenCalledWith(
-      expect.stringContaining("FROM users"),
-      expect.arrayContaining(["clinic-1"]),
-    );
+    const [staffSql, staffParams] = queryMock.mock.calls[0];
+    expect(staffSql).toContain("FROM users");
+    expect(staffSql).toContain("WHERE clinic_id = $1");
+    expect(staffSql).toContain("role IN ('admin', 'therapist')");
+    expect(staffParams).toEqual(["clinic-1"]);
+  });
+
+  it("lists platform-wide account metadata for superadmins only", async () => {
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "user-admin", name: "Clinic Admin", email: "admin@example.com", role: "admin", clinic_id: "clinic-1", clinic_name: "Clinic One", credential_status: "active", last_signed_in_at: null, created_at: "2026-01-01T00:00:00Z" },
+          { id: "user-therapist", name: "Therapist", email: "therapist@example.com", role: "therapist", clinic_id: "clinic-2", clinic_name: "Clinic Two", credential_status: "active", last_signed_in_at: null, created_at: "2026-01-02T00:00:00Z" },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "clinic-1", name: "Clinic One", created_at: "2026-01-01T00:00:00Z", user_count: 1 },
+          { id: "clinic-2", name: "Clinic Two", created_at: "2026-01-02T00:00:00Z", user_count: 1 },
+          { id: "clinic-empty", name: "Clinic Without Users", created_at: "2026-01-03T00:00:00Z", user_count: 0 },
+        ],
+      });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get("/api/superadmin/users")
+      .set("Authorization", "Bearer superadmin-token")
+      .expect(200);
+
+    expect(response.body.users).toHaveLength(2);
+    expect(response.body.users[0]).toMatchObject({ clinic_id: "clinic-1", clinic_name: "Clinic One" });
+    expect(response.body.users[1]).toMatchObject({ clinic_id: "clinic-2", clinic_name: "Clinic Two" });
+    expect(response.body.clinics).toHaveLength(3);
+    expect(response.body.clinics[2]).toMatchObject({ id: "clinic-empty", user_count: 0 });
+    const sql = String(queryMock.mock.calls[0][0]);
+    expect(sql).toContain("INNER JOIN clinics");
+    expect(sql).not.toMatch(/children|assignments|game_results|therapy_goals/i);
+    expect(sql).not.toMatch(/password_hash|personalization_profile|skill_profile/i);
+    expect(String(queryMock.mock.calls[1][0])).toContain("LEFT JOIN users");
+  });
+
+  it("blocks clinic admins and therapists from the platform-wide user directory", async () => {
+    const app = await loadApp();
+    await request(app)
+      .get("/api/superadmin/users")
+      .set("Authorization", "Bearer admin-token")
+      .expect(403);
+    await request(app)
+      .get("/api/superadmin/users")
+      .set("Authorization", "Bearer therapist-token")
+      .expect(403);
+    expect(queryMock).not.toHaveBeenCalled();
+  });
+
+  it("blocks superadmins from clinic clinical records", async () => {
+    const app = await loadApp();
+    await request(app)
+      .get("/api/children")
+      .set("Authorization", "Bearer superadmin-token")
+      .expect(403);
+    await request(app)
+      .get("/api/auth/staff")
+      .set("Authorization", "Bearer superadmin-token")
+      .expect(403);
+    expect(queryMock).not.toHaveBeenCalled();
   });
 
   it("blocks therapists from reading the staff roster", async () => {
@@ -280,6 +344,43 @@ describe("production API", () => {
     expect(queueEmailMock).not.toHaveBeenCalled();
     expect(withTransactionMock).not.toHaveBeenCalled();
   });
+
+  it("allows self-service password recovery for therapists only", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "user-therapist" }] });
+    transactionQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: "user-therapist" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "reset-token-1" }] });
+
+    const app = await loadApp();
+    await request(app)
+      .post("/api/security/reset-request")
+      .send({ email: "therapist@example.com" })
+      .expect(200);
+
+    expect(queryMock.mock.calls[0][0]).toContain("role = 'therapist'");
+    expect(withTransactionMock).toHaveBeenCalledOnce();
+    expect(transactionQueryMock.mock.calls[0][0]).toContain("role = 'therapist'");
+    expect(queueEmailMock).toHaveBeenCalledOnce();
+    expect(queueEmailMock.mock.calls[0][0].to).toBe("therapist@example.com");
+  });
+
+  it.each(["admin@example.com", "root@example.com"])(
+    "does not create self-service reset tokens for non-therapist account %s",
+    async (email) => {
+      queryMock.mockResolvedValueOnce({ rows: [] });
+      const app = await loadApp();
+      const response = await request(app)
+        .post("/api/security/reset-request")
+        .send({ email })
+        .expect(200);
+
+      expect(response.body.ok).toBe(true);
+      expect(queryMock.mock.calls[0][0]).toContain("role = 'therapist'");
+      expect(withTransactionMock).not.toHaveBeenCalled();
+      expect(queueEmailMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("lets admins create clinic-scoped child records", async () => {
     queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });

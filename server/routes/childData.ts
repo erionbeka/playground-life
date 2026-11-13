@@ -2,12 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { query, withTransaction } from "../db.ts";
 import type { PoolClient } from "pg";
-import { requireAuth } from "../middleware.ts";
+import { requireAuth, requireRole } from "../middleware.ts";
 import type { AuthUser } from "../types.ts";
 
 export const childDataRoutes = Router();
 
-childDataRoutes.use(requireAuth);
+childDataRoutes.use(requireAuth, requireRole("admin", "therapist", "parent"));
 
 const MOOD_VALUES = ["great", "okay", "meh", "worried", "overwhelmed"] as const;
 

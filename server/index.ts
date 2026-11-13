@@ -19,6 +19,7 @@ import researchRoutes from "./routes/research.ts";
 import { childDataRoutes } from "./routes/childData.ts";
 import { rewardRoutes } from "./routes/rewards.ts";
 import { healthRoutes } from "./routes/health.ts";
+import superadminRoutes from "./routes/superadmin.ts";
 
 export function createApp() {
   const app = express();
@@ -38,6 +39,7 @@ export function createApp() {
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.use("/api", healthRoutes);
   app.use("/api/auth", authRoutes);
+  app.use("/api/superadmin", superadminRoutes);
   app.use("/api/children", childrenRoutes);
   app.use("/api/families", familiesRoutes);
   app.use("/api/assignments", assignmentRoutes);
