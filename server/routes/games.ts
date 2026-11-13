@@ -6,7 +6,7 @@ import { AuthoredGame, validateAuthoredGame, runOriginAudit } from "../../src/li
 
 export const gameRoutes = Router();
 
-gameRoutes.use(requireAuth);
+gameRoutes.use(requireAuth, requireRole("admin", "therapist"));
 
 function mapRow(row: Record<string, unknown>): Record<string, unknown> {
   return {
