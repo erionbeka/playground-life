@@ -248,29 +248,29 @@ async function runDesktop(page) {
   await page.getByRole("button", { name: /^Children$/i }).click();
   await page.screenshot({ path: path.join(outDir, "therapist-kids-overview.png"), fullPage: true });
   const childrenChecks = {
-    selector: await page.getByText(/At a glance|Profiles & goals|Caseload Overview/i).first().isVisible(),
-    selectedChild: await page.getByText(/ON YOUR CASELOAD/i).first().isVisible(),
-    hiddenChild: await page.getByText(/ON YOUR CASELOAD/i).count(),
+    selector: await page.getByText(/My Children/i).first().isVisible(),
+    selectedChild: await page.getByText("Emma", { exact: true }).first().isVisible(),
+    hiddenChild: await page.getByText(/Emma|Noah/).count(),
   };
 
   await seedNeedsReviewAttempt(page);
   await page.reload({ waitUntil: "networkidle" });
   await page.getByRole("button", { name: /^Outcomes$/i }).click();
   await page.screenshot({ path: path.join(outDir, "therapist-needs-review.png"), fullPage: true });
-  await page.getByRole("button", { name: /Open review/i }).first().click();
-  await page.screenshot({ path: path.join(outDir, "therapist-attempt-review.png"), fullPage: true });
+  await page.getByRole("button", { name: /Detailed Review/i }).click();
+  await page.screenshot({ path: path.join(outDir, "therapist-detailed-review.png"), fullPage: true });
   const reviewChecks = {
-    quickReview: await page.getByText(/Clinical Progress Report|Quick Review/i).first().isVisible(),
-    openReview: await page.getByRole("button", { name: /Overview|Skill notes|Replay & maps/i }).count(),
-    accuracy: await page.getByText(/Accuracy/i).first().isVisible(),
-    skillEvidence: await page.getByRole("button", { name: /Skill notes/i }).isVisible(),
+    quickReview: await page.getByText(/Clinical Progress Report/i).first().isVisible(),
+    detailedReview: await page.getByText(/Approval Workflow/i).first().isVisible(),
+    accuracy: await page.getByText(/Clinical Snapshot/i).first().isVisible(),
+    skillEvidence: await page.getByText(/Skill Domain Mastery/i).first().isVisible(),
   };
 
   await page.getByRole("button", { name: /^Homework$/i }).click();
   await page.screenshot({ path: path.join(outDir, "therapist-give-work.png"), fullPage: true });
   const classworkChecks = {
-    accessCopy: await page.getByText(/Homework builder|Live classwork|Assign Homework/i).first().isVisible(),
-    createFlow: await page.getByText(/Suggested session plan|Bench Buddies/i).first().isVisible(),
+    accessCopy: await page.getByText(/Assign Homework/i).first().isVisible(),
+    createFlow: await page.getByRole("button", { name: /Use Personalized Plan/i }).isVisible(),
   };
 
   await loginAndPatch(page, "game-093");
@@ -378,9 +378,9 @@ function assertChecks(result) {
   if (!result.desktop.childrenChecks.selectedChild) failures.push("Desktop caseload does not show an on-caseload child");
   if (result.desktop.childrenChecks.hiddenChild < 2) failures.push("Desktop caseload should show at least 2 children");
   if (!result.desktop.reviewChecks.quickReview) failures.push("Desktop results/review list is missing");
-  if (!result.desktop.reviewChecks.openReview) failures.push("Desktop needs-review drilldown is missing review panel tabs");
-  if (!result.desktop.reviewChecks.accuracy) failures.push("Desktop needs-review drilldown is missing accuracy");
-  if (!result.desktop.reviewChecks.skillEvidence) failures.push("Desktop needs-review drilldown is missing skill notes");
+  if (!result.desktop.reviewChecks.detailedReview) failures.push("Desktop detailed approval workflow is missing");
+  if (!result.desktop.reviewChecks.accuracy) failures.push("Desktop clinical snapshot is missing");
+  if (!result.desktop.reviewChecks.skillEvidence) failures.push("Desktop skill domain mastery section is missing");
   if (!result.desktop.classworkChecks.accessCopy) failures.push("Desktop homework builder is missing");
   if (!result.desktop.classworkChecks.createFlow) failures.push("Desktop suggested session plan is missing");
   if (!result.desktop.buildingChecks.studio) failures.push("Desktop building studio is missing");
