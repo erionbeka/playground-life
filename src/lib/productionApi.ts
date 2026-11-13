@@ -58,6 +58,13 @@ export interface ApiPlatformUser {
   created_at: string;
 }
 
+export interface ApiPlatformClinic {
+  id: string;
+  name: string;
+  created_at: string;
+  user_count: number;
+}
+
 export interface ApiChildPayload {
   firstName: string;
   displayName: string;
@@ -191,7 +198,7 @@ export const productionApi = {
   },
 
   listPlatformUsers() {
-    return request<{ users: ApiPlatformUser[] }>("/api/superadmin/users");
+    return request<{ users: ApiPlatformUser[]; clinics: ApiPlatformClinic[] }>("/api/superadmin/users");
   },
 
   listChildren() {
