@@ -3,12 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { FamilyMember, useApp } from "@/context/AppContext";
-import { ApiError } from "@/lib/productionApi";
+import { ApiError, productionApi, type ApiPlatformUser } from "@/lib/productionApi";
 import { emptySkillProfile } from "@/lib/skills";
 import { toast } from "@/components/ui/sonner";
 import GameApprovals from "./GameApprovals";
 
-type Tab = "overview" | "staff" | "families" | "content" | "platforms" | "settings" | "activity";
+type Tab = "overview" | "staff" | "families" | "content" | "settings" | "activity";
 
 /**
  * A temporary password for a caregiver account.
@@ -61,7 +61,6 @@ const tabs: { key: Tab; label: string; emoji?: string }[] = [
   { key: "staff", label: "Staff" },
   { key: "families", label: "Families" },
   { key: "content", label: "Content", emoji: "🎨" },
-  { key: "platforms", label: "Platforms", emoji: "📱" },
   { key: "settings", label: "Settings", emoji: "⚙️" },
   { key: "activity", label: "Therapist activity", emoji: "👁️" },
 ];
@@ -73,13 +72,8 @@ export default function AdminDashboard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [showForgot, setShowForgot] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotMsg, setForgotMsg] = useState("");
-  const [releaseNotes, setReleaseNotes] = useState(() => localStorage.getItem("releaseNotes") || "");
   const [clinicName, setClinicName] = useState("");
   const [clinicMsg, setClinicMsg] = useState("");
-  const [savedNotes, setSavedNotes] = useState(() => localStorage.getItem("releaseNotes") || "");
   const [staffRole, setStaffRole] = useState<"admin" | "therapist">("therapist");
   const [staffName, setStaffName] = useState("");
   const [staffEmail, setStaffEmail] = useState("");
@@ -93,6 +87,30 @@ export default function AdminDashboard() {
   const [archivedChildrenLoaded, setArchivedChildrenLoaded] = useState(false);
   const [loadingArchivedChildren, setLoadingArchivedChildren] = useState(false);
   const [restoringChildId, setRestoringChildId] = useState<string | null>(null);
+  const [platformUsers, setPlatformUsers] = useState<ApiPlatformUser[]>([]);
+  const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
+  const [platformUsersError, setPlatformUsersError] = useState("");
+
+  useEffect(() => {
+    if (!session?.isSuperadmin) return;
+    let active = true;
+    setPlatformUsersLoading(true);
+    setPlatformUsersError("");
+    productionApi.listPlatformUsers()
+      .then(({ users }) => {
+        if (active) setPlatformUsers(users);
+      })
+      .catch((cause) => {
+        if (active) setPlatformUsersError(cause instanceof Error ? cause.message : "Couldn't load platform accounts.");
+      })
+      .finally(() => {
+        if (active) setPlatformUsersLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [session?.isSuperadmin]);
+
 
   const toggleArchivedChildren = async () => {
     const opening = !showArchivedChildren;
@@ -123,13 +141,13 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
+    if (session?.isSuperadmin) return;
     const API = import.meta.env.VITE_API_URL || "";
-    const token = localStorage.getItem("accessToken");
-    fetch(`${API}/api/auth/clinic`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    fetch(`${API}/api/auth/clinic`)
       .then((r) => r.json())
       .then((d) => { if (d?.clinic?.name) setClinicName(d.clinic.name); })
       .catch(() => {});
-  }, []);
+  }, [session?.isSuperadmin]);
   const [childName, setChildName] = useState("");
   const [childAvatar, setChildAvatar] = useState("🧒");
   const [childAge, setChildAge] = useState("6");
@@ -370,47 +388,58 @@ export default function AdminDashboard() {
                  Sign In
                </button>
              </form>
-             <div className="mt-4 text-center">
-               <button type="button" onClick={() => setShowForgot((v) => !v)} className="text-sm text-muted-foreground underline hover:text-foreground">
-                 Forgot password?
-               </button>
-               {showForgot ? (
-                 <form
-                   className="mt-3 space-y-2"
-                   onSubmit={async (e) => {
-                     e.preventDefault();
-                     setForgotMsg("");
-                     try {
-                       const API = import.meta.env.VITE_API_URL || "";
-                       const res = await fetch(`${API}/api/security/reset-request`, {
-                         method: "POST",
-                         headers: { "Content-Type": "application/json" },
-                         body: JSON.stringify({ email: forgotEmail }),
-                       });
-                       const body = await res.json().catch(() => ({}));
-                       setForgotMsg(body.message || (res.ok ? "If that account exists, a reset email has been queued." : "Request failed."));
-                     } catch {
-                       setForgotMsg("Can't reach the clinic server.");
-                     }
-                   }}
-                 >
-                   <input
-                     type="email"
-                     required
-                     value={forgotEmail}
-                     onChange={(e) => setForgotEmail(e.target.value)}
-                     placeholder="Admin email"
-                     className="h-11 w-full rounded-xl border border-border bg-background/85 px-4 text-base text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                   />
-                   <button type="submit" className="touch-target w-full rounded-xl bg-primary px-4 py-2 font-semibold text-primary-foreground">
-                     Send reset link
-                   </button>
-                   {forgotMsg ? <p className="text-sm text-muted-foreground">{forgotMsg}</p> : null}
-                 </form>
-               ) : null}
-             </div>
           </motion.div>
         </div>
+      </div>
+    );
+  }
+
+  if (session?.isSuperadmin) {
+    return (
+      <div className="min-h-screen">
+        <header className="flex flex-col gap-3 border-b border-border bg-card/85 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div>
+            <h1 className="font-display text-xl font-bold text-foreground">Platform User Directory</h1>
+            <p className="text-sm text-muted-foreground">Signed in as {session.displayName} · account metadata across clinics</p>
+          </div>
+          <button onClick={signOut} className="touch-target self-start rounded-lg px-3 text-sm text-muted-foreground hover:bg-accent/10 hover:text-foreground sm:self-auto">
+            Sign Out
+          </button>
+        </header>
+        <main className="mx-3 my-6 rounded-xl border border-border bg-card/88 p-4 sm:mx-6 sm:p-6">
+          <h2 className="mb-4 font-display text-lg font-bold text-foreground">Accounts</h2>
+          {platformUsersLoading ? <p className="text-sm text-muted-foreground">Loading accounts…</p> : null}
+          {platformUsersError ? <p role="alert" className="text-sm text-destructive">{platformUsersError}</p> : null}
+          {!platformUsersLoading && !platformUsersError ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border text-muted-foreground">
+                    <th className="px-3 py-2 font-semibold">Name</th>
+                    <th className="px-3 py-2 font-semibold">Email</th>
+                    <th className="px-3 py-2 font-semibold">Role</th>
+                    <th className="px-3 py-2 font-semibold">Clinic</th>
+                    <th className="px-3 py-2 font-semibold">Account status</th>
+                    <th className="px-3 py-2 font-semibold">Last sign-in</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {platformUsers.map((user) => (
+                    <tr key={user.id} className="border-b border-border/70">
+                      <td className="px-3 py-3 font-medium text-foreground">{user.name}</td>
+                      <td className="px-3 py-3 text-muted-foreground">{user.email || "—"}</td>
+                      <td className="px-3 py-3 capitalize text-muted-foreground">{user.role}</td>
+                      <td className="px-3 py-3 text-muted-foreground">{user.clinic_name}</td>
+                      <td className="px-3 py-3 text-muted-foreground">{user.credential_status}</td>
+                      <td className="px-3 py-3 text-muted-foreground">{user.last_signed_in_at ? new Date(user.last_signed_in_at).toLocaleString() : "Never"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {platformUsers.length === 0 ? <p className="py-4 text-sm text-muted-foreground">No accounts found.</p> : null}
+            </div>
+          ) : null}
+        </main>
       </div>
     );
   }
@@ -916,54 +945,6 @@ export default function AdminDashboard() {
           <GameApprovals />
         ) : null}
 
-        {tab === "platforms" ? (
-          <div className="space-y-6">
-            <h2 className="font-display text-lg font-bold text-foreground">Release management</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="rounded-2xl bg-muted p-4">
-                <p className="font-semibold text-foreground">Web</p>
-                <p className="text-sm text-muted-foreground">v0.0.0 · SPA on nginx</p>
-                <p className="text-xs text-muted-foreground mt-2">Build: npm run build</p>
-                <a href="https://playground-life.com" target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-primary underline">Open web</a>
-              </div>
-              <div className="rounded-2xl bg-muted p-4">
-                <p className="font-semibold text-foreground">Android</p>
-                <p className="text-sm text-muted-foreground">v1.0 · com.playgroundlife.app · minSdk 24</p>
-                <p className="text-xs text-muted-foreground mt-2">Build: npm run build:android + gradlew</p>
-                <a href="https://github.com/erionbeka/playground-life/releases/tag/v1.0-android" target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-primary underline">Download APK</a>
-              </div>
-              <div className="rounded-2xl bg-muted p-4">
-                <p className="font-semibold text-foreground">iOS</p>
-                <p className="text-sm text-muted-foreground">Not configured</p>
-                <p className="text-xs text-muted-foreground mt-2">Add @capacitor/ios + Xcode</p>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-border bg-card/60 p-4">
-              <h3 className="mb-2 font-semibold text-foreground">Release notes</h3>
-              <textarea
-                value={releaseNotes}
-                onChange={(e) => setReleaseNotes(e.target.value)}
-                rows={6}
-                className="w-full rounded-xl border border-border bg-background/85 px-4 py-3 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                placeholder="What changed in this release..."
-              />
-              <button
-                type="button"
-                onClick={() => { localStorage.setItem("releaseNotes", releaseNotes); setSavedNotes(releaseNotes); }}
-                className="touch-target mt-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-              >
-                Save notes
-              </button>
-              {savedNotes ? <p className="mt-2 text-xs text-muted-foreground">Saved {savedNotes.length} chars.</p> : null}
-            </div>
-            <div className="rounded-2xl border border-border bg-card/60 p-4">
-              <h3 className="mb-2 font-semibold text-foreground">Build commands</h3>
-              <pre className="overflow-x-auto rounded-xl bg-muted p-3 text-xs text-foreground">npm run build:android
-cd android && ./gradlew assembleRelease
-# output: android/app/build/outputs/apk/release/app-release.apk</pre>
-            </div>
-          </div>
-        ) : null}
         {tab === "activity" ? (
           <div className="space-y-4">
             <h2 className="font-display text-lg font-bold text-foreground">Therapist activity</h2>
