@@ -23,6 +23,7 @@
     "typecheck:server": "tsc -p tsconfig.server.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "visual:smoke": "node scripts/visual-smoke.cjs",
     "notices": "node scripts/third-party-notices.mjs",
     "headers": "node scripts/license-headers.mjs",
     "headers:check": "node scripts/license-headers.mjs --check",
