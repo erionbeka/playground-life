@@ -56,7 +56,7 @@ const resultSchema = z.object({
   ),
 });
 
-router.get("/", requireAuth, async (req, res) => {
+router.get("/", requireAuth, requireRole("admin", "therapist", "parent"), async (req, res) => {
   if (req.user?.role === "parent") {
     const result = await query(
       `SELECT assignments.*, ${RESULTS_SUBQUERY} AS results
