@@ -46,6 +46,18 @@ export interface ApiSessionUser {
   canManageAdmins?: boolean;
 }
 
+export interface ApiPlatformUser {
+  id: string;
+  name: string;
+  email: string | null;
+  role: ApiRole;
+  clinic_id: string;
+  clinic_name: string;
+  credential_status: string;
+  last_signed_in_at: string | null;
+  created_at: string;
+}
+
 export interface ApiChildPayload {
   firstName: string;
   displayName: string;
@@ -176,6 +188,10 @@ export const productionApi = {
         created_at: string;
       }>;
     }>("/api/auth/staff");
+  },
+
+  listPlatformUsers() {
+    return request<{ users: ApiPlatformUser[] }>("/api/superadmin/users");
   },
 
   listChildren() {
