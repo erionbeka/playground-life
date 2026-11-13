@@ -17,6 +17,98 @@ async function clearIndexedDB(page) {
   }));
 }
 
+// The visual smoke test exercises the browser UI, not the production API.
+// Give each page a deterministic, isolated API fixture so it never needs a
+// live database, real credentials, or a running API process.
+function installApiMocks(page) {
+  let authenticatedRole = null;
+  const child = {
+    id: "child-1",
+    first_name: "Emma",
+    display_name: "Emma",
+    birth_date: "2019-01-01",
+    notes: "",
+    personalization_profile: {},
+    skill_profile: {},
+    progression_settings: {},
+  };
+
+  async function assignments() {
+    return page.evaluate(() => {
+      const raw = localStorage.getItem("playground-life.backend.v2");
+      const data = raw ? JSON.parse(raw) : {};
+      return Array.isArray(data.assignments) ? data.assignments : [];
+    });
+  }
+
+  page.route("**/api/**", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const pathname = url.pathname;
+    const method = request.method();
+    const json = (body, status = 200) => route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+
+    if (pathname === "/api/auth/me" && method === "GET") {
+      const pagePath = new URL(page.url()).pathname;
+      const expectedRole = pagePath.startsWith("/family") ? "parent" : "therapist";
+      if (authenticatedRole !== expectedRole) return json({ error: "Authentication required" }, 401);
+      return json({ user: {
+        id: authenticatedRole === "parent" ? "family-1" : "therapist-1",
+        clinicId: "clinic-1",
+        role: authenticatedRole,
+        name: authenticatedRole === "parent" ? "Emma" : "Dr. Lane",
+        canManageAdmins: false,
+      } });
+    }
+
+    if (pathname === "/api/auth/login" && method === "POST") {
+      const body = request.postDataJSON();
+      authenticatedRole = String(body.identifier).includes("therapist") ? "therapist" : "parent";
+      return json({ user: {
+        id: authenticatedRole === "parent" ? "family-1" : "therapist-1",
+        clinicId: "clinic-1",
+        role: authenticatedRole,
+        name: authenticatedRole === "parent" ? "Emma" : "Dr. Lane",
+        canManageAdmins: false,
+      } });
+    }
+
+    if (pathname === "/api/auth/logout" && method === "POST") {
+      authenticatedRole = null;
+      return route.fulfill({ status: 204, body: "" });
+    }
+
+    if (pathname === "/api/family/session" && method === "GET") {
+      return json({ children: [child], assignments: await assignments() });
+    }
+    if (pathname === "/api/children" && method === "GET") {
+      return json({ children: [child] });
+    }
+    if (pathname === "/api/assignments" && method === "GET") {
+      return json({ assignments: await assignments() });
+    }
+    if (pathname === "/api/families" && method === "GET") return json({ familyLinks: [] });
+    if (pathname === "/api/goals" && method === "GET") return json({ goals: [] });
+    if (pathname === "/api/audit" && method === "GET") return json({ auditLog: [] });
+    if (pathname === "/api/auth/staff" && method === "GET") return json({ staff: [] });
+    if (pathname === "/api/games/custom" && method === "GET") return json({ games: [] });
+    if (pathname === "/api/children" && method === "GET" && url.searchParams.get("includeArchived")) {
+      return json({ children: [] });
+    }
+
+    // Mutations not under test are acknowledged locally; unexpected reads
+    // fail loudly rather than silently pretending an API contract exists.
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+      return json({ ok: true });
+    }
+    return json({ error: `Unmocked visual-smoke API request: ${method} ${pathname}` }, 501);
+  });
+}
+
 async function loginAndPatch(page, gameId) {
   await page.goto(`${base}/family`, { waitUntil: "networkidle" });
   await page.evaluate((gameIds) => {
@@ -482,6 +574,8 @@ async function run() {
   const browser = await chromium.launch({ headless: true });
   const desktop = await browser.newPage({ viewport: { width: 1440, height: 1100 }, deviceScaleFactor: 1 });
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  installApiMocks(desktop);
+  installApiMocks(mobile);
 
   const result = {
     base,
