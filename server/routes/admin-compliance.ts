@@ -15,7 +15,7 @@ import type { Request, Response } from "express";
 
 export const adminComplianceRoutes = Router();
 
-adminComplianceRoutes.use(requireAuth, requireRole("admin"));
+adminComplianceRoutes.use(requireAuth);
 
 function csvCell(value: unknown): string {
   const text = value === null || value === undefined ? "" : String(value);
@@ -28,7 +28,7 @@ const exportSchema = z.object({
   until: z.string().datetime().optional(),
 });
 
-adminComplianceRoutes.get("/audit/export", async (req: Request, res: Response) => {
+adminComplianceRoutes.get("/audit/export", requireRole("admin"), async (req: Request, res: Response) => {
   const parsed = exportSchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Invalid export filters" });
 
@@ -70,7 +70,7 @@ const RETENTION_DEFAULTS = {
   outboxDays: Number(process.env.RETENTION_OUTBOX_DAYS || 90),
 };
 
-adminComplianceRoutes.post("/retention/run", async (req: Request, res: Response) => {
+adminComplianceRoutes.post("/retention/run", requireRole("admin"), async (req: Request, res: Response) => {
   const clinicId = req.user?.clinicId;
   const audit = await query<{ count: string }>(
     `WITH deleted AS (DELETE FROM audit_log WHERE created_at < now() - ($1 || ' days')::interval AND clinic_id = $2 RETURNING 1)
@@ -114,7 +114,7 @@ adminComplianceRoutes.post("/retention/run", async (req: Request, res: Response)
   return res.json({ ok: true, retention: RETENTION_DEFAULTS, ...counts });
 });
 
-adminComplianceRoutes.get("/backup/status", async (req: Request, res: Response) => {
+adminComplianceRoutes.get("/backup/status", requireRole("admin"), async (req: Request, res: Response) => {
   const clinicId = req.user?.clinicId;
   const runs = await query(
     `SELECT started_at, finished_at, status, location, size_bytes, checksum, clinic_id
