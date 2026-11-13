@@ -411,21 +411,23 @@ export default function AdminDashboard() {
           </button>
         </header>
         <main className="mx-3 my-6 rounded-xl border border-border bg-card/88 p-4 sm:mx-6 sm:p-6">
-          <section className="mb-8">
-            <h2 className="mb-3 font-display text-lg font-bold text-foreground">Clinics ({platformClinics.length})</h2>
-            {platformClinics.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No clinics found.</p>
-            ) : (
-              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {platformClinics.map((clinic) => (
-                  <li key={clinic.id} className="rounded-xl border border-border bg-muted/50 p-3">
-                    <p className="font-semibold text-foreground">{clinic.name}</p>
-                    <p className="text-xs text-muted-foreground">{clinic.user_count} accounts</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          {!platformUsersLoading && !platformUsersError ? (
+            <section className="mb-8">
+              <h2 className="mb-3 font-display text-lg font-bold text-foreground">Clinics ({platformClinics.length})</h2>
+              {platformClinics.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No clinics found.</p>
+              ) : (
+                <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {platformClinics.map((clinic) => (
+                    <li key={clinic.id} className="rounded-xl border border-border bg-muted/50 p-3">
+                      <p className="font-semibold text-foreground">{clinic.name}</p>
+                      <p className="text-xs text-muted-foreground">{clinic.user_count} accounts</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
                     <h2 className="mb-4 font-display text-lg font-bold text-foreground">Accounts</h2>
           {platformUsersLoading ? <p className="text-sm text-muted-foreground">Loading accounts…</p> : null}
           {platformUsersError ? <p role="alert" className="text-sm text-destructive">{platformUsersError}</p> : null}
