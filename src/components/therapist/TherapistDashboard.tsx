@@ -212,35 +212,32 @@ export default function TherapistDashboard() {
                   Forgot password?
                 </button>
                 {showForgot ? (
-                  <form
-                    className="mt-3 space-y-2"
-                    onSubmit={async (event) => {
-                      event.preventDefault();
-                      setForgotMsg("");
-                      try {
-                        const API = import.meta.env.VITE_API_URL || "";
-                        const response = await fetch(`${API}/api/security/reset-request`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ email }),
-                        });
-                        const body = await response.json().catch(() => ({}));
-                        setForgotMsg(body.message || (response.ok ? "If that account exists, a reset email has been queued." : "Request failed."));
-                      } catch {
-                        setForgotMsg("Can't reach the clinic server.");
-                      }
-                    }}
-                  >
+                  <div className="mt-3 space-y-2">
                     <p className="text-xs text-muted-foreground">A reset link will be sent if this is a therapist account with that email.</p>
                     <button
-                      type="submit"
+                      type="button"
                       disabled={!email.trim()}
+                      onClick={async () => {
+                        setForgotMsg("");
+                        try {
+                          const API = import.meta.env.VITE_API_URL || "";
+                          const response = await fetch(`${API}/api/security/reset-request`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ email }),
+                          });
+                          const body = await response.json().catch(() => ({}));
+                          setForgotMsg(body.message || (response.ok ? "If that account exists, a reset email has been queued." : "Request failed."));
+                        } catch {
+                          setForgotMsg("Can't reach the clinic server.");
+                        }
+                      }}
                       className="touch-target w-full rounded-xl bg-secondary px-4 py-2 font-semibold text-secondary-foreground disabled:opacity-50"
                     >
                       Send reset link
                     </button>
                     {forgotMsg ? <p role="status" className="text-sm text-muted-foreground">{forgotMsg}</p> : null}
-                  </form>
+                  </div>
                 ) : null}
               </div>
             </form>
