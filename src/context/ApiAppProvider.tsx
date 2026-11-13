@@ -257,7 +257,7 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
           passwordHash: "",
           canManageAdmins: entry.can_manage_admins === true,
         };
-        if (entry.role === "admin" || entry.role === "superadmin") admins.push(mapped);
+        if (entry.role === "admin") admins.push(mapped);
         else if (entry.role === "therapist") therapists.push(mapped);
       }
       setStaffUsers(admins);
@@ -349,6 +349,13 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
 
         setSession(nextSession);
         setRole(resolvedRole as AppState["role"]);
+
+        // Platform superadmins receive account-directory access only. Do not
+        // load clinic caseload, audit, staff, or game data into their session.
+        if (user.role === "superadmin") {
+          setSessionRestoreStatus("ready");
+          return;
+        }
 
         // Ancillary dashboard data must not invalidate an authenticated session.
         await Promise.allSettled([
@@ -548,6 +555,9 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     setSession({ role: resolvedRole as AuthSession["role"], userId: user.id, displayName: user.name, isSuperadmin: user.role === "superadmin", canManageAdmins: user.canManageAdmins === true });
     setRole(resolvedRole as AppState["role"]);
     setSessionRestoreStatus("ready");
+
+    // A superadmin gets the platform account directory, not clinic clinical data.
+    if (user.role === "superadmin") return true;
 
     // The credential was accepted. A refresh that fails afterwards is a
     // separate problem - the API status banner reports an unreachable server,
