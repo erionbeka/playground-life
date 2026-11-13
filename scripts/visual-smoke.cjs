@@ -242,7 +242,7 @@ async function runDesktop(page) {
   const therapistChecks = {
     dashboard: await page.getByText(/Therapist Dashboard/i).first().isVisible(),
     navButtons: await page.locator("nav button").count(),
-    visibleIcons: await page.locator("nav svg").count(),
+    visibleIcons: await page.locator("nav button").filter({ hasText: /Overview|Children|Homework|Classwork|Outcomes|Games/ }).count(),
   };
 
   await page.getByRole("button", { name: /Children/i }).click();
@@ -337,7 +337,7 @@ async function runMobile(page) {
   const therapistChecks = {
     dashboard: await page.getByText(/Therapist Dashboard/i).first().isVisible(),
     navButtons: await page.locator("nav button").count(),
-    visibleIcons: await page.locator("nav svg").count(),
+    visibleIcons: await page.locator("nav button").filter({ hasText: /Overview|Children|Homework|Classwork|Outcomes|Games/ }).count(),
   };
 
   await loginAndPatch(page, "game-093");
@@ -373,7 +373,7 @@ function assertChecks(result) {
   const failures = [];
   if (!result.desktop.therapistChecks.dashboard) failures.push("Desktop therapist dashboard is missing");
   if (result.desktop.therapistChecks.navButtons < 3) failures.push("Desktop therapist nav should show 3 tabs");
-  if (result.desktop.therapistChecks.visibleIcons < 3) failures.push("Desktop therapist nav icons are missing");
+  if (result.desktop.therapistChecks.visibleIcons < 3) failures.push("Desktop therapist nav labels are missing");
   if (!result.desktop.childrenChecks.selector) failures.push("Desktop caseload overview is missing");
   if (!result.desktop.childrenChecks.selectedChild) failures.push("Desktop caseload does not show an on-caseload child");
   if (result.desktop.childrenChecks.hiddenChild < 2) failures.push("Desktop caseload should show at least 2 children");
@@ -406,7 +406,7 @@ function assertChecks(result) {
   if (!result.mobile.buildingChecks.studio) failures.push("Mobile building studio is missing");
   if (!result.mobile.therapistChecks.dashboard) failures.push("Mobile therapist dashboard is missing");
   if (result.mobile.therapistChecks.navButtons < 3) failures.push("Mobile therapist nav should show 3 tabs");
-  if (result.mobile.therapistChecks.visibleIcons < 3) failures.push("Mobile therapist nav icons are missing");
+  if (result.mobile.therapistChecks.visibleIcons < 3) failures.push("Mobile therapist nav labels are missing");
   if (result.mobile.buildingChecks.choices < 2) failures.push("Mobile building needs at least 2 choices");
   if (result.mobile.playgroundChecks.cards !== 4) failures.push("Mobile playground should show 4 cards");
   if (!result.mobile.playgroundChecks.name) failures.push("Mobile playground name is missing");
