@@ -140,6 +140,7 @@ describe("production API", () => {
       "/api/goals",
       "/api/family/session",
       "/api/admin/compliance/backup/status",
+      "/api/superadmin/users",
       "/api/children/child-1/rewards",
     ];
     const postPaths = ["/api/research/export", "/api/children/child-1/moods", "/api/security/reset-request"];
@@ -187,10 +188,11 @@ describe("production API", () => {
 
     expect(response.body.staff).toHaveLength(2);
     expect(response.body.staff[1].email).toBe("new@example.com");
-    expect(queryMock).toHaveBeenCalledWith(
-      expect.stringContaining("FROM users"),
-      expect.arrayContaining(["clinic-1"]),
-    );
+    const [staffSql, staffParams] = queryMock.mock.calls[0];
+    expect(staffSql).toContain("FROM users");
+    expect(staffSql).toContain("WHERE clinic_id = $1");
+    expect(staffSql).toContain("role IN ('admin', 'therapist')");
+    expect(staffParams).toEqual(["clinic-1"]);
   });
 
   it("lists platform-wide account metadata for superadmins only", async () => {
