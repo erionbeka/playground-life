@@ -81,12 +81,12 @@ test("AAC and language engines complete from their own controls", async ({ page 
   await openLab(page, "game-235");
   const sentenceEngine = page.getByTestId("sentence-builder-engine");
   const sentenceProgress = sentenceEngine.locator("p").filter({ hasText: /^Step \d+ of \d+$/ });
-  const sentenceFeedback = sentenceEngine.locator('p[aria-live="polite"]').filter({ hasText: /You built:/ });
   for (let round = 0; round < 3; round += 1) {
-    await page.locator('[data-testid^="sentence-option-"]').first().click();
-    await expect(sentenceFeedback).toContainText("You built:", { timeout: 5_000 });
+    await expect(sentenceProgress).toHaveText(`Step ${round + 1} of 3`);
+    await sentenceEngine.locator('[data-testid^="sentence-option-"]').first().click();
+    // Feedback is deliberately transient. The durable contract is progression to
+    // the next authored frame (or the completion result), not feedback disappearing.
     if (round < 2) {
-      await expect(sentenceFeedback).toBeHidden({ timeout: 5_000 });
       await expect(sentenceProgress).toHaveText(`Step ${round + 2} of 3`, { timeout: 5_000 });
     }
   }
@@ -98,17 +98,29 @@ test("receptive direction and intraverbal engines complete", async ({ page }) =>
   const listenEngine = page.getByTestId("listen-engine");
   // RoundProgress reports the direction number; this label reports the step within that direction.
   const listenProgress = listenEngine.locator("p.text-xs.font-black").filter({ hasText: /^Step \d+ of \d+$/ });
+  const listenInstruction = listenEngine.locator("p.font-display");
   for (let action = 0; action < 10; action += 1) {
     if (await page.getByText(/completed: score/).isVisible().catch(() => false)) break;
-    const instruction = await listenEngine.locator("p.font-display").innerText();
+    const instruction = await listenInstruction.innerText();
     const stepText = await listenProgress.innerText();
     const stepIndex = Number(stepText.match(/Step (\d+) of/)?.[1] || 1) - 1;
-    const expected = instruction.split(", then ")[stepIndex]?.match(/Touch the (.+)/)?.[1];
+    // "Touch the cup, then the shoe" maps to ["cup", "shoe"].
+    const targets = instruction.replace(/^Touch the\s+/i, "").split(/,\s*then\s+the\s+/i);
+    const expected = targets[stepIndex]?.trim();
     expect(expected, `expected target for "${instruction}" at ${stepText}`).toBeTruthy();
-    const feedback = listenEngine.locator('p[aria-live="polite"]').filter({ hasText: `You found ${expected}.` });
-    await page.getByRole("button", { name: `Choose ${expected}` }).click();
-    await expect(feedback).toBeVisible({ timeout: 5_000 });
-    await expect(feedback).toBeHidden({ timeout: 5_000 });
+
+    await listenEngine.getByRole("button", { name: `Choose ${expected}` }).click();
+
+    // The feedback is only displayed for 700–1000ms. Assert the durable state
+    // transition instead: a new step, a new direction, or game completion.
+    await expect.poll(async () => {
+      if (await page.getByText(/completed: score/).isVisible().catch(() => false)) return "completed";
+      const [nextInstruction, nextProgress] = await Promise.all([
+        listenInstruction.textContent().catch(() => null),
+        listenProgress.textContent().catch(() => null),
+      ]);
+      return nextInstruction !== instruction || nextProgress !== stepText ? "advanced" : "waiting";
+    }, { timeout: 5_000 }).not.toBe("waiting");
   }
   await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 5_000 });
 
