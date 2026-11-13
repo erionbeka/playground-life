@@ -79,37 +79,66 @@ test("AAC and language engines complete from their own controls", async ({ page 
   await expect(page.getByText(/completed: score/)).toBeVisible();
 
   await openLab(page, "game-235");
-  for (let round = 0; round < 4; round += 1) {
-    await page.locator('[data-testid^="sentence-option-"]').first().click();
-    await page.waitForTimeout(1200);
+  const sentenceEngine = page.getByTestId("sentence-builder-engine");
+  const sentenceProgress = sentenceEngine.locator("p").filter({ hasText: /^Step \d+ of \d+$/ });
+  for (let round = 0; round < 3; round += 1) {
+    await expect(sentenceProgress).toHaveText(`Step ${round + 1} of 3`);
+    await sentenceEngine.locator('[data-testid^="sentence-option-"]').first().click();
+    // Feedback is deliberately transient. The durable contract is progression to
+    // the next authored frame (or the completion result), not feedback disappearing.
+    if (round < 2) {
+      await expect(sentenceProgress).toHaveText(`Step ${round + 2} of 3`, { timeout: 5_000 });
+    }
   }
-  await expect(page.getByText(/completed: score/)).toBeVisible();
+  await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 10_000 });
 });
 
 test("receptive direction and intraverbal engines complete", async ({ page }) => {
   await openLab(page, "game-238");
-  for (let safety = 0; safety < 30; safety += 1) {
+  const listenEngine = page.getByTestId("listen-engine");
+  // RoundProgress reports the direction number; this label reports the step within that direction.
+  const listenProgress = listenEngine.locator("p.text-xs.font-black").filter({ hasText: /^Step \d+ of \d+$/ });
+  const listenInstruction = listenEngine.locator("p.font-display");
+  for (let action = 0; action < 10; action += 1) {
     if (await page.getByText(/completed: score/).isVisible().catch(() => false)) break;
-    const options = page.locator('[data-testid^="listen-option-"]');
-    const count = await options.count();
-    for (let index = 0; index < count; index += 1) {
-      await options.nth(index).click();
-      await page.waitForTimeout(800);
-    }
+    const instruction = await listenInstruction.innerText();
+    const stepText = await listenProgress.innerText();
+    const stepIndex = Number(stepText.match(/Step (\d+) of/)?.[1] || 1) - 1;
+    // "Touch the cup, then the shoe" maps to ["cup", "shoe"].
+    const targets = instruction.replace(/^Touch the\s+/i, "").split(/,\s*then\s+the\s+/i);
+    const expected = targets[stepIndex]?.trim();
+    expect(expected, `expected target for "${instruction}" at ${stepText}`).toBeTruthy();
+
+    await listenEngine.getByRole("button", { name: `Choose ${expected}` }).click();
+
+    // The feedback is only displayed for 700–1000ms. Assert the durable state
+    // transition instead: a new step, a new direction, or game completion.
+    await expect.poll(async () => {
+      if (await page.getByText(/completed: score/).isVisible().catch(() => false)) return "completed";
+      const [nextInstruction, nextProgress] = await Promise.all([
+        listenInstruction.textContent().catch(() => null),
+        listenProgress.textContent().catch(() => null),
+      ]);
+      return nextInstruction !== instruction || nextProgress !== stepText ? "advanced" : "waiting";
+    }, { timeout: 5_000 }).not.toBe("waiting");
   }
-  await expect(page.getByText(/completed: score/)).toBeVisible();
+  await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 5_000 });
 
   await openLab(page, "game-233");
-  for (let safety = 0; safety < 30; safety += 1) {
-    if (await page.getByText(/completed: score/).isVisible().catch(() => false)) break;
-    const options = page.locator('[data-testid^="intraverbal-option-"]');
-    const count = await options.count();
-    for (let index = 0; index < count; index += 1) {
-      await options.nth(index).click();
-      await page.waitForTimeout(900);
-    }
+  const answers: Record<string, string> = {
+    "Twinkle, twinkle, little ___": "star",
+    "The itsy bitsy ___ climbed up the water spout": "spider",
+    "Old MacDonald had a ___": "farm",
+    "If you're happy and you know it, ___ your hands": "clap",
+  };
+  for (let round = 0; round < 4; round += 1) {
+    const prompt = await page.getByTestId("intraverbal-engine").locator("p.font-display").innerText();
+    const answer = answers[prompt];
+    expect(answer, `missing expected answer for prompt "${prompt}"`).toBeTruthy();
+    await page.getByRole("button", { name: `Choose ${answer}` }).click();
+    await expect(page.getByText(`Yes! ${answer}.`)).toBeVisible({ timeout: 3_000 });
   }
-  await expect(page.getByText(/completed: score/)).toBeVisible();
+  await expect(page.getByText(/completed: score/)).toBeVisible({ timeout: 5_000 });
 });
 
 test("scanning game exposes forced switch access", async ({ page }) => {

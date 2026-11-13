@@ -65,8 +65,19 @@ export default function ListenEngine({ game, onInteraction, onComplete }: Props)
   const [feedback, setFeedback] = useState<string | null>(null);
   const [lastChoice, setLastChoice] = useState<string | null>(null);
   const completedRef = useRef(false);
+  const transitionLockedRef = useRef(false);
+  const transitionTimerRef = useRef<number | null>(null);
+  const feedbackTimerRef = useRef<number | null>(null);
+  const [transitionPending, setTransitionPending] = useState(false);
   const rec = useMemo(() => createSessionRecorder(game.id), [game.id]);
   const direction = directions[roundIndex];
+
+  useEffect(() => {
+    return () => {
+      if (transitionTimerRef.current !== null) window.clearTimeout(transitionTimerRef.current);
+      if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!direction || completedRef.current) return;
@@ -99,7 +110,7 @@ export default function ListenEngine({ game, onInteraction, onComplete }: Props)
   };
 
   const handleOption = (option: ListenOption) => {
-    if (!direction || completedRef.current) return;
+    if (!direction || completedRef.current || transitionLockedRef.current) return;
     onInteraction();
     setLastChoice(option.label);
     const expected = direction.steps[stepIndex];
@@ -108,6 +119,7 @@ export default function ListenEngine({ game, onInteraction, onComplete }: Props)
       const nextErrors = errors + 1;
       setErrors(nextErrors);
       setFeedback(`Let's listen again. ${direction.say}`);
+      if (feedbackTimerRef.current !== null) window.clearTimeout(feedbackTimerRef.current);
       rec.trial({
         stimulus: direction.say,
         correct: false,
@@ -117,7 +129,10 @@ export default function ListenEngine({ game, onInteraction, onComplete }: Props)
         prompted: true,
       });
       speak(`Let's listen again. ${direction.say}`);
-      window.setTimeout(() => setFeedback(null), 1200);
+      feedbackTimerRef.current = window.setTimeout(() => {
+        feedbackTimerRef.current = null;
+        setFeedback(null);
+      }, 1200);
       return;
     }
 
@@ -129,10 +144,17 @@ export default function ListenEngine({ game, onInteraction, onComplete }: Props)
       choiceCount: direction.options.length,
       prompted: stepIndex > 0,
     });
+    transitionLockedRef.current = true;
+    setTransitionPending(true);
+    if (feedbackTimerRef.current !== null) {
+      window.clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = null;
+    }
     setFeedback(`You found ${option.label}.`);
     const nextStep = stepIndex + 1;
 
-    window.setTimeout(() => {
+    transitionTimerRef.current = window.setTimeout(() => {
+      transitionTimerRef.current = null;
       setFeedback(null);
       if (nextStep >= direction.steps.length) {
         if (roundIndex + 1 >= roundCount) {
@@ -141,10 +163,14 @@ export default function ListenEngine({ game, onInteraction, onComplete }: Props)
           setRoundIndex((value) => value + 1);
           setStepIndex(0);
           setLastChoice(null);
+          transitionLockedRef.current = false;
+          setTransitionPending(false);
         }
       } else {
         setStepIndex(nextStep);
         setLastChoice(null);
+        transitionLockedRef.current = false;
+        setTransitionPending(false);
         speak(direction.say);
       }
     }, supportLevel === "high" ? 1000 : 700);
@@ -189,6 +215,7 @@ export default function ListenEngine({ game, onInteraction, onComplete }: Props)
             key={option.label}
             type="button"
             whileTap={{ scale: 0.94 }}
+            disabled={transitionPending}
             onClick={() => handleOption(option)}
             aria-label={`Choose ${option.label}`}
             className="touch-target flex flex-col items-center gap-2 rounded-2xl border-2 border-border bg-card px-3 py-5 shadow-sm transition-colors hover:border-primary"

@@ -63,12 +63,21 @@ export default function SentenceBuilderEngine({ game, onInteraction, onComplete 
   const [built, setBuilt] = useState<SentenceOption | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const completedRef = useRef(false);
+  const transitionLockedRef = useRef(false);
+  const transitionTimerRef = useRef<number | null>(null);
+  const [transitionPending, setTransitionPending] = useState(false);
   const rec = useMemo(() => createSessionRecorder(game.id), [game.id]);
   const frame = frames[roundIndex];
   const options = useMemo(
     () => (frame ? shuffleItems(frame.options).slice(0, optionLimit) : []),
     [frame, optionLimit],
   );
+
+  useEffect(() => {
+    return () => {
+      if (transitionTimerRef.current !== null) window.clearTimeout(transitionTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!frame || completedRef.current) return;
@@ -102,7 +111,9 @@ export default function SentenceBuilderEngine({ game, onInteraction, onComplete 
   };
 
   const handleOption = (option: SentenceOption) => {
-    if (!frame || completedRef.current) return;
+    if (!frame || completedRef.current || transitionLockedRef.current) return;
+    transitionLockedRef.current = true;
+    setTransitionPending(true);
     onInteraction();
     const sentence = [frame.lead, option.label, frame.trail].filter(Boolean).join(" ");
     setBuilt(option);
@@ -118,13 +129,16 @@ export default function SentenceBuilderEngine({ game, onInteraction, onComplete 
     });
     speak(sentence);
 
-    window.setTimeout(() => {
+    transitionTimerRef.current = window.setTimeout(() => {
+      transitionTimerRef.current = null;
       setFeedback(null);
       setBuilt(null);
       if (roundIndex + 1 >= roundCount) {
         finish();
       } else {
         setRoundIndex((value) => value + 1);
+        transitionLockedRef.current = false;
+        setTransitionPending(false);
       }
     }, supportLevel === "high" ? 1800 : 1400);
   };
@@ -176,6 +190,7 @@ export default function SentenceBuilderEngine({ game, onInteraction, onComplete 
             key={option.label}
             type="button"
             whileTap={{ scale: 0.94 }}
+            disabled={transitionPending}
             onClick={() => handleOption(option)}
             aria-label={`Add ${option.label} to the sentence`}
             className="touch-target flex flex-col items-center gap-2 rounded-2xl border-2 border-border bg-card px-3 py-4 shadow-sm transition-colors hover:border-primary"

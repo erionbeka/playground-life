@@ -42,6 +42,7 @@ first sign-in.
 | --- | --- | --- |
 | `COOKIE_SECURE` | `true` in production | Marks the session cookie as secure. Only set it to `false` for a plain-HTTP deployment. |
 | `TRUST_PROXY` | `1` in production, `0` otherwise | How many proxy hops in front of the API to trust when reading the client address. The compose setup puts nginx in front, so `1` is right there. Set it to `0` if the API is reachable directly. |
+| `MFA_ENCRYPTION_KEY` | falls back to `RESEARCH_DEIDENTIFICATION_KEY` then `JWT_SECRET` | The key used to encrypt MFA secrets at rest. A dedicated key lets MFA secrets be rotated independently of the research key. |
 | `RESEARCH_DEIDENTIFICATION_KEY` | falls back to `JWT_SECRET` | The key that de-identifies research exports. A separate key keeps the participant ids stable if the session secret is rotated. |
 
 ### API upstream
