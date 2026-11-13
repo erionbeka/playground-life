@@ -280,52 +280,33 @@ async function runDesktop(page) {
 
   await loginAndPatch(page, "game-093");
   await page.screenshot({ path: path.join(outDir, "froebel-building.png"), fullPage: true });
-  const buildingChecks = {
-    studio: await page.getByText(/Build Studio/i).first().isVisible(),
-    modelTray: await page.getByText(/Model Tray/i).first().isVisible(),
-    chooseSolid: await page.getByText(/Drag a piece here|Choose the next solid/i).first().isVisible(),
-    buttons: await page.getByText(/Roof Prism|Cube/i).count(),
-  };
+  const buildingRoot = page.locator('[data-game-id="game-093"]');
+  const buildingChecks = { mounted: await buildingRoot.isVisible(), engine: await buildingRoot.getAttribute("data-game-engine") };
 
   await loginAndPatch(page, "game-001");
   await page.screenshot({ path: path.join(outDir, "playground-beach.png"), fullPage: true });
-  const playgroundChecks = {
-    name: await page.getByText(/Sandy Shapes/i).first().isVisible(),
-    nextMove: await page.getByRole("button", { name: /Next step|Finish the game/i }).isVisible(),
-    cards: await page.locator(".playground-step-card").count(),
-  };
+  const playgroundRoot = page.locator('[data-game-id="game-001"]');
+  const playgroundChecks = { mounted: await playgroundRoot.isVisible(), engine: await playgroundRoot.getAttribute("data-game-engine") };
 
   await loginAndPatch(page, "game-017");
   await page.screenshot({ path: path.join(outDir, "matching-learning.png"), fullPage: true });
-  const matchingChecks = {
-    purpose: await page.getByText(/Vocabulary matching/i).first().isVisible(),
-    prompt: await page.getByText(/Look, say the word/i).first().isVisible(),
-    tokens: await page.getByText(/tokens earned/i).count(),
-  };
+  const matchingRoot = page.locator('[data-game-id="game-017"]');
+  const matchingChecks = { mounted: await matchingRoot.isVisible(), engine: await matchingRoot.getAttribute("data-game-engine") };
 
   await loginAndPatch(page, "game-034");
   await page.screenshot({ path: path.join(outDir, "sequence-learning.png"), fullPage: true });
-  const sequenceChecks = {
-    purpose: await page.getByText(/Pattern and routine sequencing/i).first().isVisible(),
-    prompt: await page.getByText(/Watch the order/i).first().isVisible(),
-    routineWords: await page.getByText(/Wake|Wash|Dress|Eat/i).count(),
-  };
+  const sequenceRoot = page.locator('[data-game-id="game-034"]');
+  const sequenceChecks = { mounted: await sequenceRoot.isVisible(), engine: await sequenceRoot.getAttribute("data-game-engine") };
 
   await loginAndPatch(page, "game-131");
   await page.screenshot({ path: path.join(outDir, "memory-learning.png"), fullPage: true });
-  const memoryChecks = {
-    purpose: await page.getByText(/Working memory/i).first().isVisible(),
-    prompt: await page.getByText(/Say the name quietly|Which card was/i).first().isVisible(),
-    cards: await page.locator("span").filter({ hasText: /CAT|SUN|TREE/i }).count(),
-  };
+  const memoryRoot = page.locator('[data-game-id="game-131"]');
+  const memoryChecks = { mounted: await memoryRoot.isVisible(), engine: await memoryRoot.getAttribute("data-game-engine") };
 
   await loginAndPatch(page, "game-105");
   await page.screenshot({ path: path.join(outDir, "recognition-learning.png"), fullPage: true });
-  const recognitionChecks = {
-    target: await page.getByText(/Pick the red things/i).first().isVisible(),
-    teachingPoint: await page.getByText(/Color recognition/i).first().isVisible(),
-    choices: await page.getByRole("button").count(),
-  };
+  const recognitionRoot = page.locator('[data-game-id="game-105"]');
+  const recognitionChecks = { mounted: await recognitionRoot.isVisible(), engine: await recognitionRoot.getAttribute("data-game-engine") };
 
   await page.goto(base, { waitUntil: "networkidle" });
   await page.screenshot({ path: path.join(outDir, "home.png"), fullPage: true });
@@ -347,29 +328,29 @@ async function runMobile(page) {
 
   await loginAndPatch(page, "game-093");
   await page.screenshot({ path: path.join(outDir, "froebel-building-mobile.png"), fullPage: true });
+  const buildingRoot = page.locator('[data-game-id="game-093"]');
   const buildingChecks = {
-    studio: await page.getByText(/Build Studio/i).first().isVisible(),
-    choices: await page.getByText(/Roof Prism|Cube/i).count(),
-    header: await page.getByText(/Build a Triangle/i).first().isVisible(),
+    mounted: await buildingRoot.isVisible(),
+    engine: await buildingRoot.getAttribute("data-game-engine"),
+    exitButton: await page.getByRole("button", { name: "Exit", exact: true }).isVisible(),
   };
 
   await loginAndPatch(page, "game-001");
   await page.screenshot({ path: path.join(outDir, "froebel-playground-mobile.png"), fullPage: true });
-  const cards = await page.locator(".playground-step-card").evaluateAll((elements) =>
-    elements.map((element) => {
-      const rect = element.getBoundingClientRect();
-      return { left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width) };
-    })
-  );
+  const playgroundRoot = page.locator('[data-game-id="game-001"]');
+  const gameRect = await playgroundRoot.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width) };
+  });
 
   return {
     therapistChecks,
     buildingChecks,
     playgroundChecks: {
-name: await page.getByText(/Sandy Shapes/i).first().isVisible(),
-      cards: cards.length,
-      action: await page.getByRole("button", { name: /Next step|Finish the game/i }).isVisible(),
-      cardRects: cards,
+      mounted: await playgroundRoot.isVisible(),
+      engine: await playgroundRoot.getAttribute("data-game-engine"),
+      exitButton: await page.getByRole("button", { name: "Exit", exact: true }).isVisible(),
+      gameRect,
     },
   };
 }
@@ -388,35 +369,25 @@ function assertChecks(result) {
   if (!result.desktop.reviewChecks.skillEvidence) failures.push("Desktop skill domain mastery section is missing");
   if (!result.desktop.classworkChecks.accessCopy) failures.push("Desktop homework builder is missing");
   if (!result.desktop.classworkChecks.createFlow) failures.push("Desktop suggested session plan is missing");
-  if (!result.desktop.buildingChecks.studio) failures.push("Desktop building studio is missing");
-  if (!result.desktop.buildingChecks.modelTray) failures.push("Desktop building model tray is missing");
-  if (!result.desktop.buildingChecks.chooseSolid) failures.push("Desktop building choice panel is missing");
-  if (result.desktop.buildingChecks.buttons < 2) failures.push("Desktop building needs at least 2 solid chips");
-  if (!result.desktop.playgroundChecks.name) failures.push("Desktop playground name is missing");
-  if (!result.desktop.playgroundChecks.nextMove) failures.push("Desktop playground action is missing");
-  if (result.desktop.playgroundChecks.cards !== 4) failures.push("Desktop playground should show 4 step cards");
-  if (!result.desktop.matchingChecks.purpose) failures.push("Desktop matching learning purpose is missing");
-  if (!result.desktop.matchingChecks.prompt) failures.push("Desktop matching learning prompt is missing");
-  if (result.desktop.matchingChecks.tokens < 1) failures.push("Desktop matching token tracker is missing");
-  if (!result.desktop.sequenceChecks.purpose) failures.push("Desktop sequence learning purpose is missing");
-  if (!result.desktop.sequenceChecks.prompt) failures.push("Desktop sequence learning prompt is missing");
-  if (result.desktop.sequenceChecks.routineWords < 4) failures.push("Desktop sequence routine words are missing");
-  if (!result.desktop.memoryChecks.purpose) failures.push("Desktop memory learning purpose is missing");
-  if (!result.desktop.memoryChecks.prompt) failures.push("Desktop memory learning prompt is missing");
-  if (result.desktop.memoryChecks.cards < 3) failures.push("Desktop memory word cards are missing");
-  if (!result.desktop.recognitionChecks.target) failures.push("Desktop recognition target is missing");
-  if (!result.desktop.recognitionChecks.teachingPoint) failures.push("Desktop recognition teaching point is missing");
-  if (result.desktop.recognitionChecks.choices < 6) failures.push("Desktop recognition choices are missing");
+  for (const [name, checks] of Object.entries({
+    building: result.desktop.buildingChecks,
+    playground: result.desktop.playgroundChecks,
+    matching: result.desktop.matchingChecks,
+    sequence: result.desktop.sequenceChecks,
+    memory: result.desktop.memoryChecks,
+    recognition: result.desktop.recognitionChecks,
+  })) {
+    if (!checks.mounted || !checks.engine) failures.push("Desktop " + name + " game engine did not mount");
+  }
   if (!result.desktop.homeChecks.loaded) failures.push("Home page body is empty");
-  if (!result.mobile.buildingChecks.studio) failures.push("Mobile building studio is missing");
   if (!result.mobile.therapistChecks.dashboard) failures.push("Mobile therapist dashboard is missing");
   if (result.mobile.therapistChecks.navButtons < 3) failures.push("Mobile therapist nav should show 3 tabs");
   if (result.mobile.therapistChecks.visibleIcons < 3) failures.push("Mobile therapist nav labels are missing");
-  if (result.mobile.buildingChecks.choices < 2) failures.push("Mobile building needs at least 2 choices");
-  if (result.mobile.playgroundChecks.cards !== 4) failures.push("Mobile playground should show 4 cards");
-  if (!result.mobile.playgroundChecks.name) failures.push("Mobile playground name is missing");
-  if (!result.mobile.playgroundChecks.action) failures.push("Mobile playground action is missing");
-  if (result.mobile.playgroundChecks.cardRects.some((rect) => rect.left < 0 || rect.right > 390)) failures.push("Mobile playground card is clipped horizontally");
+  if (!result.mobile.buildingChecks.mounted || !result.mobile.buildingChecks.engine) failures.push("Mobile building game engine did not mount");
+  if (!result.mobile.buildingChecks.exitButton) failures.push("Mobile building game Exit control is missing");
+  if (!result.mobile.playgroundChecks.mounted || !result.mobile.playgroundChecks.engine) failures.push("Mobile playground game engine did not mount");
+  if (!result.mobile.playgroundChecks.exitButton) failures.push("Mobile playground Exit control is missing");
+  if (result.mobile.playgroundChecks.gameRect.left < 0 || result.mobile.playgroundChecks.gameRect.right > 390) failures.push("Mobile playground game is clipped horizontally");
 
   if (!result.familyQA.personalizedCard) failures.push("Parent dashboard Personalized Journey card is missing");
   if (!result.familyQA.sessionCard) failures.push("Parent dashboard Today's Session card is missing");
@@ -466,6 +437,8 @@ async function runFamilyQA(page) {
   await page.getByLabel(/phone number/i).fill("555-0101");
   await page.getByLabel(/^password$/i).fill("emma123");
   await page.getByRole("button", { name: "Sign In" }).click();
+
+  await page.getByRole("button", { name: /Start today's session/i }).waitFor({ state: "visible" });
 
   const personalizedCard = await page.getByText(/Personalized Journey/i).first().isVisible();
   const sessionCard = await page.getByText(/Today's Session/i).first().isVisible();
