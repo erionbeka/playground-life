@@ -245,7 +245,7 @@ async function runDesktop(page) {
     visibleIcons: await page.locator("nav svg").count(),
   };
 
-  await page.getByRole("button", { name: /^Children$/i }).click();
+  await page.getByRole("button", { name: /Children/i }).click();
   await page.screenshot({ path: path.join(outDir, "therapist-kids-overview.png"), fullPage: true });
   const childrenChecks = {
     selector: await page.getByText(/My Children/i).first().isVisible(),
@@ -255,7 +255,7 @@ async function runDesktop(page) {
 
   await seedNeedsReviewAttempt(page);
   await page.reload({ waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /^Outcomes$/i }).click();
+  await page.getByRole("button", { name: /Outcomes/i }).click();
   await page.screenshot({ path: path.join(outDir, "therapist-needs-review.png"), fullPage: true });
   await page.getByRole("button", { name: /Detailed Review/i }).click();
   await page.screenshot({ path: path.join(outDir, "therapist-detailed-review.png"), fullPage: true });
@@ -266,7 +266,7 @@ async function runDesktop(page) {
     skillEvidence: await page.getByText(/Skill Domain Mastery/i).first().isVisible(),
   };
 
-  await page.getByRole("button", { name: /^Homework$/i }).click();
+  await page.getByRole("button", { name: /Homework/i }).click();
   await page.screenshot({ path: path.join(outDir, "therapist-give-work.png"), fullPage: true });
   const classworkChecks = {
     accessCopy: await page.getByText(/Assign Homework/i).first().isVisible(),
