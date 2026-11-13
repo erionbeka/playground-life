@@ -2,11 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { query, withTransaction } from "../db.ts";
 import type { PoolClient } from "pg";
-import { requireAuth } from "../middleware.ts";
+import { requireAuth, requireRole } from "../middleware.ts";
 
 export const rewardRoutes = Router();
 
-rewardRoutes.use(requireAuth);
+rewardRoutes.use(requireAuth, requireRole("admin", "therapist", "parent"));
 
 const rewardsSchema = z.object({
   stars: z.number().int().min(0),
