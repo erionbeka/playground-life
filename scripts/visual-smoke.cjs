@@ -32,6 +32,16 @@ function installApiMocks(page) {
     skill_profile: {},
     progression_settings: {},
   };
+  const secondChild = {
+    id: "child-2",
+    first_name: "Noah",
+    display_name: "Noah",
+    birth_date: "2018-01-01",
+    notes: "",
+    personalization_profile: {},
+    skill_profile: {},
+    progression_settings: {},
+  };
 
   async function assignments() {
     return page.evaluate(() => {
@@ -86,7 +96,7 @@ function installApiMocks(page) {
       return json({ children: [child], assignments: await assignments() });
     }
     if (pathname === "/api/children" && method === "GET") {
-      return json({ children: [child] });
+      return json({ children: [child, secondChild] });
     }
     if (pathname === "/api/assignments" && method === "GET") {
       return json({ assignments: await assignments() });
