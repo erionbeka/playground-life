@@ -196,12 +196,20 @@ describe("production API", () => {
   });
 
   it("lists platform-wide account metadata for superadmins only", async () => {
-    queryMock.mockResolvedValueOnce({
-      rows: [
-        { id: "user-admin", name: "Clinic Admin", email: "admin@example.com", role: "admin", clinic_id: "clinic-1", clinic_name: "Clinic One", credential_status: "active", last_signed_in_at: null, created_at: "2026-01-01T00:00:00Z" },
-        { id: "user-therapist", name: "Therapist", email: "therapist@example.com", role: "therapist", clinic_id: "clinic-2", clinic_name: "Clinic Two", credential_status: "active", last_signed_in_at: null, created_at: "2026-01-02T00:00:00Z" },
-      ],
-    });
+    queryMock
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "user-admin", name: "Clinic Admin", email: "admin@example.com", role: "admin", clinic_id: "clinic-1", clinic_name: "Clinic One", credential_status: "active", last_signed_in_at: null, created_at: "2026-01-01T00:00:00Z" },
+          { id: "user-therapist", name: "Therapist", email: "therapist@example.com", role: "therapist", clinic_id: "clinic-2", clinic_name: "Clinic Two", credential_status: "active", last_signed_in_at: null, created_at: "2026-01-02T00:00:00Z" },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: "clinic-1", name: "Clinic One", created_at: "2026-01-01T00:00:00Z", user_count: 1 },
+          { id: "clinic-2", name: "Clinic Two", created_at: "2026-01-02T00:00:00Z", user_count: 1 },
+          { id: "clinic-empty", name: "Clinic Without Users", created_at: "2026-01-03T00:00:00Z", user_count: 0 },
+        ],
+      });
 
     const app = await loadApp();
     const response = await request(app)
@@ -212,10 +220,13 @@ describe("production API", () => {
     expect(response.body.users).toHaveLength(2);
     expect(response.body.users[0]).toMatchObject({ clinic_id: "clinic-1", clinic_name: "Clinic One" });
     expect(response.body.users[1]).toMatchObject({ clinic_id: "clinic-2", clinic_name: "Clinic Two" });
+    expect(response.body.clinics).toHaveLength(3);
+    expect(response.body.clinics[2]).toMatchObject({ id: "clinic-empty", user_count: 0 });
     const sql = String(queryMock.mock.calls[0][0]);
     expect(sql).toContain("INNER JOIN clinics");
     expect(sql).not.toMatch(/children|assignments|game_results|therapy_goals/i);
     expect(sql).not.toMatch(/password_hash|personalization_profile|skill_profile/i);
+    expect(String(queryMock.mock.calls[1][0])).toContain("LEFT JOIN users");
   });
 
   it("blocks clinic admins and therapists from the platform-wide user directory", async () => {
