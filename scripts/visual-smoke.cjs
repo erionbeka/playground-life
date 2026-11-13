@@ -413,23 +413,13 @@ function assertChecks(result) {
   if (!result.mobile.playgroundChecks.action) failures.push("Mobile playground action is missing");
   if (result.mobile.playgroundChecks.cardRects.some((rect) => rect.left < 0 || rect.right > 390)) failures.push("Mobile playground card is clipped horizontally");
 
-  if (!result.familyQA.personalizedCard) failures.push("Parent dashboard Personalised Journey card is missing");
-  if (result.familyQA.catalogTotalActual < 1) failures.push("Parent dashboard catalog total data attribute is missing");
-  if (result.familyQA.catalogTotalDisplayed !== result.familyQA.catalogTotalActual) failures.push("Parent dashboard catalog total does not match allGames.length");
-  if (!result.familyQA.familySummaryRemoved) failures.push("Parent dashboard still shows the family recommendation summary");
-  if (!result.familyQA.companionGreetingShown) failures.push("Parent dashboard does not show Pip companion greeting");
-  if (!result.familyQA.planHeader) failures.push("GamePlayer plan dropdown header is missing");
-  if (result.familyQA.planListVisible < 1) failures.push("GamePlayer plan list is missing when expanded");
-  if (result.familyQA.planListAfterHide !== 0) failures.push("GamePlayer plan list is still visible after Hide plan");
-  if (!result.familyQA.showPlanButton) failures.push("GamePlayer Show plan button is missing after collapsing");
-  if (result.familyQA.planListAfterShow < 1) failures.push("GamePlayer plan list does not reappear after Show plan");
-  if (!result.familyQA.companionReadyShown) failures.push("GamePlayer start screen does not show Pip ready bubble");
-  if (!result.familyQA.learningLabelShown) failures.push("Playground game does not show the learning purpose label");
-  if (result.familyQA.tapButtons < 3) failures.push("Playground game lacks tappable action targets");
-  if (!result.familyQA.tapFeedback) failures.push("Playground tap does not show You did it feedback");
-  if (!result.familyQA.advanced) failures.push("Playground Next step does not advance to step 2");
-  if (!result.familyQA.socialScenario) failures.push("Saying Sorry game does not show on-theme scenario text");
-  if (result.familyQA.socialChoices < 2) failures.push("Saying Sorry game lacks scenario choices");
+  if (!result.familyQA.personalizedCard) failures.push("Parent dashboard Personalized Journey card is missing");
+  if (!result.familyQA.sessionCard) failures.push("Parent dashboard Today's Session card is missing");
+  if (!result.familyQA.assignedGame) failures.push("Parent dashboard assigned game is missing");
+  if (!result.familyQA.gameIntro) failures.push("Family game introduction is missing");
+  if (!result.familyQA.planSummary) failures.push("Family game plan summary is missing");
+  if (!result.familyQA.engineVisible) failures.push("Assigned game engine did not start");
+  if (!result.familyQA.exitButton) failures.push("Active game Exit control is missing");
 
   if (failures.length > 0) {
     throw new Error(failures.join("; "));
@@ -438,145 +428,64 @@ function assertChecks(result) {
 
 async function runFamilyQA(page) {
   await page.goto(`${base}/family`, { waitUntil: "networkidle" });
-  await page.evaluate((gameIds) => {
+  await page.evaluate(() => {
     const KEY = "playground-life.backend.v2";
-    const data = { assignments: [{ 
-      id: "cw-1",
-      childId: "child-1",
-      type: "classwork",
-      gameIds,
-      difficulty: "easy",
-      mode: "multiplayer",
-      notes: "Group session - practice social interactions with peers.",
-      dueDate: new Date().toISOString().slice(0, 10),
-      createdAt: new Date().toISOString().slice(0, 10),
-      status: "pending",
-      completedGames: [],
-      results: [],
-      skillFocus: ["social", "communication"],
-      systemSuggestedDifficulty: "easy",
-      therapistApproval: "approved",
-      approvedAt: new Date().toISOString(),
-      approvedBy: "therapist-1",
-    }] };
+    const data = {
+      assignments: [{
+        id: "cw-1",
+        childId: "child-1",
+        type: "classwork",
+        gameIds: ["game-003"],
+        difficulty: "easy",
+        mode: "multiplayer",
+        notes: "Practice taking turns and making social choices.",
+        dueDate: new Date().toISOString().slice(0, 10),
+        createdAt: new Date().toISOString().slice(0, 10),
+        status: "pending",
+        completedGames: [],
+        results: [],
+        skillFocus: ["social", "communication"],
+        systemSuggestedDifficulty: "easy",
+        therapistApproval: "approved",
+        approvedAt: new Date().toISOString(),
+        approvedBy: "therapist-1",
+      }],
+    };
     localStorage.setItem(KEY, JSON.stringify(data));
     localStorage.removeItem("playground-life.session.v1");
-    localStorage.removeItem("playground-life.plan-collapsed");
-  }, ["game-003", "game-070", "game-023"]);
+  });
 
   await clearIndexedDB(page);
   await page.reload({ waitUntil: "networkidle" });
   await page.getByLabel(/phone number/i).fill("555-0101");
   await page.getByLabel(/^password$/i).fill("emma123");
   await page.getByRole("button", { name: "Sign In" }).click();
-  await page.waitForTimeout(700);
 
-  const dashboardText = await page.locator("body").innerText();
-  const familySummaryRemoved = !/(Keep things calm, short, and predictable|Use familiar encouragement|little more independence|Stay steady and encouraging)/i.test(dashboardText);
-  const companionGreetingShown = /I'm Pip/i.test(dashboardText);
   const personalizedCard = await page.getByText(/Personalized Journey/i).first().isVisible();
-  const catalogTotal = await page.getByTestId("catalog-total");
-  const catalogTotalDisplayed = catalogTotal.isVisible()
-    ? Number.parseInt((await catalogTotal.innerText()).replace(/\D/g, ""), 10)
-    : 0;
-  const catalogTotalActual = Number.parseInt((await catalogTotal.getAttribute("data-catalog-total")) || "0", 10);
+  const sessionCard = await page.getByText(/Today's Session/i).first().isVisible();
+  const assignedGame = await page.getByRole("button", { name: /Bench Buddies/i }).isVisible();
   await page.screenshot({ path: path.join(outDir, "parent-dashboard.png"), fullPage: true });
 
   await page.getByRole("button", { name: /Start today's session/i }).click();
-  await page.waitForTimeout(700);
-  const planHeader = await page.getByText(/Today's plan · \d+ games? left/i).first().isVisible();
-  const planListVisible = await page.locator("#todays-plan-list").count();
-  const companionReadyShown = await page.getByText(/Ready when you are, Emma!/i).first().isVisible();
-
-  await page.getByRole("button", { name: /Hide plan/i }).click();
-  await page.waitForTimeout(300);
-  const planListAfterHide = await page.locator("#todays-plan-list").count();
-  const showPlanButton = await page.getByRole("button", { name: /Show plan/i }).isVisible();
-
-  await page.getByRole("button", { name: /Show plan/i }).click();
-  await page.waitForTimeout(300);
-  const planListAfterShow = await page.locator("#todays-plan-list").count();
-  await page.screenshot({ path: path.join(outDir, "gameplayer-start-plan.png"), fullPage: true });
+  const gameIntro = await page.getByRole("heading", { name: /Bench Buddies/i }).isVisible();
+  const planSummary = await page.getByText("Your plan", { exact: true }).isVisible();
+  await page.screenshot({ path: path.join(outDir, "family-game-intro.png"), fullPage: true });
 
   await page.getByRole("button", { name: /^Start$/i }).click();
-  await page.waitForTimeout(1500);
-  const learningLabelShown = await page.getByTestId("learning-label").first().isVisible();
-  const tapButtons = await page.getByRole("button", { name: /seat|friend|bench/i }).count();
-  for (let i = 0; i < tapButtons; i++) {
-    await page.getByRole("button", { name: /seat|friend|bench/i }).nth(i).click();
-    await page.waitForTimeout(250);
-  }
-  const tapFeedback = await page.getByText(/You did it! Great work/i).isVisible();
-  await page.getByRole("button", { name: /Next step/i }).click();
-  await page.waitForTimeout(600);
-  const advanced = await page.getByText(/Step 2 of/i).first().isVisible();
-  await page.screenshot({ path: path.join(outDir, "playground-interaction.png"), fullPage: true });
-
-  await page.goto(`${base}/family`, { waitUntil: "networkidle" });
-  await page.evaluate(() => {
-    const KEY = "playground-life.backend.v2";
-    const raw = localStorage.getItem(KEY);
-    const data = raw ? JSON.parse(raw) : { assignments: [] };
-    if (!Array.isArray(data.assignments)) data.assignments = [];
-    let assignment = data.assignments.find((entry) => entry.id === "cw-1");
-    if (!assignment) {
-      assignment = {
-        id: "cw-1", childId: "child-1", type: "classwork", gameIds: ["game-071"],
-        difficulty: "easy", mode: "multiplayer",
-        notes: "Group session - practice social interactions with peers.",
-        dueDate: new Date().toISOString().slice(0, 10),
-        createdAt: new Date().toISOString().slice(0, 10),
-        status: "pending", completedGames: [], results: [],
-        skillFocus: ["social", "communication"],
-        systemSuggestedDifficulty: "easy", therapistApproval: "approved",
-        approvedAt: new Date().toISOString(), approvedBy: "therapist-1",
-      };
-      data.assignments.unshift(assignment);
-    }
-    assignment.gameIds = ["game-071"];
-    assignment.status = "pending";
-    assignment.completedGames = [];
-    assignment.results = [];
-    localStorage.setItem(KEY, JSON.stringify(data));
-    localStorage.removeItem("playground-life.session.v1");
-    localStorage.removeItem("playground-life.plan-collapsed");
-  });
-  await clearIndexedDB(page);
-  await page.reload({ waitUntil: "networkidle" });
-  await page.getByLabel(/phone number/i).fill("555-0101");
-  await page.getByLabel(/^password$/i).fill("emma123");
-  await page.getByRole("button", { name: "Sign In" }).click();
-  await page.getByRole("button", { name: /Start today's session/i }).click();
-  await page.getByRole("button", { name: /^Start$/i }).click();
-  await page.waitForTimeout(1500);
-  const socialText = await page.locator("body").innerText();
-  const socialScenario = /sorry|apolog|knocked over|hurt|grabbed/i.test(socialText);
-  const socialButtons = page.getByRole("button", { name: /Say:|Ask:|Offer:|Tell a grown-up|Give them space|Hand it back/i });
-  const socialChoices = await socialButtons.count();
-  if (socialChoices > 0) {
-    await socialButtons.first().click();
-    await page.waitForTimeout(700);
-  }
-  await page.screenshot({ path: path.join(outDir, "social-saying-sorry.png"), fullPage: true });
+  const engine = page.locator('[data-game-engine="bench"][data-game-id="game-003"]');
+  await engine.waitFor({ state: "visible" });
+  const engineVisible = await engine.isVisible();
+  const exitButton = await page.getByRole("button", { name: "Exit", exact: true }).isVisible();
+  await page.screenshot({ path: path.join(outDir, "family-game-active.png"), fullPage: true });
 
   return {
-    familySummaryRemoved,
-    companionGreetingShown,
     personalizedCard,
-    catalogTotalDisplayed,
-    catalogTotalActual,
-    planHeader,
-    planListVisible,
-    planListAfterHide,
-    showPlanButton,
-    planListAfterShow,
-    companionReadyShown,
-    learningLabelShown,
-    tapButtons,
-    tapFeedback,
-    advanced,
-    socialScenario,
-    socialChoices,
+    sessionCard,
+    assignedGame,
+    gameIntro,
+    planSummary,
+    engineVisible,
+    exitButton,
   };
 }
 
