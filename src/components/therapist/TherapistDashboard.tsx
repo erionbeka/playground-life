@@ -159,6 +159,8 @@ export default function TherapistDashboard() {
                 </label>
                 <input
                   id="therapist-email"
+                  type="email"
+                  required
                   value={email}
                   onChange={(event) => {
                     setEmail(event.target.value);
