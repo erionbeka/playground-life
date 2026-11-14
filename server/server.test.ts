@@ -383,7 +383,7 @@ describe("production API", () => {
   );
 
   it("lets admins create clinic-scoped child records", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
+    transactionQueryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
 
     const app = await loadApp();
     const response = await request(app)
@@ -393,8 +393,15 @@ describe("production API", () => {
       .expect(201);
 
     expect(response.body.id).toBe("child-1");
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO children"), expect.arrayContaining(["clinic-1", "Ava", "Ava"]));
-    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "child_created", "child", "child-1", { displayName: "Ava" });
+    expect(transactionQueryMock).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO children"), expect.arrayContaining(["clinic-1", "Ava", "Ava"]));
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "child_created",
+      "child",
+      "child-1",
+      { displayName: "Ava", clinicalBaselineRecorded: false },
+      expect.anything()
+    );
   });
 
   it("blocks therapists from creating child records", async () => {
@@ -409,7 +416,9 @@ describe("production API", () => {
   });
 
   it("lets admins and therapists update a child record", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
+    transactionQueryMock
+      .mockResolvedValueOnce({ rows: [{ personalization_profile: {} }] })
+      .mockResolvedValueOnce({ rows: [{ id: "child-1" }] });
 
     const app = await loadApp();
     const response = await request(app)
@@ -419,8 +428,15 @@ describe("production API", () => {
       .expect(200);
 
     expect(response.body).toEqual({ id: "550e8400-e29b-41d4-a716-446655440001" });
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("UPDATE children"), expect.any(Array));
-    expect(writeAuditMock).toHaveBeenCalledWith(expect.anything(), "child_updated", "child", "550e8400-e29b-41d4-a716-446655440001", expect.any(Object));
+    expect(transactionQueryMock).toHaveBeenCalledWith(expect.stringContaining("UPDATE children"), expect.any(Array));
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "child_updated",
+      "child",
+      "550e8400-e29b-41d4-a716-446655440001",
+      expect.any(Object),
+      expect.anything()
+    );
   });
 
   it("blocks parents from updating child records", async () => {
