@@ -80,8 +80,24 @@ export default function AdminDashboard() {
   const [staffPassword, setStaffPassword] = useState("");
   const [staffInviteMode, setStaffInviteMode] = useState<"password" | "invite">("password");
   const [staffInviteEmail, setStaffInviteEmail] = useState("");
-  const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
+  const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, { value: string; expiresAt: number }>>({});
   const [generatedInvites, setGeneratedInvites] = useState<Record<string, string>>({});
+
+  // Each revealed caregiver credential expires independently after 60 seconds.
+  useEffect(() => {
+    const expirations = Object.values(generatedPasswords).map((entry) => entry.expiresAt);
+    if (expirations.length === 0) return;
+
+    const nextExpiry = Math.min(...expirations);
+    const timeout = window.setTimeout(() => {
+      const now = Date.now();
+      setGeneratedPasswords((current) => Object.fromEntries(
+        Object.entries(current).filter(([, entry]) => entry.expiresAt > now)
+      ));
+    }, Math.max(0, nextExpiry - Date.now()));
+
+    return () => window.clearTimeout(timeout);
+  }, [generatedPasswords]);
   const [showAddChild, setShowAddChild] = useState(false);
   const [showArchivedChildren, setShowArchivedChildren] = useState(false);
   const [archivedChildrenLoaded, setArchivedChildrenLoaded] = useState(false);
@@ -840,7 +856,20 @@ export default function AdminDashboard() {
                             <p className="text-sm font-semibold text-foreground">{familyMember.avatar} {familyMember.name} <span className="text-muted-foreground">({familyMember.relationship})</span></p>
                             <p className="text-[11px] text-muted-foreground">Sign in: {familyMember.phoneNumber} · credentials {familyMember.credentialStatus}</p>
                             {generatedPasswords[familyMember.id] ? (
-                              <p className="mt-1 text-[11px] text-foreground">Temporary password: <span className="font-mono font-semibold">{generatedPasswords[familyMember.id]}</span></p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <p className="text-[11px] text-foreground">Temporary password: <span className="font-mono font-semibold">{generatedPasswords[familyMember.id].value}</span></p>
+                                <button
+                                  type="button"
+                                  onClick={() => setGeneratedPasswords((current) => {
+                                    const next = { ...current };
+                                    delete next[familyMember.id];
+                                    return next;
+                                  })}
+                                  className="text-[11px] font-semibold text-primary underline"
+                                >
+                                  Hide
+                                </button>
+                              </div>
                             ) : null}
                             {generatedInvites[familyMember.phoneNumber] ? (
                               <p className="mt-1 text-[11px] text-foreground">Invite code: <span className="font-mono font-semibold">{generatedInvites[familyMember.phoneNumber]}</span></p>
@@ -858,6 +887,11 @@ export default function AdminDashboard() {
                             </button>
                             <button
                               onClick={async () => {
+                                setGeneratedPasswords((current) => {
+                                  const next = { ...current };
+                                  delete next[familyMember.id];
+                                  return next;
+                                });
                                 const tempPassword = generateTemporaryPassword();
                                 try {
                                   const ok = await resetFamilyCredentials(child.id, familyMember.id, tempPassword, true);
@@ -865,7 +899,7 @@ export default function AdminDashboard() {
                                     toast.error("The password could not be reset. Try again.");
                                     return;
                                   }
-                                  setGeneratedPasswords((current) => ({ ...current, [familyMember.id]: tempPassword }));
+                                  setGeneratedPasswords((current) => ({ ...current, [familyMember.id]: { value: tempPassword, expiresAt: Date.now() + 60_000 } }));
                                 } catch (cause) {
                                   toast.error(cause instanceof Error ? cause.message : "The password could not be reset.");
                                 }

@@ -108,25 +108,43 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
 router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = resetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid reset payload" });
-  const userId = String(req.params.userId);
+  const parsedUserId = z.string().uuid().safeParse(String(req.params.userId));
+  if (!parsedUserId.success) return res.status(400).json({ error: "Invalid caregiver ID" });
+
+  const userId = parsedUserId.data;
   const passwordHash = await hashPassword(parsed.data.temporaryPassword);
 
-  const updated = await query<{ id: string; email: string | null; phone_number: string | null }>(
-    `UPDATE users
-     SET password_hash = $1,
-         credential_status = $2,
-         session_version = session_version + 1,
-         updated_at = now()
-     WHERE id = $3 AND clinic_id = $4 AND role = 'parent'
-     RETURNING id, email, phone_number`,
-    [passwordHash, parsed.data.credentialStatus, userId, req.user?.clinicId]
-  );
+  const updated = await withTransaction(async (client) => {
+    const result = await client.query<{ id: string }>(
+      `UPDATE users
+       SET password_hash = $1,
+           credential_status = $2,
+           session_version = session_version + 1,
+           updated_at = now()
+       WHERE id = $3 AND clinic_id = $4 AND role = 'parent'
+       RETURNING id`,
+      [passwordHash, parsed.data.credentialStatus, userId, req.user?.clinicId]
+    );
 
-  if (!updated.rows[0]) return res.status(404).json({ error: "Caregiver not found" });
+    if (!result.rows[0]) return false;
+
+    // Keep the audit record in the same transaction as the credential change.
+    // If audit persistence fails, the password update and session revocation roll back too.
+    await writeAudit(
+      req,
+      "caregiver_password_reset",
+      "credential",
+      userId,
+      { credentialStatus: parsed.data.credentialStatus },
+      client
+    );
+    return true;
+  });
+
+  if (!updated) return res.status(404).json({ error: "Caregiver not found" });
 
   // Passwords must never be sent through email. The administrator supplies
   // the new credential and communicates it to the caregiver out of band.
-  await writeAudit(req, "caregiver_password_reset", "credential", userId, { credentialStatus: parsed.data.credentialStatus });
   return res.json({ userId, credentialStatus: parsed.data.credentialStatus });
 });
 
