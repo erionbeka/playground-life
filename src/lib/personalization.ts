@@ -625,8 +625,13 @@ export function analyzeMonthlyPlanWeekOutcome(assignment: HomeworkAssignment): M
     ? Math.round(independenceResults.reduce((sum, result) => sum + (result.independenceLevel || 0), 0) / independenceResults.length)
     : null;
   const totalFrustration = reviewedResults.reduce((sum, result) => sum + (result.frustrationEvents || 0), 0);
+  const acceptedGameIds = new Set(
+    reviewedResults
+      .map((result) => result.gameId)
+      .filter((gameId) => assignment.gameIds.includes(gameId))
+  );
   const completionRate = assignment.gameIds.length > 0
-    ? Math.round((assignment.completedGames.length / assignment.gameIds.length) * 100)
+    ? Math.round((acceptedGameIds.size / assignment.gameIds.length) * 100)
     : 0;
 
   const reasons: string[] = [];
