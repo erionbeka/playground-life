@@ -108,7 +108,10 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
 router.post("/:userId/reset-password", requireAuth, requireRole("admin"), async (req, res) => {
   const parsed = resetSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid reset payload" });
-  const userId = String(req.params.userId);
+  const parsedUserId = z.string().uuid().safeParse(String(req.params.userId));
+  if (!parsedUserId.success) return res.status(400).json({ error: "Invalid caregiver ID" });
+
+  const userId = parsedUserId.data;
   const passwordHash = await hashPassword(parsed.data.temporaryPassword);
 
   const updated = await withTransaction(async (client) => {
