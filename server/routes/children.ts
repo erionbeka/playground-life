@@ -98,9 +98,9 @@ router.post("/", requireAuth, requireRole("admin"), async (req, res) => {
 
   const childId = await withTransaction(async (client) => {
     const result = await client.query<{ id: string }>(
-      \`INSERT INTO children (clinic_id, first_name, display_name, avatar, birth_date, diagnosis, notes, personalization_profile, skill_profile, progression_settings)
+      `INSERT INTO children (clinic_id, first_name, display_name, avatar, birth_date, diagnosis, notes, personalization_profile, skill_profile, progression_settings)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id\`,
+       RETURNING id`,
       [
         req.user?.clinicId,
         parsed.data.firstName,
@@ -135,10 +135,10 @@ router.post("/:id/clinical-assessments", requireAuth, requireRole("admin", "ther
   const childId = String(req.params.id);
   const assessment = await withTransaction(async (client) => {
     const locked = await client.query<{ personalization_profile: unknown }>(
-      \`SELECT personalization_profile
+      `SELECT personalization_profile
        FROM children
        WHERE id = $1 AND clinic_id = $2 AND archived_at IS NULL
-       FOR UPDATE\`,
+       FOR UPDATE`,
       [childId, req.user?.clinicId]
     );
     if (!locked.rows[0]) return null;
@@ -166,10 +166,10 @@ router.post("/:id/clinical-assessments", requireAuth, requireRole("admin", "ther
     };
 
     const updated = await client.query<{ id: string }>(
-      \`UPDATE children
+      `UPDATE children
        SET personalization_profile = $1, updated_at = now()
        WHERE id = $2 AND clinic_id = $3 AND archived_at IS NULL
-       RETURNING id\`,
+       RETURNING id`,
       [JSON.stringify(nextProfile), childId, req.user?.clinicId]
     );
     if (!updated.rows[0]) return null;
@@ -192,10 +192,10 @@ router.patch("/:id", requireAuth, requireRole("admin", "therapist"), async (req,
 
   const updated = await withTransaction(async (client) => {
     const locked = await client.query<{ personalization_profile: unknown }>(
-      \`SELECT personalization_profile
+      `SELECT personalization_profile
        FROM children
        WHERE id = $1 AND clinic_id = $2 AND archived_at IS NULL
-       FOR UPDATE\`,
+       FOR UPDATE`,
       [childId, req.user?.clinicId]
     );
     if (!locked.rows[0]) return false;
@@ -214,7 +214,7 @@ router.patch("/:id", requireAuth, requireRole("admin", "therapist"), async (req,
     }
 
     const result = await client.query<{ id: string }>(
-      \`UPDATE children SET
+      `UPDATE children SET
          first_name = COALESCE($1, first_name),
          display_name = COALESCE($2, display_name),
          avatar = COALESCE($3, avatar),
@@ -226,7 +226,7 @@ router.patch("/:id", requireAuth, requireRole("admin", "therapist"), async (req,
          progression_settings = COALESCE($9, progression_settings),
          updated_at = now()
        WHERE id = $10 AND clinic_id = $11 AND archived_at IS NULL
-       RETURNING id\`,
+       RETURNING id`,
       [
         data.firstName ?? null,
         data.displayName ?? null,
