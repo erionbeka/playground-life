@@ -181,6 +181,7 @@ describe("security route session invalidation", () => {
     // Audit record must carry the target user's clinic_id, not null.
     expect(transactionQueryMock.mock.calls[6][0]).toContain("INSERT INTO audit_log");
     expect(transactionQueryMock.mock.calls[6][0]).toContain("(clinic_id, actor_user_id, action, entity_type, entity_id, details)");
-    expect(transactionQueryMock.mock.calls[6][1]).toEqual(["clinic-1", "user-1"]);
+    expect(transactionQueryMock.mock.calls[6][0]).toContain("'auth', $3");
+    expect(transactionQueryMock.mock.calls[6][1]).toEqual(["clinic-1", "user-1", "user-1"]);
   });
 });

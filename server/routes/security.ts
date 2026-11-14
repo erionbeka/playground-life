@@ -164,8 +164,8 @@ securityRoutes.post("/reset-confirm", resetConfirmLimiter, async (req: Request, 
     );
     await client.query(
       `INSERT INTO audit_log (clinic_id, actor_user_id, action, entity_type, entity_id, details)
-       VALUES ($1, $2, 'password_reset', 'auth', $2, '{"via":"reset_token"}'::jsonb)`,
-      [tokenRow.clinic_id, tokenRow.user_id]
+       VALUES ($1, $2, 'password_reset', 'auth', $3, '{"via":"reset_token"}'::jsonb)`,
+      [tokenRow.clinic_id, tokenRow.user_id, tokenRow.user_id]
     );
     await client.query("COMMIT");
   } catch (error) {
