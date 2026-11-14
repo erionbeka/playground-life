@@ -82,6 +82,13 @@ export default function AdminDashboard() {
   const [staffInviteEmail, setStaffInviteEmail] = useState("");
   const [generatedPasswords, setGeneratedPasswords] = useState<Record<string, string>>({});
   const [generatedInvites, setGeneratedInvites] = useState<Record<string, string>>({});
+
+  // Temporary caregiver credentials are only revealed briefly in the admin UI.
+  useEffect(() => {
+    if (Object.keys(generatedPasswords).length === 0) return;
+    const timeout = window.setTimeout(() => setGeneratedPasswords({}), 60_000);
+    return () => window.clearTimeout(timeout);
+  }, [generatedPasswords]);
   const [showAddChild, setShowAddChild] = useState(false);
   const [showArchivedChildren, setShowArchivedChildren] = useState(false);
   const [archivedChildrenLoaded, setArchivedChildrenLoaded] = useState(false);
@@ -840,7 +847,20 @@ export default function AdminDashboard() {
                             <p className="text-sm font-semibold text-foreground">{familyMember.avatar} {familyMember.name} <span className="text-muted-foreground">({familyMember.relationship})</span></p>
                             <p className="text-[11px] text-muted-foreground">Sign in: {familyMember.phoneNumber} · credentials {familyMember.credentialStatus}</p>
                             {generatedPasswords[familyMember.id] ? (
-                              <p className="mt-1 text-[11px] text-foreground">Temporary password: <span className="font-mono font-semibold">{generatedPasswords[familyMember.id]}</span></p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <p className="text-[11px] text-foreground">Temporary password: <span className="font-mono font-semibold">{generatedPasswords[familyMember.id]}</span></p>
+                                <button
+                                  type="button"
+                                  onClick={() => setGeneratedPasswords((current) => {
+                                    const next = { ...current };
+                                    delete next[familyMember.id];
+                                    return next;
+                                  })}
+                                  className="text-[11px] font-semibold text-primary underline"
+                                >
+                                  Hide
+                                </button>
+                              </div>
                             ) : null}
                             {generatedInvites[familyMember.phoneNumber] ? (
                               <p className="mt-1 text-[11px] text-foreground">Invite code: <span className="font-mono font-semibold">{generatedInvites[familyMember.phoneNumber]}</span></p>
@@ -858,6 +878,11 @@ export default function AdminDashboard() {
                             </button>
                             <button
                               onClick={async () => {
+                                setGeneratedPasswords((current) => {
+                                  const next = { ...current };
+                                  delete next[familyMember.id];
+                                  return next;
+                                });
                                 const tempPassword = generateTemporaryPassword();
                                 try {
                                   const ok = await resetFamilyCredentials(child.id, familyMember.id, tempPassword, true);
