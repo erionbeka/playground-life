@@ -118,7 +118,7 @@ function birthDateForAge(age: unknown): string | undefined {
   return `${new Date().getFullYear() - age}-01-01`;
 }
 
-function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
+export function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
   const gameIds = Array.isArray(row.game_ids) ? row.game_ids.map(String) : Array.isArray(row.gameIds) ? row.gameIds.map(String) : [];
   const skillFocus = Array.isArray(row.skill_focus) ? row.skill_focus.map(String) : Array.isArray(row.skillFocus) ? row.skillFocus.map(String) : [];
 
