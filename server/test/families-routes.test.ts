@@ -56,7 +56,7 @@ function buildApp() {
   return app;
 }
 
-const resetUrl = "/api/families/family-user-1/reset-password";
+const resetUrl = "/api/families/11111111-1111-4111-8111-111111111111/reset-password";
 const validPayload = { temporaryPassword: "NewTemporaryPassword123", credentialStatus: "active" };
 
 beforeEach(() => {
@@ -86,7 +86,7 @@ beforeEach(() => {
 describe("administrator caregiver password reset", () => {
   it("updates the password, revokes existing sessions, and writes the audit record in one transaction", async () => {
     transactionQueryMock.mockImplementation(async (sql: string) => {
-      if (sql.includes("UPDATE users")) return { rows: [{ id: "family-user-1" }] };
+      if (sql.includes("UPDATE users")) return { rows: [{ id: "11111111-1111-4111-8111-111111111111" }] };
       return { rows: [] };
     });
 
@@ -95,7 +95,7 @@ describe("administrator caregiver password reset", () => {
       .send(validPayload)
       .expect(200);
 
-    expect(response.body).toEqual({ userId: "family-user-1", credentialStatus: "active" });
+    expect(response.body).toEqual({ userId: "11111111-1111-4111-8111-111111111111", credentialStatus: "active" });
     expect(hashPasswordMock).toHaveBeenCalledWith(validPayload.temporaryPassword);
     expect(withTransactionMock).toHaveBeenCalledTimes(1);
 
@@ -107,7 +107,7 @@ describe("administrator caregiver password reset", () => {
     expect(transactionQueryMock.mock.calls[1][1]).toEqual([
       `hashed-${validPayload.temporaryPassword}`,
       "active",
-      "family-user-1",
+      "11111111-1111-4111-8111-111111111111",
       "clinic-1",
     ]);
     expect(statements[2]).toContain("INSERT INTO audit_log");
@@ -117,7 +117,7 @@ describe("administrator caregiver password reset", () => {
 
   it("rolls back the password update when the audit insert fails", async () => {
     transactionQueryMock.mockImplementation(async (sql: string) => {
-      if (sql.includes("UPDATE users")) return { rows: [{ id: "family-user-1" }] };
+      if (sql.includes("UPDATE users")) return { rows: [{ id: "11111111-1111-4111-8111-111111111111" }] };
       if (sql.includes("INSERT INTO audit_log")) throw new Error("audit database unavailable");
       return { rows: [] };
     });
