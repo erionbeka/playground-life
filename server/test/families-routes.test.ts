@@ -7,7 +7,7 @@ const queryMock = vi.hoisted(() => vi.fn());
 const hashPasswordMock = vi.hoisted(() => vi.fn(async (password: string) => `hashed-${password}`));
 const transactionQueryMock = vi.hoisted(() => vi.fn());
 const withTransactionMock = vi.hoisted(() => vi.fn());
-const authState = vi.hoisted(() => ({ role: "admin" as "admin" | "therapist" }));
+const authState = vi.hoisted(() => ({ role: "admin" as "admin" | "therapist", authenticated: true }));
 
 vi.mock("../db.ts", () => ({
   query: queryMock,
@@ -20,7 +20,8 @@ vi.mock("../auth.ts", () => ({
 }));
 
 vi.mock("../middleware.ts", () => ({
-  requireAuth: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+  requireAuth: (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!authState.authenticated) return res.status(401).json({ error: "Authentication required" });
     req.user = {
       id: "admin-1",
       clinicId: "clinic-1",
@@ -60,6 +61,7 @@ const validPayload = { temporaryPassword: "NewTemporaryPassword123", credentialS
 
 beforeEach(() => {
   authState.role = "admin";
+  authState.authenticated = true;
   queryMock.mockReset();
   hashPasswordMock.mockClear();
   transactionQueryMock.mockReset();
@@ -142,6 +144,28 @@ describe("administrator caregiver password reset", () => {
     expect(transactionQueryMock.mock.calls[1][1][3]).toBe("clinic-1");
     expect(transactionQueryMock.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO audit_log"))).toBe(false);
     expect(transactionQueryMock.mock.calls[transactionQueryMock.mock.calls.length - 1]?.[0]).toBe("COMMIT");
+  });
+
+  it("rejects unauthenticated requests before hashing or opening a transaction", async () => {
+    authState.authenticated = false;
+
+    await request(buildApp())
+      .post(resetUrl)
+      .send(validPayload)
+      .expect(401);
+
+    expect(hashPasswordMock).not.toHaveBeenCalled();
+    expect(withTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported credential statuses before hashing or opening a transaction", async () => {
+    await request(buildApp())
+      .post(resetUrl)
+      .send({ ...validPayload, credentialStatus: "disabled" })
+      .expect(400);
+
+    expect(hashPasswordMock).not.toHaveBeenCalled();
+    expect(withTransactionMock).not.toHaveBeenCalled();
   });
 
   it("rejects non-admin users before hashing or changing credentials", async () => {
