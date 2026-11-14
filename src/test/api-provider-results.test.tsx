@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiAppProvider } from "@/context/ApiAppProvider";
+import { ApiAppProvider, mapAssignment } from "@/context/ApiAppProvider";
 import { useApp } from "@/context/AppContext";
 import { ApiError, productionApi } from "@/lib/productionApi";
 
@@ -330,4 +330,96 @@ describe("ApiAppProvider game-result submission retries", () => {
     });
   });
 
+});
+
+describe("persisted game-result mapping", () => {
+  it("restores saved game metrics, zero values, and review provenance", () => {
+    const assignment = mapAssignment({
+      id: "assignment-1",
+      game_ids: ["game-020"],
+      results: [{
+        id: "result-1",
+        submissionId: "submission-1",
+        reviewStatus: "pending",
+        submittedBy: "family-user-1",
+        submittedByRole: "parent",
+        gameId: "game-020",
+        completedAt: "2026-11-14T10:00:00.000Z",
+        durationSeconds: 90,
+        score: 85,
+        interactions: 12,
+        skillScores: {},
+        metrics: {
+          completedSuccessfully: true,
+          trials: 4,
+          correctTrials: 3,
+          errors: 1,
+          accuracy: 75,
+          masteryThreshold: 80,
+          attemptsBySkill: { matching: 4 },
+          observations: ["Used a gesture to request help"],
+          socialScore: 6,
+          attentionSpan: 0,
+          promptsNeeded: 2,
+          emotionalRegulation: 5,
+          communicationAttempts: 3,
+          turnsCompleted: 4,
+          frustrationEvents: 0,
+          independenceLevel: 0,
+          transitionEase: 7,
+          independenceRate: 0,
+          medianLatencyMs: 0,
+          trace: { events: [] },
+          insights: [],
+          sessionEvents: [],
+        },
+      }],
+    });
+
+    expect(assignment.results[0]).toMatchObject({
+      id: "result-1",
+      submissionId: "submission-1",
+      reviewStatus: "pending",
+      submittedBy: "family-user-1",
+      submittedByRole: "parent",
+      completedSuccessfully: true,
+      trials: 4,
+      correctTrials: 3,
+      errors: 1,
+      accuracy: 75,
+      masteryThreshold: 80,
+      attemptsBySkill: { matching: 4 },
+      observations: ["Used a gesture to request help"],
+      socialScore: 6,
+      attentionSpan: 0,
+      promptsNeeded: 2,
+      emotionalRegulation: 5,
+      communicationAttempts: 3,
+      turnsCompleted: 4,
+      frustrationEvents: 0,
+      independenceLevel: 0,
+      transitionEase: 7,
+      independenceRate: 0,
+      medianLatencyMs: 0,
+      trace: { events: [] },
+      insights: [],
+      sessionEvents: [],
+    });
+  });
+
+  it("treats missing review status as legacy-unreviewed", () => {
+    const assignment = mapAssignment({
+      id: "assignment-legacy",
+      results: [{
+        gameId: "game-020",
+        completedAt: "2026-11-14T10:00:00.000Z",
+        durationSeconds: 30,
+        score: 50,
+        interactions: 2,
+        metrics: {},
+      }],
+    });
+
+    expect(assignment.results[0].reviewStatus).toBe("legacy_unreviewed");
+  });
 });
