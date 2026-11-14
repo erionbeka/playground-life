@@ -3,9 +3,11 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryMock = vi.fn();
+const transactionQueryMock = vi.fn();
 const writeAuditMock = vi.fn();
 
-vi.mock("../db.ts", () => ({ query: (sql: string, params?: unknown[]) => {
+vi.mock("../db.ts", () => ({
+  query: (sql: string, params?: unknown[]) => {
     if (sql.includes("credential_status, session_version")) {
       const users: Record<string, {
         id: string;
@@ -15,13 +17,18 @@ vi.mock("../db.ts", () => ({ query: (sql: string, params?: unknown[]) => {
         credential_status: string;
         session_version: number;
       }> = {
-          "user-admin": { id: "user-admin", clinic_id: "clinic-1", role: "admin", name: "Admin", credential_status: "active", session_version: 0 },
-        };
+        "user-admin": { id: "user-admin", clinic_id: "clinic-1", role: "admin", name: "Admin", credential_status: "active", session_version: 0 },
+      };
       const row = users[String(params?.[0])];
       return Promise.resolve({ rows: row ? [row] : [] });
     }
     return queryMock(sql, params);
-  }, pool: {}, closePool: vi.fn() }));
+  },
+  withTransaction: (operation: (client: { query: typeof transactionQueryMock }) => Promise<unknown>) =>
+    operation({ query: transactionQueryMock }),
+  pool: {},
+  closePool: vi.fn(),
+}));
 vi.mock("../audit.ts", () => ({ writeAudit: writeAuditMock }));
 vi.mock("../auth.ts", () => ({
   hashPassword: vi.fn(async (password: string) => `hashed-${password}`),
@@ -41,6 +48,7 @@ async function loadApp() {
 
 beforeEach(() => {
   queryMock.mockReset();
+  transactionQueryMock.mockReset();
   writeAuditMock.mockReset();
 });
 
@@ -62,7 +70,7 @@ describe("clinic records persist to the database", () => {
   });
 
   it("inserts a child row when an admin adds a patient", async () => {
-    queryMock.mockResolvedValueOnce({ rows: [{ id: "child-9" }] });
+    transactionQueryMock.mockResolvedValueOnce({ rows: [{ id: "child-9" }] });
 
     const app = await loadApp();
     const response = await request(app)
@@ -79,6 +87,6 @@ describe("clinic records persist to the database", () => {
       .expect(201);
 
     expect(response.body).toEqual({ id: "child-9" });
-    expect(queryMock.mock.calls[0][0]).toContain("INSERT INTO children");
+    expect(transactionQueryMock.mock.calls[0][0]).toContain("INSERT INTO children");
   });
 });
