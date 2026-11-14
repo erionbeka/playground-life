@@ -141,7 +141,14 @@ export interface HomeworkAssignment {
   };
 }
 
+export type GameResultReviewStatus = "legacy_unreviewed" | "pending" | "accepted" | "rejected" | "correction_requested";
+
 export interface GameResult {
+  id?: string;
+  submissionId?: string;
+  reviewStatus?: GameResultReviewStatus;
+  submittedBy?: string;
+  submittedByRole?: "admin" | "therapist" | "parent" | "superadmin";
   gameId: string;
   assignmentId: string;
   completedAt: string;
@@ -260,6 +267,7 @@ export interface AppState {
   assignments: HomeworkAssignment[];
   createAssignment: (assignment: Omit<HomeworkAssignment, "id" | "createdAt" | "status" | "completedGames" | "results" | "therapistApproval" | "approvedAt" | "approvedBy">) => MaybePromise<void>;
   approveAssignment: (assignmentId: string, approval: "approved" | "adjusted", difficulty?: Difficulty) => MaybePromise<void>;
+  reviewGameResult: (assignmentId: string, resultId: string, decision: "accepted" | "rejected" | "correction_requested", rationale?: string) => MaybePromise<void>;
   completeGame: (assignmentId: string, result: Omit<GameResult, "assignmentId" | "skillScores">) => MaybePromise<void>;
   removeGameFromAssignment: (assignmentId: string, gameId: string) => MaybePromise<void>;
   saveChildRewards: (childId: string, rewards: { stars: number; stickers: string[]; plays: number }) => MaybePromise<void>;
