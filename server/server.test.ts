@@ -1178,6 +1178,88 @@ describe("production API", () => {
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("WHERE clinic_id = $1"), ["clinic-1", null]);
   });
 
+  it("allows clinic therapists to accept a pending game result and records immutable review history", async () => {
+    transactionQueryMock
+      .mockResolvedValueOnce({ rows: [{ id: "result-1", review_status: "pending" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "result-1" }] });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/assignment-1/results/result-1/review")
+      .set("Authorization", "Bearer therapist-token")
+      .send({ decision: "accepted" })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      assignmentId: "assignment-1",
+      resultId: "result-1",
+      reviewStatus: "accepted",
+    });
+    expect(transactionQueryMock).toHaveBeenCalledTimes(3);
+    expect(String(transactionQueryMock.mock.calls[0][0])).toContain("assignments.clinic_id = $3");
+    expect(String(transactionQueryMock.mock.calls[0][0])).toContain("FOR UPDATE OF gr, assignments");
+    expect(String(transactionQueryMock.mock.calls[1][0])).toContain("INSERT INTO game_result_reviews");
+    expect(transactionQueryMock.mock.calls[1][1]).toEqual([
+      "result-1",
+      "user-therapist",
+      "therapist",
+      "accepted",
+      "",
+    ]);
+    expect(String(transactionQueryMock.mock.calls[2][0])).toContain("UPDATE game_results");
+    expect(writeAuditMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "game_result_reviewed",
+      "result",
+      "result-1",
+      { assignmentId: "assignment-1", decision: "accepted" },
+      expect.anything()
+    );
+  });
+
+  it.each(["rejected", "correction_requested"])(
+    "requires a rationale when a therapist marks a result %s",
+    async (decision) => {
+      const app = await loadApp();
+      await request(app)
+        .post("/api/assignments/assignment-1/results/result-1/review")
+        .set("Authorization", "Bearer therapist-token")
+        .send({ decision })
+        .expect(400);
+
+      expect(withTransactionMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it("prevents a second final review decision from overwriting an accepted result", async () => {
+    transactionQueryMock.mockResolvedValueOnce({
+      rows: [{ id: "result-1", review_status: "accepted" }],
+    });
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post("/api/assignments/assignment-1/results/result-1/review")
+      .set("Authorization", "Bearer therapist-token")
+      .send({ decision: "rejected", rationale: "A reason is required." })
+      .expect(409);
+
+    expect(response.body.error).toContain("final review decision");
+    expect(transactionQueryMock).toHaveBeenCalledTimes(1);
+    expect(writeAuditMock).not.toHaveBeenCalled();
+  });
+
+  it("does not allow parents to review game results", async () => {
+    const app = await loadApp();
+    await request(app)
+      .post("/api/assignments/assignment-1/results/result-1/review")
+      .set("Authorization", "Bearer parent-token")
+      .send({ decision: "accepted" })
+      .expect(403);
+
+    expect(withTransactionMock).not.toHaveBeenCalled();
+  });
+
   it("prevents removing a game when submitted result history exists", async () => {
     transactionQueryMock
       .mockResolvedValueOnce({
