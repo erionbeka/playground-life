@@ -81,7 +81,7 @@ export default function HomeworkReview() {
   const chartData = useMemo(
     () =>
       children.map((child) => {
-        const childResults = filteredAssignments.filter((assignment) => assignment.childId === child.id).flatMap((assignment) => assignment.results);
+        const childResults = filteredAssignments.filter((assignment) => assignment.childId === child.id).flatMap(getAcceptedGameResults);
         const childAvg = childResults.length > 0 ? Math.round(childResults.reduce((sum, result) => sum + result.score, 0) / childResults.length) : 0;
         return { name: child.name, avgScore: childAvg, totalGames: childResults.length };
       }),
@@ -677,13 +677,26 @@ export default function HomeworkReview() {
               <p className="mt-1 text-xs text-muted-foreground">Skill focus: {assignment.skillFocus.map((domain) => domain.replace("-", " ")).join(", ")}</p>
 
               {assignment.results.length > 0 ? (
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs sm:grid-cols-6">
-                  <MetricTile label="Avg Score" value={`${Math.round(assignment.results.reduce((sum, result) => sum + result.score, 0) / assignment.results.length)}`} />
-                  <MetricTile label="Interactions" value={`${assignment.results.reduce((sum, result) => sum + result.interactions, 0)}`} />
-                  <MetricTile label="Play Time" value={`${Math.round(assignment.results.reduce((sum, result) => sum + result.durationSeconds, 0) / 60)}m`} />
-                  {assignment.results.some((result) => result.attentionSpan != null) ? <MetricTile label="Attention" value={`${Math.round(assignment.results.filter((result) => result.attentionSpan != null).reduce((sum, result) => sum + (result.attentionSpan || 0), 0) / assignment.results.filter((result) => result.attentionSpan != null).length)}/10`} /> : null}
-                  {assignment.results.some((result) => result.emotionalRegulation != null) ? <MetricTile label="Emotion" value={`${Math.round(assignment.results.filter((result) => result.emotionalRegulation != null).reduce((sum, result) => sum + (result.emotionalRegulation || 0), 0) / assignment.results.filter((result) => result.emotionalRegulation != null).length)}/10`} /> : null}
-                  {assignment.results.some((result) => result.promptsNeeded != null) ? <MetricTile label="Prompts" value={`${(assignment.results.filter((result) => result.promptsNeeded != null).reduce((sum, result) => sum + (result.promptsNeeded || 0), 0) / assignment.results.filter((result) => result.promptsNeeded != null).length).toFixed(1)}`} /> : null}
+                <div className="mt-2 space-y-2">
+                  {assignment.results.some((result) => result.reviewStatus !== "accepted") ? (
+                    <p className="text-xs text-muted-foreground">
+                      {assignment.results.filter((result) => result.reviewStatus !== "accepted").length} result(s) not yet accepted; excluded from clinical summaries and progression.
+                    </p>
+                  ) : null}
+                  {(() => {
+                    const reviewedResults = getAcceptedGameResults(assignment);
+                    if (reviewedResults.length === 0) return null;
+                    return (
+                      <div className="grid grid-cols-3 gap-2 text-xs sm:grid-cols-6">
+                        <MetricTile label="Avg Score" value={`${Math.round(reviewedResults.reduce((sum, result) => sum + result.score, 0) / reviewedResults.length)}`} />
+                        <MetricTile label="Interactions" value={`${reviewedResults.reduce((sum, result) => sum + result.interactions, 0)}`} />
+                        <MetricTile label="Play Time" value={`${Math.round(reviewedResults.reduce((sum, result) => sum + result.durationSeconds, 0) / 60)}m`} />
+                        {reviewedResults.some((result) => result.attentionSpan != null) ? <MetricTile label="Attention" value={`${Math.round(reviewedResults.filter((result) => result.attentionSpan != null).reduce((sum, result) => sum + (result.attentionSpan || 0), 0) / reviewedResults.filter((result) => result.attentionSpan != null).length)}/10`} /> : null}
+                        {reviewedResults.some((result) => result.emotionalRegulation != null) ? <MetricTile label="Emotion" value={`${Math.round(reviewedResults.filter((result) => result.emotionalRegulation != null).reduce((sum, result) => sum + (result.emotionalRegulation || 0), 0) / reviewedResults.filter((result) => result.emotionalRegulation != null).length)}/10`} /> : null}
+                        {reviewedResults.some((result) => result.promptsNeeded != null) ? <MetricTile label="Prompts" value={`${(reviewedResults.filter((result) => result.promptsNeeded != null).reduce((sum, result) => sum + (result.promptsNeeded || 0), 0) / reviewedResults.filter((result) => result.promptsNeeded != null).length).toFixed(1)}`} /> : null}
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : null}
             </div>
