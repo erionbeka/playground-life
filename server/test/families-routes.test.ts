@@ -7,7 +7,7 @@ const queryMock = vi.hoisted(() => vi.fn());
 const hashPasswordMock = vi.hoisted(() => vi.fn(async (password: string) => `hashed-${password}`));
 const transactionQueryMock = vi.hoisted(() => vi.fn());
 const withTransactionMock = vi.hoisted(() => vi.fn());
-const authState = vi.hoisted(() => ({ role: "admin" as string }));
+const authState = vi.hoisted(() => ({ role: "admin" as "admin" | "therapist" }));
 
 vi.mock("../db.ts", () => ({
   query: queryMock,
@@ -141,7 +141,7 @@ describe("administrator caregiver password reset", () => {
     expect(transactionQueryMock.mock.calls[1][0]).toContain("clinic_id = $4");
     expect(transactionQueryMock.mock.calls[1][1][3]).toBe("clinic-1");
     expect(transactionQueryMock.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO audit_log"))).toBe(false);
-    expect(transactionQueryMock.mock.calls.at(-1)?.[0]).toBe("COMMIT");
+    expect(transactionQueryMock.mock.calls[transactionQueryMock.mock.calls.length - 1]?.[0]).toBe("COMMIT");
   });
 
   it("rejects non-admin users before hashing or changing credentials", async () => {
