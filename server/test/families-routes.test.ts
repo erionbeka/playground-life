@@ -180,6 +180,16 @@ describe("administrator caregiver password reset", () => {
     expect(withTransactionMock).not.toHaveBeenCalled();
   });
 
+  it("rejects malformed caregiver IDs before hashing or opening a transaction", async () => {
+    await request(buildApp())
+      .post("/api/families/not-a-uuid/reset-password")
+      .send(validPayload)
+      .expect(400);
+
+    expect(hashPasswordMock).not.toHaveBeenCalled();
+    expect(withTransactionMock).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid reset payloads before hashing or opening a transaction", async () => {
     await request(buildApp())
       .post(resetUrl)
