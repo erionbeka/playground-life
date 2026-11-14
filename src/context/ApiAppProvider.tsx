@@ -32,6 +32,52 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+const clinicalRatingKeys = [
+  "communicationSupport",
+  "regulationSupport",
+  "transitionSupport",
+  "promptDependence",
+  "reinforcementResponse",
+] as const;
+
+function isValidClinicalRatings(value: Record<string, unknown>): boolean {
+  return clinicalRatingKeys.every((key) =>
+    typeof value[key] === "number" &&
+    Number.isInteger(value[key]) &&
+    (value[key] as number) >= 1 &&
+    (value[key] as number) <= 5
+  );
+}
+
+function normalizeClinicalRatings(value: unknown): Child["personalizationProfile"]["clinicalRatings"] {
+  const source = asRecord(value);
+  const ratings = { ...emptyProfile.clinicalRatings };
+  for (const key of clinicalRatingKeys) {
+    const candidate = source[key];
+    if (typeof candidate === "number" && Number.isInteger(candidate) && candidate >= 1 && candidate <= 5) {
+      ratings[key] = candidate;
+    }
+  }
+  return ratings;
+}
+
+function normalizeClinicalRatingHistory(value: unknown): Child["personalizationProfile"]["clinicalRatingHistory"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const source = asRecord(entry);
+    const recordedAt = source.recordedAt;
+    if (typeof recordedAt !== "string" || !Number.isFinite(Date.parse(recordedAt)) || !isValidClinicalRatings(source)) {
+      return [];
+    }
+    return [{
+      ...normalizeClinicalRatings(source),
+      recordedAt,
+      recordedBy: typeof source.recordedBy === "string" ? source.recordedBy : undefined,
+      notes: typeof source.notes === "string" ? source.notes : undefined,
+    }];
+  });
+}
+
 function mapChild(row: Record<string, unknown>): Child {
   const profile = asRecord(row.personalization_profile || row.personalizationProfile);
   const settings = asRecord(row.progression_settings || row.progressionSettings);
@@ -49,7 +95,12 @@ function mapChild(row: Record<string, unknown>): Child {
     notes: String(row.notes || ""),
     diagnosis: row.diagnosis ? String(row.diagnosis) : undefined,
     familyMembers: [],
-    personalizationProfile: { ...emptyProfile, ...profile } as Child["personalizationProfile"],
+    personalizationProfile: {
+      ...emptyProfile,
+      ...profile,
+      clinicalRatings: normalizeClinicalRatings(profile.clinicalRatings),
+      clinicalRatingHistory: normalizeClinicalRatingHistory(profile.clinicalRatingHistory),
+    } as Child["personalizationProfile"],
     therapyGoals: [],
     skillProfile: { ...emptySkillProfile(), ...skillProfile } as Record<SkillDomain, number>,
     progressionSettings: {
@@ -707,6 +758,11 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
         skillProfile: updates.skillProfile,
         progressionSettings: updates.progressionSettings,
       });
+      await refreshClinicData();
+      await refreshAudit();
+    },
+    recordClinicalAssessment: async (childId, ratings) => {
+      await productionApi.recordClinicalAssessment(childId, ratings);
       await refreshClinicData();
       await refreshAudit();
     },

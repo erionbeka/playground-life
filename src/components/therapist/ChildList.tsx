@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { getPersonalizationSummary } from "@/lib/personalization";
 import { emptySkillProfile } from "@/lib/skills";
 import { buildGoalFromTemplate, goalTemplates } from "@/lib/goalTemplates";
+import { toast } from "@/components/ui/sonner";
 
 function splitTags(value: string) {
   return value
@@ -25,7 +26,7 @@ const ratingLabels: Array<{ key: keyof ClinicalRatings; label: string }> = [
 ];
 
 export default function ChildList() {
-  const { children, removeChild, updateChild, addGoal, assignments, role } = useApp();
+  const { children, removeChild, updateChild, recordClinicalAssessment, addGoal, assignments, role } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editingChildId, setEditingChildId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -49,6 +50,7 @@ export default function ChildList() {
   const [transitionSupport, setTransitionSupport] = useState("3");
   const [promptDependence, setPromptDependence] = useState("3");
   const [reinforcementResponse, setReinforcementResponse] = useState("3");
+  const [confirmClinicalAssessment, setConfirmClinicalAssessment] = useState(false);
 
   const [goalTemplateByChild, setGoalTemplateByChild] = useState<Record<string, string>>({});
 
@@ -84,11 +86,12 @@ export default function ChildList() {
     setTransitionSupport("3");
     setPromptDependence("3");
     setReinforcementResponse("3");
+    setConfirmClinicalAssessment(false);
     setShowForm(false);
     setEditingChildId(null);
   };
 
-  const saveChild = () => {
+  const saveChild = async () => {
     const parsedAge = Number.parseInt(age, 10);
     if (!name.trim() || Number.isNaN(parsedAge)) return;
     const existingChild = editingChildId ? children.find((child) => child.id === editingChildId) : undefined;
@@ -101,11 +104,7 @@ export default function ChildList() {
     };
     const ratingValues = Object.values(nextRatings);
     if (ratingValues.some((value) => Number.isNaN(value) || value < 1 || value > 5)) return;
-    const previousRatings = existingChild?.personalizationProfile.clinicalRatings;
-    const ratingsChanged = !previousRatings || Object.entries(nextRatings).some(([key, value]) => previousRatings[key as keyof ClinicalRatings] !== value);
-    const nextHistory = editingChildId
-      ? existingChild?.personalizationProfile.clinicalRatingHistory || []
-      : [];
+    const nextHistory = existingChild?.personalizationProfile.clinicalRatingHistory || [];
 
     const payload: Omit<Child, "id"> = {
       name: name.trim(),
@@ -126,17 +125,8 @@ export default function ChildList() {
         sensoryPreferences: splitTags(sensoryPreferences),
         triggerPatterns: splitTags(triggerPatterns),
         regulationSupports: splitTags(regulationSupports),
-        clinicalRatings: nextRatings,
-        clinicalRatingHistory: ratingsChanged
-          ? [
-              ...nextHistory,
-              {
-                ...nextRatings,
-                recordedAt: new Date().toISOString(),
-                notes: editingChildId ? "Therapist updated clinical scale ratings." : "Initial clinical baseline created.",
-              },
-            ]
-          : nextHistory,
+        clinicalRatings: existingChild?.personalizationProfile.clinicalRatings || nextRatings,
+        clinicalRatingHistory: nextHistory,
       },
       therapyGoals: editingChildId
         ? existingChild?.therapyGoals || []
@@ -168,13 +158,21 @@ export default function ChildList() {
 
     if (!editingChildId) return;
 
-    updateChild(editingChildId, payload);
-
-    resetChildForm();
+    try {
+      await updateChild(editingChildId, payload);
+      if (confirmClinicalAssessment) {
+        await recordClinicalAssessment(editingChildId, nextRatings);
+      }
+      resetChildForm();
+      toast.success(confirmClinicalAssessment ? "Child profile and clinical assessment saved." : "Child profile saved.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't save the child profile.");
+    }
   };
 
   const beginEdit = (child: Child) => {
     setEditingChildId(child.id);
+    setConfirmClinicalAssessment(false);
     setShowForm(true);
     setName(child.name);
     setAge(String(child.age));
@@ -328,6 +326,15 @@ export default function ChildList() {
                   </select>
                 </Field>
               </div>
+              <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={confirmClinicalAssessment}
+                  onChange={(event) => setConfirmClinicalAssessment(event.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>I reviewed these five ratings and confirm they reflect the child's current support needs. Saving this confirmation records a dated assessment under my staff account.</span>
+              </label>
             </div>
             <button onClick={saveChild} className="mt-4 touch-target rounded-lg bg-secondary px-6 py-2 text-sm font-semibold text-secondary-foreground">
               {editingChildId ? "Save Changes" : "Save Child"}
@@ -393,7 +400,7 @@ export default function ChildList() {
                     ))}
                   </div>
                   <p className="mt-2 text-[10px] text-muted-foreground">
-                    {child.personalizationProfile.clinicalRatingHistory.length} saved baseline update{child.personalizationProfile.clinicalRatingHistory.length === 1 ? "" : "s"}
+                    {child.personalizationProfile.clinicalRatingHistory.filter((entry) => Boolean(entry.recordedBy)).length} verified assessment{child.personalizationProfile.clinicalRatingHistory.filter((entry) => Boolean(entry.recordedBy)).length === 1 ? "" : "s"}
                   </p>
                 </div>
               </div>

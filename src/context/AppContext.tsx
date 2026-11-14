@@ -251,6 +251,7 @@ export interface AppState {
   addFamilyMember: (childId: string, member: { name: string; relationship: FamilyMember["relationship"]; avatar?: string; phoneNumber: string; password: string }) => MaybePromise<string | null>;
   removeChild: (id: string) => MaybePromise<void>;
   updateChild: (id: string, updates: Partial<Child>) => MaybePromise<void>;
+  recordClinicalAssessment: (childId: string, ratings: ClinicalRatings) => MaybePromise<void>;
   recordChildEvent: (childId: string, type: string, detail?: string) => MaybePromise<void>;
   issueFamilyInvite: (childId: string, familyMemberId: string) => MaybePromise<string | null>;
   resetFamilyCredentials: (childId: string, familyMemberId: string, temporaryPassword: string, activate?: boolean) => MaybePromise<boolean>;

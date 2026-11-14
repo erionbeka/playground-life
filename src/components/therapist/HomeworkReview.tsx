@@ -126,20 +126,22 @@ export default function HomeworkReview() {
   const clinicalScaleSummary = useMemo(
     () =>
       selectedChildren.map((child) => {
-        const history = child.personalizationProfile.clinicalRatingHistory;
-        const baseline = history[0] || { ...child.personalizationProfile.clinicalRatings, recordedAt: new Date().toISOString() };
+        const assessments = child.personalizationProfile.clinicalRatingHistory.filter((entry) => Boolean(entry.recordedBy));
+        const baseline = assessments[0] || null;
         const current = child.personalizationProfile.clinicalRatings;
         return {
           child,
           baseline,
+          assessmentCount: assessments.length,
           current,
-          averageChange:
-            Math.round(
-              (
-                Object.values(current).reduce((sum, value) => sum + value, 0) -
-                Object.keys(current).reduce((sum, key) => sum + baseline[key as keyof ClinicalRatings], 0)
-              ) / Object.keys(current).length
-            ),
+          averageChange: baseline
+            ? Math.round(
+                (
+                  Object.values(current).reduce((sum, value) => sum + value, 0) -
+                  Object.keys(current).reduce((sum, key) => sum + baseline[key as keyof ClinicalRatings], 0)
+                ) / Object.keys(current).length
+              )
+            : null,
         };
       }),
     [selectedChildren]
@@ -147,7 +149,7 @@ export default function HomeworkReview() {
 
   const clinicalTrendData = useMemo(() => {
     if (!selectedChild) return [];
-    return selectedChild.personalizationProfile.clinicalRatingHistory.map((entry, index) => ({
+    return selectedChild.personalizationProfile.clinicalRatingHistory.filter((entry) => Boolean(entry.recordedBy)).map((entry, index) => ({
       visit: `V${index + 1}`,
       recordedAt: entry.recordedAt,
       communication: entry.communicationSupport,
@@ -439,21 +441,26 @@ export default function HomeworkReview() {
               </div>
               <div className="mt-3 rounded-lg bg-muted p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tracked clinical scales</p>
-                <div className="mt-2 space-y-1 text-xs text-foreground">
-                  {clinicalRatingLabels.map(({ key, label }) => {
-                    const delta = current[key] - baseline[key];
-                    const trend = delta < 0 ? "improving" : delta > 0 ? "needs support" : "steady";
-                    const signedDelta = delta > 0 ? `+${delta}` : `${delta}`;
-                    return (
-                      <p key={`${child.id}-${key}`}>
-                        {label}: {baseline[key]}/5 to {current[key]}/5 ({signedDelta}, {trend})
-                      </p>
-                    );
-                  })}
-                </div>
+                {baseline ? (
+                  <div className="mt-2 space-y-1 text-xs text-foreground">
+                    {clinicalRatingLabels.map(({ key, label }) => {
+                      const delta = current[key] - baseline[key];
+                      const signedDelta = delta > 0 ? `+${delta}` : `${delta}`;
+                      return (
+                        <p key={`${child.id}-${key}`}>
+                          {label}: {baseline[key]}/5 to {current[key]}/5 (change {signedDelta})
+                        </p>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">No staff-confirmed dated baseline recorded. Change is not calculated.</p>
+                )}
                 <p className="mt-2 text-[10px] text-muted-foreground">
-                  {child.personalizationProfile.clinicalRatingHistory.length} data point{child.personalizationProfile.clinicalRatingHistory.length === 1 ? "" : "s"} recorded.
-                  Avg change: {averageChange > 0 ? `+${averageChange}` : averageChange}/5
+                  {assessmentCount} verified assessment{assessmentCount === 1 ? "" : "s"} recorded.
+                  {averageChange === null
+                    ? " Average change unavailable without a baseline."
+                    : ` Average numerical change: ${averageChange > 0 ? "+" : ""}${averageChange}/5.`}
                 </p>
               </div>
               <ProfileLine label="Triggers" values={child.personalizationProfile.triggerPatterns} />
@@ -466,7 +473,7 @@ export default function HomeworkReview() {
       {selectedChild ? (
         <div className="mb-6 rounded-xl bg-muted p-4">
           <h3 className="mb-3 font-display font-semibold text-foreground">Clinical Scales Over Time</h3>
-          <p className="mb-3 text-xs text-muted-foreground">{selectedChild.name}'s baseline and therapist updates across communication, regulation, transitions, prompting, and reinforcement support.</p>
+          <p className="mb-3 text-xs text-muted-foreground">{selectedChild.name}'s staff-confirmed assessments across communication, regulation, transitions, prompting, and reinforcement support.</p>
           <ResponsiveContainer width="100%" height={280}>
             <LineChart data={clinicalTrendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

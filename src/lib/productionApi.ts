@@ -228,6 +228,18 @@ export const productionApi = {
       body: JSON.stringify(payload),
     });
   },
+  recordClinicalAssessment(id: string, ratings: {
+    communicationSupport: number;
+    regulationSupport: number;
+    transitionSupport: number;
+    promptDependence: number;
+    reinforcementResponse: number;
+  }) {
+    return request<{ assessment: Record<string, unknown> }>(`/api/children/${id}/clinical-assessments`, {
+      method: "POST",
+      body: JSON.stringify({ ratings }),
+    });
+  },
 
   recordChildMood(childId: string, mood: "great" | "okay" | "meh" | "worried" | "overwhelmed") {
     return request<{ ok: true }>(`/api/children/${childId}/moods`, {
