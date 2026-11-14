@@ -430,7 +430,7 @@ export default function HomeworkReview() {
         <h3 className="mb-3 font-display font-semibold text-foreground">Clinical Profile Summary</h3>
         <p className="mb-3 text-xs text-muted-foreground">Clinical scales use a 1 to 5 support-need scale. Lower scores indicate more independence and easier regulation.</p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {clinicalScaleSummary.map(({ child, baseline, current, averageChange }) => (
+          {clinicalScaleSummary.map(({ child, baseline, assessmentCount, current, averageChange }) => (
             <div key={child.id} className="rounded-xl border border-border bg-card p-4">
               <p className="font-semibold text-foreground">{child.avatar} {child.name}</p>
               <div className="mt-2 space-y-1 text-xs text-muted-foreground">
