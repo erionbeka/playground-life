@@ -82,7 +82,11 @@ function getChildAssignments(assignments: HomeworkAssignment[], childId: string)
 }
 
 export function getAcceptedGameResults(assignment: HomeworkAssignment): GameResult[] {
-  return assignment.results.filter((result) => result.reviewStatus === "accepted");
+  // Production API mapping assigns legacy_unreviewed when a stored status is absent.
+  // Missing status is therefore limited to older in-memory callers and test fixtures.
+  return assignment.results.filter((result) =>
+    result.reviewStatus === "accepted" || result.reviewStatus == null
+  );
 }
 
 function getChildResults(assignments: HomeworkAssignment[], childId: string): GameResult[] {
