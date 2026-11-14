@@ -353,6 +353,21 @@ export const productionApi = {
     });
   },
 
+  reviewGameResult(
+    assignmentId: string,
+    resultId: string,
+    payload: { decision: "accepted" | "rejected" | "correction_requested"; rationale?: string }
+  ) {
+    return request<{
+      assignmentId: string;
+      resultId: string;
+      reviewStatus: "accepted" | "rejected" | "correction_requested";
+    }>(`/api/assignments/${assignmentId}/results/${resultId}/review`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   recordGameResult(assignmentId: string, payload: ApiGameResultPayload) {
     return request<{
       assignmentId: string;
