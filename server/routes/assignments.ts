@@ -45,6 +45,13 @@ const approvalSchema = z.object({
   difficulty: z.enum(["easy", "medium", "hard"]).optional(),
 });
 
+const resultReviewSchema = z.object({
+  decision: z.enum(["accepted", "rejected", "correction_requested"]),
+  rationale: z.string().max(2_000).optional().default(""),
+}).refine(
+  (value) => value.decision === "accepted" || value.rationale.trim().length > 0
+);
+
 const resultSchema = z.object({
   submissionId: z.string().uuid(),
   gameId: z.string().min(1).max(128),
@@ -436,6 +443,72 @@ router.post("/:id/results", requireAuth, requireRole("parent", "therapist", "adm
         reviewStatus: inserted.rows[0].review_status,
         replayed: false,
       },
+    };
+  });
+
+  return res.status(outcome.status).json(outcome.body);
+});
+
+router.post("/:id/results/:resultId/review", requireAuth, requireRole("admin", "therapist"), async (req, res) => {
+  const parsed = resultReviewSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid result review payload" });
+
+  const assignmentId = String(req.params.id);
+  const resultId = String(req.params.resultId);
+  const user = req.user;
+  if (!user) return res.status(401).json({ error: "Authentication required" });
+
+  const outcome = await withTransaction(async (client) => {
+    const locked = await client.query<{ id: string; review_status: string }>(
+      `SELECT gr.id, gr.review_status
+       FROM game_results gr
+       INNER JOIN assignments
+         ON assignments.id = gr.assignment_id
+        AND assignments.child_id = gr.child_id
+       INNER JOIN children
+         ON children.id = gr.child_id
+        AND children.clinic_id = assignments.clinic_id
+       WHERE gr.id = $1
+         AND gr.assignment_id = $2
+         AND assignments.clinic_id = $3
+       FOR UPDATE OF gr, assignments`,
+      [resultId, assignmentId, user.clinicId]
+    );
+
+    const result = locked.rows[0];
+    if (!result) return { status: 404, body: { error: "Game result not found" } };
+
+    if (!["pending", "legacy_unreviewed", "correction_requested"].includes(result.review_status)) {
+      return { status: 409, body: { error: "This game result has already received a final review decision" } };
+    }
+
+    await client.query(
+      `INSERT INTO game_result_reviews (
+         result_id, reviewer_user_id, reviewer_role, decision, rationale
+       )
+       VALUES ($1, $2, $3, $4, $5)`,
+      [resultId, user.id, user.role, parsed.data.decision, parsed.data.rationale.trim()]
+    );
+
+    await client.query(
+      `UPDATE game_results
+       SET review_status = $1
+       WHERE id = $2 AND assignment_id = $3`,
+      [parsed.data.decision, resultId, assignmentId]
+    );
+
+    await writeAudit(
+      req,
+      "game_result_reviewed",
+      "result",
+      resultId,
+      { assignmentId, decision: parsed.data.decision },
+      client
+    );
+
+    return {
+      status: 200,
+      body: { assignmentId, resultId, reviewStatus: parsed.data.decision },
     };
   });
 
