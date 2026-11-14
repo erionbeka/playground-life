@@ -144,13 +144,17 @@ export function generateReport(data: ReportData) {
     assignment.results.forEach((result) => {
       checkPage();
       const game = getCatalogGameById(result.gameId);
+      const accepted = result.reviewStatus === "accepted";
+      const reviewLabel = accepted
+        ? "accepted"
+        : (result.reviewStatus || "legacy_unreviewed").replace(/_/g, " ");
       const detailLine = [
-        `${game?.name || result.gameId}: Score ${result.score}`,
+        `${game?.name || result.gameId}: Score ${result.score} (${reviewLabel})`,
         `${result.interactions} interactions`,
         `${Math.round(result.durationSeconds / 60)}m`,
-        result.attentionSpan != null ? `Attention ${result.attentionSpan}/10` : null,
-        result.emotionalRegulation != null ? `Emotion ${result.emotionalRegulation}/10` : null,
-        result.promptsNeeded != null ? `${result.promptsNeeded} prompts` : null,
+        accepted && result.attentionSpan != null ? `Attention ${result.attentionSpan}/10` : null,
+        accepted && result.emotionalRegulation != null ? `Emotion ${result.emotionalRegulation}/10` : null,
+        accepted && result.promptsNeeded != null ? `${result.promptsNeeded} prompts` : null,
       ].filter(Boolean).join(", ");
       addText(detailLine, 22, y, { fontSize: 7 });
       y += 4;

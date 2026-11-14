@@ -118,7 +118,7 @@ function birthDateForAge(age: unknown): string | undefined {
   return `${new Date().getFullYear() - age}-01-01`;
 }
 
-function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
+export function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
   const gameIds = Array.isArray(row.game_ids) ? row.game_ids.map(String) : Array.isArray(row.gameIds) ? row.gameIds.map(String) : [];
   const skillFocus = Array.isArray(row.skill_focus) ? row.skill_focus.map(String) : Array.isArray(row.skillFocus) ? row.skillFocus.map(String) : [];
 
@@ -126,20 +126,84 @@ function mapAssignment(row: Record<string, unknown>): HomeworkAssignment {
     ? (row.results as Array<Record<string, unknown>>)
     : [];
   const results: GameResult[] = rawResults.map((entry) => {
-    const metrics = (entry.metrics || {}) as Record<string, unknown>;
-    return ({
+    const metrics = asRecord(entry.metrics);
+    const metricNumber = (key: string) => {
+      const value = metrics[key];
+      return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+    };
+    const metricStringArray = (key: string) => {
+      const value = metrics[key];
+      return Array.isArray(value) && value.every((item) => typeof item === "string")
+        ? value as string[]
+        : undefined;
+    };
+    const metricNumberRecord = (key: string) => {
+      const value = asRecord(metrics[key]);
+      const entries = Object.entries(value).filter(([, score]) =>
+        typeof score === "number" && Number.isFinite(score)
+      );
+      return entries.length > 0
+        ? Object.fromEntries(entries) as Record<string, number>
+        : undefined;
+    };
+    const skillScoreRecord = asRecord(entry.skillScores);
+    const skillScores = Object.fromEntries(
+      Object.entries(skillScoreRecord).filter(([, score]) =>
+        typeof score === "number" && Number.isFinite(score)
+      )
+    ) as GameResult["skillScores"];
+    const reviewStatuses = [
+      "legacy_unreviewed",
+      "pending",
+      "accepted",
+      "rejected",
+      "correction_requested",
+    ] as const;
+    const reviewStatus = reviewStatuses.find((status) => status === entry.reviewStatus)
+      || "legacy_unreviewed";
+
+    return {
+      id: typeof entry.id === "string" ? entry.id : undefined,
+      submissionId: typeof entry.submissionId === "string" ? entry.submissionId : undefined,
+      reviewStatus,
+      submittedBy: typeof entry.submittedBy === "string" ? entry.submittedBy : undefined,
+      submittedByRole: typeof entry.submittedByRole === "string"
+        ? entry.submittedByRole as GameResult["submittedByRole"]
+        : undefined,
       gameId: String(entry.gameId),
       assignmentId: String(row.id),
       completedAt: String(entry.completedAt),
       durationSeconds: Number(entry.durationSeconds ?? 0),
       score: Number(entry.score ?? 0),
       interactions: Number(entry.interactions ?? 0),
-      skillScores: (entry.skillScores || {}) as GameResult["skillScores"],
-      independenceRate: metrics.independenceRate ? Number(metrics.independenceRate) : undefined,
-      medianLatencyMs: metrics.medianLatencyMs ? Number(metrics.medianLatencyMs) : undefined,
-      trace: metrics.trace as SessionTrace | undefined,
-      insights: metrics.insights as Insight[] | undefined,
-    });
+      completedSuccessfully: typeof metrics.completedSuccessfully === "boolean" ? metrics.completedSuccessfully : undefined,
+      trials: metricNumber("trials"),
+      correctTrials: metricNumber("correctTrials"),
+      errors: metricNumber("errors"),
+      accuracy: metricNumber("accuracy"),
+      masteryThreshold: metricNumber("masteryThreshold"),
+      attemptsBySkill: metricNumberRecord("attemptsBySkill"),
+      observations: metricStringArray("observations"),
+      socialScore: metricNumber("socialScore"),
+      attentionSpan: metricNumber("attentionSpan"),
+      promptsNeeded: metricNumber("promptsNeeded"),
+      emotionalRegulation: metricNumber("emotionalRegulation"),
+      communicationAttempts: metricNumber("communicationAttempts"),
+      turnsCompleted: metricNumber("turnsCompleted"),
+      frustrationEvents: metricNumber("frustrationEvents"),
+      independenceLevel: metricNumber("independenceLevel"),
+      transitionEase: metricNumber("transitionEase"),
+      skillScores,
+      independenceRate: metricNumber("independenceRate"),
+      medianLatencyMs: metricNumber("medianLatencyMs"),
+      trace: metrics.trace && typeof metrics.trace === "object" && !Array.isArray(metrics.trace)
+        ? metrics.trace as SessionTrace
+        : undefined,
+      insights: Array.isArray(metrics.insights) ? metrics.insights as Insight[] : undefined,
+      sessionEvents: Array.isArray(metrics.sessionEvents)
+        ? metrics.sessionEvents as GameResult["sessionEvents"]
+        : undefined,
+    };
   });
   const completedGames = Array.from(new Set(results.map((result) => result.gameId)));
 
@@ -821,6 +885,11 @@ export function ApiAppProvider({ children: childrenNodes }: { children: React.Re
     },
     approveAssignment: async (assignmentId, approval, difficulty) => {
       await productionApi.approveAssignment(assignmentId, { approval, difficulty });
+      await refreshClinicData();
+      await refreshAudit();
+    },
+    reviewGameResult: async (assignmentId, resultId, decision, rationale = "") => {
+      await productionApi.reviewGameResult(assignmentId, resultId, { decision, rationale });
       await refreshClinicData();
       await refreshAudit();
     },

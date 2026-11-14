@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { ClinicalRatings, SkillDomain, useApp } from "@/context/AppContext";
 import { getCatalogGameById, useCatalog } from "@/lib/customCatalog";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LineChart, Line, Legend } from "recharts";
-import { analyzeMonthlyPlanWeekOutcome } from "@/lib/personalization";
+import { analyzeMonthlyPlanWeekOutcome, getAcceptedGameResults } from "@/lib/personalization";
 
 const domainLabels: Record<SkillDomain, string> = {
   social: "Social",
@@ -24,12 +24,15 @@ const clinicalRatingLabels: Array<{ key: keyof ClinicalRatings; label: string }>
 ];
 
 export default function HomeworkReview() {
-  const { assignments, children, removeGameFromAssignment, approveAssignment, updateGoalStatus } = useApp();
+  const { assignments, children, removeGameFromAssignment, approveAssignment, reviewGameResult, updateGoalStatus } = useApp();
   const catalog = useCatalog();
   const [selectedChildId, setSelectedChildId] = useState<string>("all");
   const [filterType, setFilterType] = useState<"all" | "homework" | "classwork">("all");
   const [reviewMode, setReviewMode] = useState<"quick" | "detailed">("quick");
   const [generating, setGenerating] = useState(false);
+  const [reviewRationales, setReviewRationales] = useState<Record<string, string>>({});
+  const [reviewingResultId, setReviewingResultId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const getChild = useCallback((id: string) => children.find((entry) => entry.id === id), [children]);
   const selectedChildren = useMemo(
@@ -47,7 +50,15 @@ export default function HomeworkReview() {
     [assignments, filterType, selectedChildId]
   );
 
-  const allResults = useMemo(() => filteredAssignments.flatMap((assignment) => assignment.results), [filteredAssignments]);
+  const allResults = useMemo(() => filteredAssignments.flatMap(getAcceptedGameResults), [filteredAssignments]);
+  const pendingResults = useMemo(
+    () => filteredAssignments.flatMap((assignment) =>
+      assignment.results
+        .filter((result) => ["pending", "legacy_unreviewed", "correction_requested"].includes(result.reviewStatus || "legacy_unreviewed"))
+        .map((result) => ({ assignment, result }))
+    ),
+    [filteredAssignments]
+  );
   const avgScore = allResults.length > 0 ? Math.round(allResults.reduce((sum, result) => sum + result.score, 0) / allResults.length) : 0;
   const avgAttention = allResults.filter((result) => result.attentionSpan != null).length > 0
     ? Math.round(allResults.filter((result) => result.attentionSpan != null).reduce((sum, result) => sum + (result.attentionSpan || 0), 0) / allResults.filter((result) => result.attentionSpan != null).length)
@@ -70,7 +81,7 @@ export default function HomeworkReview() {
   const chartData = useMemo(
     () =>
       children.map((child) => {
-        const childResults = filteredAssignments.filter((assignment) => assignment.childId === child.id).flatMap((assignment) => assignment.results);
+        const childResults = filteredAssignments.filter((assignment) => assignment.childId === child.id).flatMap(getAcceptedGameResults);
         const childAvg = childResults.length > 0 ? Math.round(childResults.reduce((sum, result) => sum + result.score, 0) / childResults.length) : 0;
         return { name: child.name, avgScore: childAvg, totalGames: childResults.length };
       }),
@@ -170,6 +181,27 @@ export default function HomeworkReview() {
         })),
     [filteredAssignments, getChild]
   );
+
+  const handleResultReview = async (
+    assignmentId: string,
+    resultId: string,
+    decision: "accepted" | "rejected" | "correction_requested"
+  ) => {
+    setReviewingResultId(resultId);
+    setReviewError(null);
+    try {
+      await reviewGameResult(assignmentId, resultId, decision, reviewRationales[resultId] || "");
+      setReviewRationales((current) => {
+        const next = { ...current };
+        delete next[resultId];
+        return next;
+      });
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : "Could not save the result review.");
+    } finally {
+      setReviewingResultId(null);
+    }
+  };
 
   const handleGeneratePDF = async () => {
     setGenerating(true);
@@ -544,6 +576,71 @@ export default function HomeworkReview() {
         </div>
       ) : null}
 
+      <div className="mb-6 rounded-xl bg-muted p-4">
+        <h3 className="mb-3 font-display font-semibold text-foreground">Game Results Awaiting Review</h3>
+        {reviewError ? <p role="alert" className="mb-3 text-sm text-destructive">{reviewError}</p> : null}
+        {pendingResults.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No game results are waiting for review.</p>
+        ) : (
+          <div className="space-y-3">
+            {pendingResults.map(({ assignment, result }) => {
+              if (!result.id) return null;
+              const rationale = reviewRationales[result.id] || "";
+              const busy = reviewingResultId === result.id;
+              return (
+                <div key={result.id} className="rounded-xl border border-border bg-card p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        {getChild(assignment.childId)?.name} · {getCatalogGameById(result.gameId)?.name || result.gameId}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {result.reviewStatus?.replace(/_/g, " ") || "legacy unreviewed"} · submitted by {result.submittedByRole || "unknown role"} · {result.completedAt}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-900">
+                      {result.reviewStatus === "correction_requested" ? "Correction requested" : "Needs review"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-foreground">
+                    Task score {result.score}/100 · {result.interactions} interactions · {Math.round(result.durationSeconds / 60)}m
+                    {result.attentionSpan != null ? ` · Attention ${result.attentionSpan}/10` : ""}
+                    {result.promptsNeeded != null ? ` · ${result.promptsNeeded} prompts` : ""}
+                    {result.emotionalRegulation != null ? ` · Regulation ${result.emotionalRegulation}/10` : ""}
+                    {result.frustrationEvents != null ? ` · ${result.frustrationEvents} frustration events` : ""}
+                  </p>
+                  <div className="mt-3">
+                    <label htmlFor={`review-rationale-${result.id}`} className="mb-1 block text-xs font-medium text-muted-foreground">
+                      Rationale (required to reject or request correction)
+                    </label>
+                    <textarea
+                      id={`review-rationale-${result.id}`}
+                      value={rationale}
+                      onChange={(event) => setReviewRationales((current) => ({ ...current, [result.id!]: event.target.value }))}
+                      maxLength={2000}
+                      rows={2}
+                      className="w-full rounded-lg border border-border bg-background p-2 text-sm text-foreground"
+                      placeholder="Add a brief reason if rejecting or requesting a correction"
+                    />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button disabled={busy} onClick={() => void handleResultReview(assignment.id, result.id!, "accepted")} className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+                      {busy ? "Saving..." : "Accept result"}
+                    </button>
+                    <button disabled={busy || !rationale.trim()} onClick={() => void handleResultReview(assignment.id, result.id!, "correction_requested")} className="rounded-lg bg-muted px-3 py-2 text-xs font-semibold text-foreground disabled:opacity-50">
+                      Request correction
+                    </button>
+                    <button disabled={busy || !rationale.trim()} onClick={() => void handleResultReview(assignment.id, result.id!, "rejected")} className="rounded-lg border border-destructive/40 px-3 py-2 text-xs font-semibold text-destructive disabled:opacity-50">
+                      Reject result
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <h3 className="mb-3 font-display font-semibold text-foreground">Assignment Details</h3>
       <div className="space-y-3">
         {filteredAssignments.map((assignment) => {
@@ -587,13 +684,26 @@ export default function HomeworkReview() {
               <p className="mt-1 text-xs text-muted-foreground">Skill focus: {assignment.skillFocus.map((domain) => domain.replace("-", " ")).join(", ")}</p>
 
               {assignment.results.length > 0 ? (
-                <div className="mt-2 grid grid-cols-3 gap-2 text-xs sm:grid-cols-6">
-                  <MetricTile label="Avg Score" value={`${Math.round(assignment.results.reduce((sum, result) => sum + result.score, 0) / assignment.results.length)}`} />
-                  <MetricTile label="Interactions" value={`${assignment.results.reduce((sum, result) => sum + result.interactions, 0)}`} />
-                  <MetricTile label="Play Time" value={`${Math.round(assignment.results.reduce((sum, result) => sum + result.durationSeconds, 0) / 60)}m`} />
-                  {assignment.results.some((result) => result.attentionSpan != null) ? <MetricTile label="Attention" value={`${Math.round(assignment.results.filter((result) => result.attentionSpan != null).reduce((sum, result) => sum + (result.attentionSpan || 0), 0) / assignment.results.filter((result) => result.attentionSpan != null).length)}/10`} /> : null}
-                  {assignment.results.some((result) => result.emotionalRegulation != null) ? <MetricTile label="Emotion" value={`${Math.round(assignment.results.filter((result) => result.emotionalRegulation != null).reduce((sum, result) => sum + (result.emotionalRegulation || 0), 0) / assignment.results.filter((result) => result.emotionalRegulation != null).length)}/10`} /> : null}
-                  {assignment.results.some((result) => result.promptsNeeded != null) ? <MetricTile label="Prompts" value={`${(assignment.results.filter((result) => result.promptsNeeded != null).reduce((sum, result) => sum + (result.promptsNeeded || 0), 0) / assignment.results.filter((result) => result.promptsNeeded != null).length).toFixed(1)}`} /> : null}
+                <div className="mt-2 space-y-2">
+                  {assignment.results.some((result) => result.reviewStatus !== "accepted") ? (
+                    <p className="text-xs text-muted-foreground">
+                      {assignment.results.filter((result) => result.reviewStatus !== "accepted").length} result(s) not yet accepted; excluded from clinical summaries and progression.
+                    </p>
+                  ) : null}
+                  {(() => {
+                    const reviewedResults = getAcceptedGameResults(assignment);
+                    if (reviewedResults.length === 0) return null;
+                    return (
+                      <div className="grid grid-cols-3 gap-2 text-xs sm:grid-cols-6">
+                        <MetricTile label="Avg Score" value={`${Math.round(reviewedResults.reduce((sum, result) => sum + result.score, 0) / reviewedResults.length)}`} />
+                        <MetricTile label="Interactions" value={`${reviewedResults.reduce((sum, result) => sum + result.interactions, 0)}`} />
+                        <MetricTile label="Play Time" value={`${Math.round(reviewedResults.reduce((sum, result) => sum + result.durationSeconds, 0) / 60)}m`} />
+                        {reviewedResults.some((result) => result.attentionSpan != null) ? <MetricTile label="Attention" value={`${Math.round(reviewedResults.filter((result) => result.attentionSpan != null).reduce((sum, result) => sum + (result.attentionSpan || 0), 0) / reviewedResults.filter((result) => result.attentionSpan != null).length)}/10`} /> : null}
+                        {reviewedResults.some((result) => result.emotionalRegulation != null) ? <MetricTile label="Emotion" value={`${Math.round(reviewedResults.filter((result) => result.emotionalRegulation != null).reduce((sum, result) => sum + (result.emotionalRegulation || 0), 0) / reviewedResults.filter((result) => result.emotionalRegulation != null).length)}/10`} /> : null}
+                        {reviewedResults.some((result) => result.promptsNeeded != null) ? <MetricTile label="Prompts" value={`${(reviewedResults.filter((result) => result.promptsNeeded != null).reduce((sum, result) => sum + (result.promptsNeeded || 0), 0) / reviewedResults.filter((result) => result.promptsNeeded != null).length).toFixed(1)}`} /> : null}
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : null}
             </div>
