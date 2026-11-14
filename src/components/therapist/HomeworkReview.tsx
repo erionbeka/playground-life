@@ -602,6 +602,13 @@ export default function HomeworkReview() {
                       {result.reviewStatus === "correction_requested" ? "Correction requested" : "Needs review"}
                     </span>
                   </div>
+                  <p className="mt-2 text-xs text-foreground">
+                    Task score {result.score}/100 · {result.interactions} interactions · {Math.round(result.durationSeconds / 60)}m
+                    {result.attentionSpan != null ? ` · Attention ${result.attentionSpan}/10` : ""}
+                    {result.promptsNeeded != null ? ` · ${result.promptsNeeded} prompts` : ""}
+                    {result.emotionalRegulation != null ? ` · Regulation ${result.emotionalRegulation}/10` : ""}
+                    {result.frustrationEvents != null ? ` · ${result.frustrationEvents} frustration events` : ""}
+                  </p>
                   <div className="mt-3">
                     <label htmlFor={`review-rationale-${result.id}`} className="mb-1 block text-xs font-medium text-muted-foreground">
                       Rationale (required to reject or request correction)
