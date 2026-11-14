@@ -81,9 +81,13 @@ function getChildAssignments(assignments: HomeworkAssignment[], childId: string)
   return assignments.filter((assignment) => assignment.childId === childId);
 }
 
+export function getAcceptedGameResults(assignment: HomeworkAssignment): GameResult[] {
+  return assignment.results.filter((result) => result.reviewStatus === "accepted");
+}
+
 function getChildResults(assignments: HomeworkAssignment[], childId: string): GameResult[] {
   return getChildAssignments(assignments, childId)
-    .flatMap((assignment) => assignment.results)
+    .flatMap(getAcceptedGameResults)
     .sort((left, right) => left.completedAt.localeCompare(right.completedAt));
 }
 
@@ -604,22 +608,23 @@ export function buildMonthlyPlan(
 }
 
 export function analyzeMonthlyPlanWeekOutcome(assignment: HomeworkAssignment): MonthlyPlanOutcomeReview | null {
-  if (!assignment.monthlyPlan || assignment.results.length === 0) return null;
+  const reviewedResults = getAcceptedGameResults(assignment);
+  if (!assignment.monthlyPlan || reviewedResults.length === 0) return null;
 
-  const averageScore = Math.round(assignment.results.reduce((sum, result) => sum + result.score, 0) / assignment.results.length);
-  const promptResults = assignment.results.filter((result) => result.promptsNeeded != null);
+  const averageScore = Math.round(reviewedResults.reduce((sum, result) => sum + result.score, 0) / reviewedResults.length);
+  const promptResults = reviewedResults.filter((result) => result.promptsNeeded != null);
   const averagePrompts = promptResults.length > 0
     ? Number((promptResults.reduce((sum, result) => sum + (result.promptsNeeded || 0), 0) / promptResults.length).toFixed(1))
     : null;
-  const regulationResults = assignment.results.filter((result) => result.emotionalRegulation != null);
+  const regulationResults = reviewedResults.filter((result) => result.emotionalRegulation != null);
   const averageRegulation = regulationResults.length > 0
     ? Math.round(regulationResults.reduce((sum, result) => sum + (result.emotionalRegulation || 0), 0) / regulationResults.length)
     : null;
-  const independenceResults = assignment.results.filter((result) => result.independenceLevel != null);
+  const independenceResults = reviewedResults.filter((result) => result.independenceLevel != null);
   const averageIndependence = independenceResults.length > 0
     ? Math.round(independenceResults.reduce((sum, result) => sum + (result.independenceLevel || 0), 0) / independenceResults.length)
     : null;
-  const totalFrustration = assignment.results.reduce((sum, result) => sum + (result.frustrationEvents || 0), 0);
+  const totalFrustration = reviewedResults.reduce((sum, result) => sum + (result.frustrationEvents || 0), 0);
   const completionRate = assignment.gameIds.length > 0
     ? Math.round((assignment.completedGames.length / assignment.gameIds.length) * 100)
     : 0;
